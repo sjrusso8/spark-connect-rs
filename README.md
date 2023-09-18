@@ -72,7 +72,7 @@ are working with the Spark Connect session
 | selectExpr      | ![done] | Does not include the new Spark Connect 3.5 feature with "position arguments" |
 | filter          | ![done] |                                                                              |
 | createTempView  | ![done] | There is an error right now, and the functions are private till it's fixed   |
-| show            | ![open] |                                                                              |
+| show            | ![done] |                                                                              |
 | tail            | ![open] |                                                                              |
 | withColumns     | ![open] |                                                                              |
 | drop            | ![open] |                                                                              |
