@@ -37,7 +37,12 @@ jobs:
         with:
           submodules: "true"
 
-      - name: Install minimal stable with clippy and rustfmt
+      - name: install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: 23.x
+
+      - name: install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:
           profile: default
@@ -72,7 +77,12 @@ jobs:
         with:
           submodules: "true"
 
-      - name: Install minimal stable with clippy and rustfmt
+      - name: install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: 23.x
+
+      - name: install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:
           profile: default
