@@ -79,3 +79,7 @@ are working with the Spark Connect session
 | sort            | ![open] |                                                                              |
 | groupBy         | ![open] |                                                                              |
 | many more!      | ![open] |                                                                              |
+
+
+[open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg
+[done]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/ApprovedChanges.svg

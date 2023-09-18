@@ -61,7 +61,7 @@ jobs:
         run: cargo check
 
   integration_test:
-    name: Integration Tests
+    name: integration tests
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0
