@@ -6,6 +6,7 @@ license = "Apache-2.0"
 description = "Apache Spark Connect Client for Rust"
 keywords = ["spark", "spark connect"]
 readme = "README.md"
+homepage = "https://github.com/sjrusso8/spark-connect-rs"
 repository = "https://github.com/sjrusso8/spark-connect-rs"
 include = [
     ".env",
