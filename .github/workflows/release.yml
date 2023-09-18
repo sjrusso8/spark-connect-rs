@@ -22,8 +22,6 @@ jobs:
   release-crate:
     needs: validate-release-tag
     name: Release crate
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +31,11 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+
+      - name: install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: 23.x
 
       - name: cargo publish
         uses: actions-rs/cargo@v1
