@@ -1,0 +1,15 @@
+version: '3'
+services:
+  spark:
+    image: "apache/spark:${SPARK_VERSION}-scala${SCALA_VERSION}-java${JAVA_VERSION}-r-${OS}"
+    command:
+      - "/opt/spark/sbin/start-connect-server.sh"
+      - "--conf"
+      - "spark.driver.extraJavaOptions=-Divy.cache.dir=/tmp -Divy.home=/tmp"
+      - "--packages"
+      - "org.apache.spark:spark-connect_${SCALA_VERSION}:${SPARK_VERSION}"
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+    ports:
+      - "4040:4040"
+      - "15002:15002"

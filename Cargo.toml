@@ -1,0 +1,46 @@
+[package]
+name = "spark-connect-rs"
+version = "0.0.1-alpha"
+edition = "2021"
+license = "Apache-2.0"
+description = "Apache Spark Connect Client for Rust"
+keywords = ["spark", "spark connect"]
+readme = "README.md"
+repository = "https://github.com/sjrusso8/spark-connect-rs"
+include = [
+    ".env",
+    "build.rs",
+    "docker-compose.yml",
+    "examples/**/*",
+    "src/**/*",
+    "spark/connector/connect/common/src/main/protobuf/spark/**/*",
+]
+
+[dependencies]
+tonic = "0.10.0"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio-rustls = "0.24.1"
+
+arrow = { version = "46.0.0", features = ["prettyprint"] }
+arrow-ipc = "46.0.0"
+
+prost = "0.12.0"
+prost-types = "0.12.0"
+
+uuid = { version = "1.4.1", features = ["v4"] }
+url = "2.2"
+
+[build-dependencies]
+tonic-build = "0.10.0"
+
+[lib]
+doctest = false
+
+[[example]]
+name = "reader"
+
+[[example]]
+name = "sql"
+
+[[example]]
+name = "writer"
