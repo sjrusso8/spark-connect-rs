@@ -10,7 +10,9 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
 
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
@@ -23,12 +25,12 @@ jobs:
         run: cargo fmt -- --check
 
   build:
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
 
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
@@ -61,7 +63,9 @@ jobs:
       RUST_BACKTRACE: "1"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
 
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
