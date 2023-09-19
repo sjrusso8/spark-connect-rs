@@ -73,7 +73,7 @@ are working with the Spark Connect session
 | filter          | ![done] |                                                                              |
 | createTempView  | ![done] | There is an error right now, and the functions are private till it's fixed   |
 | show            | ![done] |                                                                              |
-| tail            | ![open] |                                                                              |
+| tail            | ![done] |                                                                              |
 | withColumns     | ![open] |                                                                              |
 | drop            | ![open] |                                                                              |
 | sort            | ![open] |                                                                              |
