@@ -284,7 +284,7 @@ impl DataFrame {
         }
     }
 
-    /// Prnts the plans to the console
+    /// Prints the [spark::Plan] to the console
     ///
     /// # Arguments:
     /// * `mode`: &str. Defaults to `unspecified`
@@ -295,7 +295,7 @@ impl DataFrame {
     ///     - `formatted`
     ///     - `unspecified`
     ///
-    pub async fn explain(&mut self, mode: &str) -> spark::analyze_plan_response::Explain {
+    pub async fn explain(&mut self, mode: &str) {
         let explain_mode = match mode {
             "simple" => spark::analyze_plan_request::explain::ExplainMode::Simple,
             "extended" => spark::analyze_plan_request::explain::ExplainMode::Extended,
@@ -312,12 +312,12 @@ impl DataFrame {
             },
         ));
 
-        let result = self.spark_session.analyze_plan(analyze).await;
-
-        match result {
+        let explain = match self.spark_session.analyze_plan(analyze).await {
             spark::analyze_plan_response::Result::Explain(explain) => explain,
             _ => panic!("Unexpected result"),
-        }
+        };
+
+        println!("{}", explain.explain_string)
     }
 
     #[allow(non_snake_case, dead_code)]
