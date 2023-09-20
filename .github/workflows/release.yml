@@ -1,4 +1,4 @@
-name: Release to Cargo
+name: release to cargo
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
         run: |
           PUSHED_TAG=${GITHUB_REF##*/}
           CURR_VER=$( grep version Cargo.toml | head -n 1 | awk '{print $3}' | tr -d '"' )
-          if [[ "${PUSHED_TAG}" != "rust-v${CURR_VER}" ]]; then
+          if [[ "${PUSHED_TAG}" != "v${CURR_VER}" ]]; then
             echo "Cargo metadata has version set to ${CURR_VER}, but got pushed tag ${PUSHED_TAG}."
             exit 1
           fi
