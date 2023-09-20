@@ -9,7 +9,8 @@
 //! Create a Spark Session and create a DataFrame from a SQL statement:
 //!
 //! ```rust
-//! async {
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!     let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
 //!         .build()
@@ -18,13 +19,16 @@
 //!     let mut df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`");
 //!
 //!     df.filter("salary > 3000").show(Some(5), None, None).await?;
+//!
+//!     Ok(())
 //! };
 //!```
 //!
 //! Create a Spark Session, create a DataFrame from a CSV file, and write the results:
 //!
 //! ```rust
-//! async {
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //!     let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
 //!         .build()
@@ -48,6 +52,8 @@
 //!       .option("header", "true")
 //!       .save("/opt/spark/examples/src/main/rust/people/")
 //!       .await?;
+//!
+//!     Ok(())
 //! };
 //!```
 //!
@@ -142,6 +148,31 @@ mod tests {
             .format("csv")
             .option("header", "true")
             .load(vec![path.to_string()]);
+
+        let total: usize = df
+            .select(vec!["range_id"])
+            .collect()
+            .await
+            .unwrap()
+            .iter()
+            .map(|batch| batch.num_rows())
+            .sum();
+
+        assert_eq!(total, 1000)
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_table() {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        df.write().saveAsTable("test_table").await.unwrap();
+
+        let mut df = spark.clone().read().table("test_table", None);
 
         let total: usize = df
             .select(vec!["range_id"])

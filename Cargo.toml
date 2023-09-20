@@ -1,6 +1,6 @@
 [package]
 name = "spark-connect-rs"
-version = "0.0.1-alpha"
+version = "0.0.1-alpha.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Apache Spark Connect Client for Rust"
@@ -31,6 +31,7 @@ prost-types = "0.12.0"
 
 uuid = { version = "1.4.1", features = ["v4"] }
 url = "2.2"
+
 
 [build-dependencies]
 tonic-build = "0.10.0"

@@ -33,6 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`");
 
     df.filter("salary > 3000").show(Some(5), None, None).await?;
+
+    Ok(())
 }
 ```
 
@@ -50,7 +52,10 @@ cargo build && cargo test
 ## Features
 
 The following section outlines some of the implemented functions that
-are working with the Spark Connect session
+are working with the Spark Connect session.
+
+- ![open] better Error handling
+- ![open] not so much use of `clone()`
 
 ### SparkSession
 
@@ -71,15 +76,41 @@ are working with the Spark Connect session
 | select          | ![done] |                                                                              |
 | selectExpr      | ![done] | Does not include the new Spark Connect 3.5 feature with "position arguments" |
 | filter          | ![done] |                                                                              |
-| createTempView  | ![done] | There is an error right now, and the functions are private till it's fixed   |
+| limit           | ![done] |                                                                              |
+| dropDuplicates  | ![done] |                                                                              |
+| withColumnsRenamed | ![done] |                                                                           |
+| drop            | ![done] |                                                                              |
+| sample          | ![done] |                                                                              |
+| repartition     | ![done] |                                                                              |
+| offset          | ![done] |                                                                              |
+| schema          | ![done] | The output needs to be handled better                                        |
+| explain         | ![done] | The output needs to be handled better                                        |
 | show            | ![done] |                                                                              |
 | tail            | ![done] |                                                                              |
+| collect         | ![done] |                                                                              |
 | withColumns     | ![open] |                                                                              |
-| drop            | ![open] |                                                                              |
 | sort            | ![open] |                                                                              |
 | groupBy         | ![open] |                                                                              |
+| createTempView  | ![open] | There is an error right now, and the functions are private till it's fixed   |
 | many more!      | ![open] |                                                                              |
 
+### DataFrameWriter
+
+Spark Connect *should* respect the format as long as your cluster supports the specified type and has the
+required jars
+
+| DataFrame       | API     | Comment                                                                      |
+|-----------------|---------|------------------------------------------------------------------------------|
+| format          | ![done] |                                                                              |
+| option          | ![done] |                                                                              |
+| options         | ![done] |                                                                              |
+| mode            | ![done] |                                                                              |
+| bucketBy        | ![done] |                                                                              |
+| sortBy          | ![done] |                                                                              |
+| partitionBy     | ![done] |                                                                              |
+| save            | ![done] |                                                                              |
+| saveAsTable     | ![done] |                                                                              |
+| insertInto       | ![done] |                                                                              |
 
 [open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg
 [done]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/ApprovedChanges.svg

@@ -19,6 +19,10 @@ impl LogicalPlanBuilder {
         Self { relation }
     }
 
+    pub fn relation_input(self) -> Option<Box<Relation>> {
+        Some(Box::new(self.relation))
+    }
+
     /// Build the Spark [spark::Plan] for a [Relation]
     pub fn build_plan_root(self) -> spark::Plan {
         spark::Plan {

@@ -244,6 +244,22 @@ impl SparkSession {
         }
     }
 
+    fn build_analyze_plan_request(
+        &self,
+        analyze: Option<spark::analyze_plan_request::Analyze>,
+    ) -> spark::AnalyzePlanRequest {
+        spark::AnalyzePlanRequest {
+            session_id: self.session_id.clone(),
+            user_context: Some(spark::UserContext {
+                user_id: self.user.clone().unwrap_or("NA".to_string()),
+                user_name: self.user.clone().unwrap_or("NA".to_string()),
+                extensions: vec![],
+            }),
+            client_type: Some("_SPARK_CONNECT_RUST".to_string()),
+            analyze,
+        }
+    }
+
     async fn execute_plan(
         &mut self,
         plan: Option<spark::Plan>,
@@ -280,6 +296,18 @@ impl SparkSession {
             let _ = handler.handle_response(&resp);
         }
         handler.records()
+    }
+
+    pub async fn analyze_plan(
+        &mut self,
+        analyze: Option<spark::analyze_plan_request::Analyze>,
+    ) -> spark::analyze_plan_response::Result {
+        let request = self.build_analyze_plan_request(analyze);
+        let mut client = self.client.lock().await;
+
+        let stream = client.analyze_plan(request).await.unwrap().into_inner();
+
+        stream.result.unwrap()
     }
 }
 
