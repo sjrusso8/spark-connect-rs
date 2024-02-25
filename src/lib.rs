@@ -63,17 +63,29 @@ pub mod spark {
     tonic::include_proto!("spark.connect");
 }
 
+pub mod client;
 pub mod dataframe;
-pub mod execution;
 pub mod plan;
+pub mod readwriter;
+pub mod session;
+
+mod handler;
 
 pub use arrow;
 pub use dataframe::{DataFrame, DataFrameReader, DataFrameWriter};
-pub use execution::context::{SparkSession, SparkSessionBuilder};
-pub use plan::LogicalPlanBuilder;
+pub use session::{SparkSession, SparkSessionBuilder};
 
 #[cfg(test)]
 mod tests {
+
+    use std::sync::Arc;
+
+    use arrow::{
+        array::Int64Array,
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    };
+
     use super::*;
 
     async fn setup() -> SparkSession {
@@ -98,6 +110,25 @@ mod tests {
         let total: usize = rows.iter().map(|batch| batch.num_rows()).sum();
 
         assert_eq!(total, 100)
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_sort() {
+        let spark = setup().await;
+
+        let mut df = spark
+            .range(None, 100, 1, Some(1))
+            .sort(vec!["id"], Some(vec![false]));
+
+        let rows = df.limit(1).collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+
+        let value = Int64Array::from(vec![99]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(value)]).unwrap();
+
+        assert_eq!(expected_batch, rows[0])
     }
 
     #[tokio::test]
@@ -170,7 +201,11 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .selectExpr(vec!["id AS range_id"]);
 
-        df.write().saveAsTable("test_table").await.unwrap();
+        df.write()
+            .mode("overwrite")
+            .saveAsTable("test_table")
+            .await
+            .unwrap();
 
         let mut df = spark.clone().read().table("test_table", None);
 
