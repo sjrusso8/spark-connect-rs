@@ -2,8 +2,10 @@ use spark_connect_rs;
 
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
+use spark_connect_rs::functions::col;
+
 // This example demonstrates creating a Spark DataFrame from range()
-// changing the column name, writing the results to a CSV
+// alias the column name, writing the results to a CSV
 // then reading the csv file back
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = spark
         .clone()
         .range(None, 1000, 1, Some(16))
-        .selectExpr(vec!["id AS range_id"]);
+        .select(vec![col("id").alias("range_id")]);
 
     let path = "/opt/spark/examples/src/main/rust/employees/";
 

@@ -2,6 +2,8 @@ use spark_connect_rs;
 
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
+use spark_connect_rs::functions::col;
+
 // This example demonstrates creating a Spark DataFrame from a CSV with read options
 // and then adding transformations for 'select' & 'filter'
 // printing the results as "show(...)"
@@ -19,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .load(paths);
 
     df.filter("age > 30")
-        .select(vec!["name"])
+        .select(vec![col("name")])
         .show(Some(5), None, None)
         .await?;
 
