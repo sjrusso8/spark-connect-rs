@@ -63,18 +63,35 @@ pub mod spark {
     tonic::include_proto!("spark.connect");
 }
 
+pub mod client;
 pub mod dataframe;
-pub mod execution;
 pub mod plan;
+pub mod readwriter;
+pub mod session;
+
+pub mod column;
+pub mod expressions;
+pub mod functions;
+mod handler;
 
 pub use arrow;
 pub use dataframe::{DataFrame, DataFrameReader, DataFrameWriter};
-pub use execution::context::{SparkSession, SparkSessionBuilder};
-pub use plan::LogicalPlanBuilder;
+pub use session::{SparkSession, SparkSessionBuilder};
 
 #[cfg(test)]
 mod tests {
+
+    use std::sync::Arc;
+
+    use arrow::{
+        array::Int64Array,
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    };
+
     use super::*;
+
+    use super::functions::*;
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
@@ -101,6 +118,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_dataframe_sort() {
+        let spark = setup().await;
+
+        let mut df = spark
+            .range(None, 100, 1, Some(1))
+            .sort(vec!["id"], Some(vec![false]));
+
+        let rows = df.limit(1).collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+
+        let value = Int64Array::from(vec![99]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(value)]).unwrap();
+
+        assert_eq!(expected_batch, rows[0])
+    }
+
+    #[tokio::test]
     async fn test_dataframe_read() {
         let spark = setup().await;
 
@@ -115,7 +151,7 @@ mod tests {
 
         let rows = df
             .filter("age > 30")
-            .select(vec!["name"])
+            .select(vec![col("name")])
             .collect()
             .await
             .unwrap();
@@ -150,7 +186,7 @@ mod tests {
             .load(vec![path.to_string()]);
 
         let total: usize = df
-            .select(vec!["range_id"])
+            .select(vec![col("range_id")])
             .collect()
             .await
             .unwrap()
@@ -170,12 +206,16 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .selectExpr(vec!["id AS range_id"]);
 
-        df.write().saveAsTable("test_table").await.unwrap();
+        df.write()
+            .mode("overwrite")
+            .saveAsTable("test_table")
+            .await
+            .unwrap();
 
         let mut df = spark.clone().read().table("test_table", None);
 
         let total: usize = df
-            .select(vec!["range_id"])
+            .select(vec![col("range_id")])
             .collect()
             .await
             .unwrap()
