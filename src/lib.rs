@@ -69,6 +69,9 @@ pub mod plan;
 pub mod readwriter;
 pub mod session;
 
+pub mod column;
+pub mod expressions;
+pub mod functions;
 mod handler;
 
 pub use arrow;
@@ -87,6 +90,8 @@ mod tests {
     };
 
     use super::*;
+
+    use super::functions::*;
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
@@ -146,7 +151,7 @@ mod tests {
 
         let rows = df
             .filter("age > 30")
-            .select(vec!["name"])
+            .select(vec![col("name")])
             .collect()
             .await
             .unwrap();
@@ -181,7 +186,7 @@ mod tests {
             .load(vec![path.to_string()]);
 
         let total: usize = df
-            .select(vec!["range_id"])
+            .select(vec![col("range_id")])
             .collect()
             .await
             .unwrap()
@@ -210,7 +215,7 @@ mod tests {
         let mut df = spark.clone().read().table("test_table", None);
 
         let total: usize = df
-            .select(vec!["range_id"])
+            .select(vec![col("range_id")])
             .collect()
             .await
             .unwrap()

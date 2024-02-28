@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use crate::column::Column;
 use crate::plan::LogicalPlanBuilder;
 pub use crate::readwriter::{DataFrameReader, DataFrameWriter};
 use crate::session::SparkSession;
@@ -44,10 +45,10 @@ impl DataFrame {
     /// # Example:
     /// ```rust
     /// async {
-    ///     df.select(vec!["age", "name"]).collect().await?;
+    ///     df.select(vec![col("age"), col("name")]).collect().await?;
     /// }
     /// ```
-    pub fn select(&mut self, cols: Vec<&str>) -> DataFrame {
+    pub fn select(&mut self, cols: Vec<Column>) -> DataFrame {
         DataFrame::new(self.spark_session.clone(), self.logical_plan.select(cols))
     }
 
@@ -110,7 +111,7 @@ impl DataFrame {
     ///
     /// Alias for `dropDuplciates`
     ///
-    pub fn drop_duplicates(&mut self, cols: Option<Vec<String>>) -> DataFrame {
+    pub fn drop_duplicates(&mut self, cols: Option<Vec<&str>>) -> DataFrame {
         DataFrame::new(
             self.spark_session.clone(),
             self.logical_plan.drop_duplicates(cols),
@@ -118,7 +119,7 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn dropDuplicates(&mut self, cols: Option<Vec<String>>) -> DataFrame {
+    pub fn dropDuplicates(&mut self, cols: Option<Vec<&str>>) -> DataFrame {
         self.drop_duplicates(cols)
     }
 

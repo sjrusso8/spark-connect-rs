@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::column::Column;
+use crate::expressions::ToExpressionVec;
 use crate::spark;
 use crate::spark::expression::SortOrder;
 
@@ -17,7 +19,6 @@ pub struct LogicalPlanBuilder {
     /// A [Relation] object that contains the unresolved
     /// logical plan
     pub relation: Relation,
-    // plan_id: Option<i64>,
 }
 
 impl LogicalPlanBuilder {
@@ -62,18 +63,8 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder { relation }
     }
 
-    pub fn select(&mut self, cols: Vec<&str>) -> LogicalPlanBuilder {
-        let expressions: Vec<spark::Expression> = cols
-            .iter()
-            .map(|&col| spark::Expression {
-                expr_type: Some(spark::expression::ExprType::UnresolvedAttribute(
-                    spark::expression::UnresolvedAttribute {
-                        unparsed_identifier: col.to_string(),
-                        plan_id: None,
-                    },
-                )),
-            })
-            .collect();
+    pub fn select(&mut self, cols: Vec<Column>) -> LogicalPlanBuilder {
+        let expressions = cols.to_expression_vec();
 
         let rel_type = RelType::Project(Box::new(spark::Project {
             expressions,
@@ -84,9 +75,9 @@ impl LogicalPlanBuilder {
     }
 
     pub fn select_expr(&mut self, cols: Vec<&str>) -> LogicalPlanBuilder {
-        let expressions: Vec<spark::Expression> = cols
+        let expressions = cols
             .iter()
-            .map(|&col| spark::Expression {
+            .map(|col| spark::Expression {
                 expr_type: Some(spark::expression::ExprType::ExpressionString(
                     spark::expression::ExpressionString {
                         expression: col.to_string(),
@@ -127,11 +118,11 @@ impl LogicalPlanBuilder {
         self.from(limit_expr)
     }
 
-    pub fn drop_duplicates(&mut self, cols: Option<Vec<String>>) -> LogicalPlanBuilder {
+    pub fn drop_duplicates(&mut self, cols: Option<Vec<&str>>) -> LogicalPlanBuilder {
         let drop_expr = match cols {
             Some(cols) => RelType::Deduplicate(Box::new(spark::Deduplicate {
                 input: self.clone().relation_input(),
-                column_names: cols,
+                column_names: cols.iter().map(|col| col.to_string()).collect(),
                 all_columns_as_keys: Some(false),
                 within_watermark: Some(false),
             })),
