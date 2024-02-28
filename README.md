@@ -110,7 +110,40 @@ required jars
 | partitionBy     | ![done] |                                                                              |
 | save            | ![done] |                                                                              |
 | saveAsTable     | ![done] |                                                                              |
-| insertInto       | ![done] |                                                                              |
+| insertInto      | ![done] |                                                                              |
+
+
+### Column
+
+Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/column.html) type object and its implemented traits
+
+
+| DataFrame        | API     | Comment                                                                      |
+|------------------|---------|------------------------------------------------------------------------------|
+| alias            | ![done] |                                                                              |
+| asc              | ![open] |                                                                              |
+| asc_nulls_first  | ![open] |                                                                              |
+| asc_nulls_last   | ![open] |                                                                              |
+| astype           | ![open] |                                                                              |
+| between          | ![open] |                                                                              |
+| cast             | ![open] |                                                                              |
+| contains         | ![open] |                                                                              |
+| desc             | ![open] |                                                                              |
+| desc_nulls_first | ![open] |                                                                              |
+| desc_nulls_last  | ![open] |                                                                              |
+| dropFields       | ![open] |                                                                              |
+| endswith         | ![open] |                                                                              |
+| ilike            | ![open] |                                                                              |
+| isNotNull        | ![open] |                                                                              |
+| isNull           | ![open] |                                                                              |
+| isin             | ![open] |                                                                              |
+| like             | ![open] |                                                                              |
+| name             | ![done] |                                                                              |
+| otherwise        | ![open] |                                                                              |
+| rlike            | ![open] |                                                                              |
+| startswith       | ![open] |                                                                              |
+| substr           | ![open] |                                                                              |
+| when             | ![open] |                                                                              |
 
 [open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg
 [done]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/ApprovedChanges.svg
