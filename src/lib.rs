@@ -123,7 +123,7 @@ mod tests {
 
         let mut df = spark
             .range(None, 100, 1, Some(1))
-            .sort(vec!["id"], Some(vec![false]));
+            .sort(vec![col("id").desc()]);
 
         let rows = df.limit(1).collect().await.unwrap();
 

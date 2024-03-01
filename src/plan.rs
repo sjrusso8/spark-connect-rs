@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
 use crate::column::Column;
-use crate::expressions::ToExpressionVec;
+use crate::expressions::{ToFilterExpr, ToVecExpr};
 use crate::spark;
-use crate::spark::expression::SortOrder;
 
 use spark::relation::RelType;
 use spark::Relation;
 use spark::RelationCommon;
 
-use spark::expression::{ExprType, ExpressionString};
-use spark::Expression;
+use spark::expression::ExprType;
 
 /// Implements a struct to hold the current [Relation]
 /// which represents an unresolved Logical Plan
@@ -63,11 +61,9 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder { relation }
     }
 
-    pub fn select(&mut self, cols: Vec<Column>) -> LogicalPlanBuilder {
-        let expressions = cols.to_expression_vec();
-
+    pub fn select<T: ToVecExpr>(&mut self, cols: T) -> LogicalPlanBuilder {
         let rel_type = RelType::Project(Box::new(spark::Project {
-            expressions,
+            expressions: cols.to_vec_expr(),
             input: self.clone().relation_input(),
         }));
 
@@ -75,35 +71,27 @@ impl LogicalPlanBuilder {
     }
 
     pub fn select_expr(&mut self, cols: Vec<&str>) -> LogicalPlanBuilder {
-        let expressions = cols
-            .iter()
-            .map(|col| spark::Expression {
-                expr_type: Some(spark::expression::ExprType::ExpressionString(
-                    spark::expression::ExpressionString {
-                        expression: col.to_string(),
-                    },
-                )),
-            })
-            .collect();
-
         let rel_type = RelType::Project(Box::new(spark::Project {
-            expressions,
+            expressions: cols.to_vec_expr(),
             input: self.clone().relation_input(),
         }));
 
         self.from(rel_type)
     }
 
-    pub fn filter(&mut self, condition: &str) -> LogicalPlanBuilder {
-        let filter_expr = ExprType::ExpressionString(ExpressionString {
-            expression: condition.to_string(),
-        });
-
+    pub fn filter<T: ToFilterExpr>(&mut self, condition: T) -> LogicalPlanBuilder {
         let rel_type = RelType::Filter(Box::new(spark::Filter {
             input: self.clone().relation_input(),
-            condition: Some(Expression {
-                expr_type: Some(filter_expr),
-            }),
+            condition: condition.to_filter_expr(),
+        }));
+
+        self.from(rel_type)
+    }
+
+    pub fn contains(&mut self, condition: Column) -> LogicalPlanBuilder {
+        let rel_type = RelType::Filter(Box::new(spark::Filter {
+            input: self.clone().relation_input(),
+            condition: Some(condition.expression.clone()),
         }));
 
         self.from(rel_type)
@@ -199,53 +187,18 @@ impl LogicalPlanBuilder {
         self.from(offset_expr)
     }
 
-    pub fn sort(&mut self, cols: Vec<&str>, ascending: Option<Vec<bool>>) -> LogicalPlanBuilder {
-        let mut order: Vec<SortOrder> = Vec::new();
-
-        match ascending {
-            None => {
-                for col in cols.iter() {
-                    let sort_order = SortOrder {
-                        child: Some(Box::new(Expression {
-                            expr_type: Some(spark::expression::ExprType::ExpressionString(
-                                spark::expression::ExpressionString {
-                                    expression: col.to_string(),
-                                },
-                            )),
-                        })),
-                        null_ordering: 0,
-                        direction: 0,
-                    };
-                    order.push(sort_order);
+    pub fn sort(&mut self, cols: Vec<Column>) -> LogicalPlanBuilder {
+        let order = cols
+            .iter()
+            .map(|col| {
+                if let ExprType::SortOrder(ord) = col.expression.clone().expr_type.unwrap() {
+                    *ord
+                } else {
+                    // TODO don't make this a panic but actually raise an error
+                    panic!("not sortable")
                 }
-            }
-            Some(ascending) => {
-                if cols.len() != ascending.len() {
-                    panic!("must be the same length")
-                };
-                for (i, col) in cols.iter().enumerate() {
-                    let sort_dir = ascending.get(i).unwrap();
-                    let direction = match sort_dir {
-                        true => 1,
-                        false => 2,
-                    };
-
-                    let sort_order = SortOrder {
-                        child: Some(Box::new(Expression {
-                            expr_type: Some(spark::expression::ExprType::ExpressionString(
-                                spark::expression::ExpressionString {
-                                    expression: col.to_string(),
-                                },
-                            )),
-                        })),
-                        null_ordering: 0,
-                        direction,
-                    };
-
-                    order.push(sort_order);
-                }
-            }
-        }
+            })
+            .collect();
 
         let sort_type = RelType::Sort(Box::new(spark::Sort {
             order,

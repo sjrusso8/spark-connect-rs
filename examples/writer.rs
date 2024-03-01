@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = spark
         .clone()
         .range(None, 1000, 1, Some(16))
-        .select(vec![col("id").alias("range_id")]);
+        .select(col("id").alias("range_id"));
 
     let path = "/opt/spark/examples/src/main/rust/employees/";
 

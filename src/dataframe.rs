@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use crate::column::Column;
+use crate::expressions::{ToFilterExpr, ToVecExpr};
 use crate::plan::LogicalPlanBuilder;
 pub use crate::readwriter::{DataFrameReader, DataFrameWriter};
 use crate::session::SparkSession;
@@ -48,7 +49,7 @@ impl DataFrame {
     ///     df.select(vec![col("age"), col("name")]).collect().await?;
     /// }
     /// ```
-    pub fn select(&mut self, cols: Vec<Column>) -> DataFrame {
+    pub fn select<T: ToVecExpr>(&mut self, cols: T) -> DataFrame {
         DataFrame::new(self.spark_session.clone(), self.logical_plan.select(cols))
     }
 
@@ -78,18 +79,22 @@ impl DataFrame {
     ///     df.filter("salary > 4000").collect().await?;
     /// }
     /// ```
-    pub fn filter(&mut self, condition: &str) -> DataFrame {
+    pub fn filter<T: ToFilterExpr>(&mut self, condition: T) -> DataFrame {
         DataFrame::new(
             self.spark_session.clone(),
             self.logical_plan.filter(condition),
         )
     }
 
-    pub fn sort(&mut self, cols: Vec<&str>, ascending: Option<Vec<bool>>) -> DataFrame {
+    pub fn contains(&mut self, condition: Column) -> DataFrame {
         DataFrame::new(
             self.spark_session.clone(),
-            self.logical_plan.sort(cols, ascending),
+            self.logical_plan.contains(condition),
         )
+    }
+
+    pub fn sort(&mut self, cols: Vec<Column>) -> DataFrame {
+        DataFrame::new(self.spark_session.clone(), self.logical_plan.sort(cols))
     }
 
     /// Limits the result count o thte number specified and returns a new [DataFrame]
@@ -187,7 +192,7 @@ impl DataFrame {
         let schema = self.spark_session.analyze_plan(analyze).await;
 
         match schema {
-            spark::analyze_plan_response::Result::Schema(schema) => schema,
+            Some(spark::analyze_plan_response::Result::Schema(schema)) => schema,
             _ => panic!("Unexpected result"),
         }
     }
@@ -221,8 +226,8 @@ impl DataFrame {
         ));
 
         let explain = match self.spark_session.analyze_plan(analyze).await {
-            spark::analyze_plan_response::Result::Explain(explain) => explain,
-            _ => panic!("Unexpected result"),
+            Some(spark::analyze_plan_response::Result::Explain(explain)) => explain,
+            _ => panic!("Not implemented"),
         };
 
         println!("{}", explain.explain_string)
@@ -300,7 +305,7 @@ impl DataFrame {
 
         let plan = self.logical_plan.from(show_expr).build_plan_root();
 
-        let rows = self.spark_session.consume_plan(Some(plan)).await.unwrap();
+        let rows = self.spark_session.consume_plan(Some(plan)).await?;
 
         let _ = pretty::print_batches(rows.as_slice());
         Ok(())

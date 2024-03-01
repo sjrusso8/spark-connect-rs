@@ -186,12 +186,12 @@ impl SparkSession {
     pub async fn analyze_plan(
         &mut self,
         analyze: Option<spark::analyze_plan_request::Analyze>,
-    ) -> spark::analyze_plan_response::Result {
+    ) -> Option<spark::analyze_plan_response::Result> {
         let request = self.build_analyze_plan_request(analyze);
         let mut client = self.client.lock().await;
 
-        let stream = client.analyze_plan(request).await.unwrap().into_inner();
+        let stream = client.analyze_plan(request).await.unwrap();
 
-        stream.result.unwrap()
+        stream.into_inner().result
     }
 }
