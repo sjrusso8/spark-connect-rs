@@ -6,17 +6,17 @@ use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 // and then displaying the results as "show(...)"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession =
+    let mut spark: SparkSession =
         SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
             .build()
             .await?;
 
-    let mut df =
-        spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`");
+    let mut df = spark
+        .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
+        .await;
 
-    df.filter("salary > 3000").show(Some(5), None, None).await?;
+    df.select("salary").show(Some(5), None, None).await?;
 
-    // print results
     // +-----------------+
     // | show_string     |
     // +-----------------+
