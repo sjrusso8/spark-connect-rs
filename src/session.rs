@@ -1,4 +1,3 @@
-use core::panic;
 use std::collections::HashMap;
 use std::io::Error;
 use std::sync::Arc;
@@ -99,7 +98,7 @@ impl SparkSession {
                 DataFrame::new(self.clone(), logical_plan)
             }
             Some(_) => todo!("not implemented"),
-            None => panic!("got none as a response for SQL Command"),
+            None => todo!("got none as a response for SQL Command"),
         }
     }
 

@@ -227,7 +227,7 @@ impl DataFrame {
 
         let explain = match self.spark_session.analyze_plan(analyze).await {
             Some(spark::analyze_plan_response::Result::Explain(explain)) => explain,
-            _ => panic!("Not implemented"),
+            _ => todo!("Not implemented"),
         };
 
         println!("{}", explain.explain_string)
