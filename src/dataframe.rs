@@ -275,9 +275,9 @@ impl DataFrame {
                 replace,
             });
 
-        let plan = self.logical_plan.clone().build_plan_cmd(command_type);
+        let plan = LogicalPlanBuilder::build_plan_cmd(command_type);
 
-        self.spark_session.consume_plan(Some(plan)).await?;
+        self.spark_session.consume_plan(Some(plan)).await.unwrap();
 
         Ok(())
     }
@@ -303,7 +303,7 @@ impl DataFrame {
             vertical: vertical.unwrap_or(false),
         }));
 
-        let plan = self.logical_plan.from(show_expr).build_plan_root();
+        let plan = LogicalPlanBuilder::from(show_expr).build_plan_root();
 
         let rows = self.spark_session.consume_plan(Some(plan)).await?;
 
@@ -321,7 +321,7 @@ impl DataFrame {
             limit,
         }));
 
-        let plan = self.logical_plan.from(limit_expr).build_plan_root();
+        let plan = LogicalPlanBuilder::from(limit_expr).build_plan_root();
 
         let rows = self.spark_session.consume_plan(Some(plan)).await.unwrap();
 

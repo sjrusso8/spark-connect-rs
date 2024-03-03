@@ -1,22 +1,11 @@
-use crate::spark;
-
-use crate::expressions::{ToLiteralExpr, ToVecExpr};
-use crate::functions::lit;
 use std::convert::From;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Rem, Sub};
 
-fn func_op<T: ToVecExpr>(name: &str, args: T) -> Column {
-    Column::from(spark::Expression {
-        expr_type: Some(spark::expression::ExprType::UnresolvedFunction(
-            spark::expression::UnresolvedFunction {
-                function_name: name.to_string(),
-                arguments: args.to_vec_expr(),
-                is_distinct: false,
-                is_user_defined_function: false,
-            },
-        )),
-    })
-}
+use crate::spark;
+
+use crate::expressions::ToLiteralExpr;
+use crate::functions::lit;
+use crate::utils::invoke_func;
 
 #[derive(Clone, Debug)]
 pub struct Column {
@@ -64,7 +53,7 @@ impl Add for Column {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        func_op("+", vec![self, other])
+        invoke_func("+", vec![self, other])
     }
 }
 
@@ -72,7 +61,7 @@ impl Neg for Column {
     type Output = Self;
 
     fn neg(self) -> Self {
-        func_op("negative", self)
+        invoke_func("negative", self)
     }
 }
 
@@ -80,7 +69,7 @@ impl Sub for Column {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        func_op("-", vec![self, other])
+        invoke_func("-", vec![self, other])
     }
 }
 
@@ -88,7 +77,7 @@ impl Mul for Column {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        func_op("*", vec![self, other])
+        invoke_func("*", vec![self, other])
     }
 }
 
@@ -96,7 +85,7 @@ impl Div for Column {
     type Output = Self;
 
     fn div(self, other: Self) -> Self {
-        func_op("/", vec![self, other])
+        invoke_func("/", vec![self, other])
     }
 }
 
@@ -104,7 +93,7 @@ impl Rem for Column {
     type Output = Self;
 
     fn rem(self, other: Self) -> Self {
-        func_op("%", vec![self, other])
+        invoke_func("%", vec![self, other])
     }
 }
 
@@ -112,7 +101,7 @@ impl BitOr for Column {
     type Output = Self;
 
     fn bitor(self, other: Self) -> Self {
-        func_op("|", vec![self, other])
+        invoke_func("|", vec![self, other])
     }
 }
 
@@ -120,7 +109,7 @@ impl BitAnd for Column {
     type Output = Self;
 
     fn bitand(self, other: Self) -> Self {
-        func_op("&", vec![self, other])
+        invoke_func("&", vec![self, other])
     }
 }
 
@@ -128,7 +117,7 @@ impl BitXor for Column {
     type Output = Self;
 
     fn bitxor(self, other: Self) -> Self {
-        func_op("^", vec![self, other])
+        invoke_func("^", vec![self, other])
     }
 }
 
@@ -238,57 +227,57 @@ impl Column {
 
         values.insert(0, self.clone());
 
-        func_op("in", values)
+        invoke_func("in", values)
     }
 
     pub fn contains<T: ToLiteralExpr>(&self, other: T) -> Column {
         let value = lit(other);
 
-        func_op("contains", vec![self.clone(), value])
+        invoke_func("contains", vec![self.clone(), value])
     }
 
     pub fn startswith<T: ToLiteralExpr>(&self, other: T) -> Column {
         let value = lit(other);
 
-        func_op("startswith", vec![self.clone(), value])
+        invoke_func("startswith", vec![self.clone(), value])
     }
 
     pub fn endswith<T: ToLiteralExpr>(&self, other: T) -> Column {
         let value = lit(other);
 
-        func_op("endswith", vec![self.clone(), value])
+        invoke_func("endswith", vec![self.clone(), value])
     }
 
     pub fn like<T: ToLiteralExpr>(&self, other: T) -> Column {
         let value = lit(other);
 
-        func_op("like", vec![self.clone(), value])
+        invoke_func("like", vec![self.clone(), value])
     }
 
     pub fn ilike<T: ToLiteralExpr>(&self, other: T) -> Column {
         let value = lit(other);
 
-        func_op("ilike", vec![self.clone(), value])
+        invoke_func("ilike", vec![self.clone(), value])
     }
 
     pub fn rlike<T: ToLiteralExpr>(&self, other: T) -> Column {
         let value = lit(other);
 
-        func_op("rlike", vec![self.clone(), value])
+        invoke_func("rlike", vec![self.clone(), value])
     }
 
     #[allow(non_snake_case)]
     pub fn isNull(&self) -> Column {
-        func_op("isnull", self.clone())
+        invoke_func("isnull", self.clone())
     }
 
     #[allow(non_snake_case)]
     pub fn isNotNull(&self) -> Column {
-        func_op("isnotnull", self.clone())
+        invoke_func("isnotnull", self.clone())
     }
 
     #[allow(non_snake_case)]
     pub fn isNaN(&self) -> Column {
-        func_op("isNaN", self.clone())
+        invoke_func("isNaN", self.clone())
     }
 }

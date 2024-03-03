@@ -224,11 +224,7 @@ impl DataFrameWriter {
             save_type: Some(spark::write_operation::SaveType::Path(path.to_string())),
         });
 
-        let plan = self
-            .dataframe
-            .logical_plan
-            .clone()
-            .build_plan_cmd(write_command);
+        let plan = LogicalPlanBuilder::build_plan_cmd(write_command);
 
         self.dataframe
             .spark_session
@@ -256,11 +252,7 @@ impl DataFrameWriter {
             )),
         });
 
-        let plan = self
-            .dataframe
-            .logical_plan
-            .clone()
-            .build_plan_cmd(write_command);
+        let plan = LogicalPlanBuilder::build_plan_cmd(write_command);
 
         self.dataframe
             .spark_session

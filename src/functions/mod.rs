@@ -1,24 +1,14 @@
-use crate::{expressions, spark, DataFrame};
+use crate::expressions;
+use crate::spark;
+use crate::DataFrame;
 
 use crate::column::Column;
-use crate::expressions::{ToExpr, ToLiteralExpr, ToVecExpr};
+use expressions::{ToExpr, ToLiteralExpr};
+
+use crate::generate_functions;
+use crate::utils::invoke_func;
 
 use rand::random;
-
-const EMPTY_ARGS: Vec<Column> = vec![];
-
-fn invoke_func<T: ToVecExpr>(name: &str, args: T) -> Column {
-    Column::from(spark::Expression {
-        expr_type: Some(spark::expression::ExprType::UnresolvedFunction(
-            spark::expression::UnresolvedFunction {
-                function_name: name.to_string(),
-                arguments: args.to_vec_expr(),
-                is_distinct: false,
-                is_user_defined_function: false,
-            },
-        )),
-    })
-}
 
 pub fn col(value: &str) -> Column {
     Column::from(value)
@@ -32,59 +22,154 @@ pub fn lit<T: ToLiteralExpr>(col: T) -> Column {
     Column::from(col.to_literal_expr())
 }
 
-macro_rules! generate_functions_no_args {
-    ($($func_name:ident),*) => {
-        $(
-            pub fn $func_name () -> Column {
-                invoke_func(stringify!($func_name), EMPTY_ARGS)
-            }
-        )*
-    };
+#[allow(dead_code)]
+#[allow(unused_variables)]
+fn broadcast(df: DataFrame) {
+    unimplemented!("not implemented")
 }
 
-macro_rules! generate_functions_col_arg {
-    ($($func_name:ident),*) => {
-        $(
-            pub fn $func_name<T: ToExpr>(col: T) -> Column
-            where
-                Vec<T>: expressions::ToVecExpr,
-            {
-                invoke_func(stringify!($func_name), vec![col])
-            }
-        )*
-    };
+pub fn rand(seed: Option<i32>) -> Column {
+    invoke_func("rand", vec![lit(seed.unwrap_or(random::<i32>()))])
 }
 
-macro_rules! generate_functions_two_cols_arg {
-    ($($func_name:ident),*) => {
-        $(
-            pub fn $func_name<T: ToExpr>(col1: T, col2: T) -> Column
-            where
-                Vec<T>: expressions::ToVecExpr,
-            {
-                invoke_func(stringify!($func_name), vec![col1, col2])
-            }
-        )*
-    };
+pub fn randn(seed: Option<i32>) -> Column {
+    invoke_func("randn", vec![lit(seed.unwrap_or(random::<i32>()))])
 }
 
-macro_rules! generate_functions_cols_arg {
-    ($($func_name:ident),*) => {
-        $(
-            pub fn $func_name<T: ToVecExpr>(cols: T) -> Column
-            {
-                invoke_func(stringify!($func_name), cols)
-            }
-        )*
-    };
+#[allow(dead_code)]
+#[allow(unused_variables)]
+fn when<T: ToLiteralExpr>(condition: Column, value: T) -> Column {
+    unimplemented!("not implemented")
 }
 
-generate_functions_no_args!(
-    input_file_name,
+pub fn bitwise_not<T: ToExpr>(col: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("~", vec![col])
+}
+
+pub fn expr(val: &str) -> Column {
+    Column::from(spark::Expression {
+        expr_type: Some(spark::expression::ExprType::ExpressionString(
+            spark::expression::ExpressionString {
+                expression: val.to_string(),
+            },
+        )),
+    })
+}
+
+pub fn log<T: ToExpr>(arg1: T, arg2: Option<T>) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    match arg2 {
+        Some(arg2) => invoke_func("log", vec![arg1, arg2]),
+        None => ln(arg1),
+    }
+}
+
+pub fn pow<T: ToExpr>(col1: T, col2: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    power(col1, col2)
+}
+
+pub fn round<T: ToExpr + ToLiteralExpr>(col: T, scale: Option<f32>) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    let values = vec![lit(col), lit(scale.unwrap_or(0.0)).clone()];
+    invoke_func("round", values)
+}
+
+pub fn add_months<T: ToExpr>(start: T, months: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("add_months", vec![start, months])
+}
+
+pub fn date_add<T: ToExpr>(start: T, days: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("date_add", vec![start, days])
+}
+
+pub fn dateadd<T: ToExpr>(start: T, days: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("dateadd", vec![start, days])
+}
+
+pub fn datediff<T: ToExpr>(end: T, start: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("datediff", vec![end, start])
+}
+
+pub fn date_sub<T: ToExpr>(start: T, end: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("date_sub", vec![start, end])
+}
+
+pub fn character_length<T: ToExpr>(str: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("character_length", vec![str])
+}
+
+pub fn char_length<T: ToExpr>(str: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("char_length", vec![str])
+}
+
+pub fn ucase<T: ToExpr>(str: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("ucase", vec![str])
+}
+
+pub fn asc<T: ToLiteralExpr>(col: T) -> Column {
+    Column::from(col.to_literal_expr()).asc()
+}
+
+pub fn asc_nulls_first<T: ToLiteralExpr>(col: T) -> Column {
+    Column::from(col.to_literal_expr()).asc_nulls_first()
+}
+
+pub fn asc_nulls_last<T: ToLiteralExpr>(col: T) -> Column {
+    Column::from(col.to_literal_expr()).asc_nulls_last()
+}
+
+pub fn desc<T: ToLiteralExpr>(col: T) -> Column {
+    Column::from(col.to_literal_expr()).desc()
+}
+
+pub fn desc_nulls_first<T: ToLiteralExpr>(col: T) -> Column {
+    Column::from(col.to_literal_expr()).desc_nulls_first()
+}
+
+pub fn desc_nulls_last<T: ToLiteralExpr>(col: T) -> Column {
+    Column::from(col.to_literal_expr()).desc_nulls_last()
+}
+
+// functions that require no arguments
+generate_functions!(
+    no_args: pi, input_file_name,
     monotonically_increasing_id,
     spark_partition_id,
     e,
-    pi,
     curdate,
     current_date,
     current_timezone,
@@ -104,8 +189,9 @@ generate_functions_no_args!(
     cume_dist
 );
 
-generate_functions_col_arg!(
-    isnan,
+// functions that require a single col argument
+generate_functions!(
+    one_col: isnan,
     isnull,
     sqrt,
     abs,
@@ -140,12 +226,6 @@ generate_functions_col_arg!(
     unix_millis,
     unix_macros,
     unix_seconds,
-    asc,
-    asc_nulls_last,
-    asc_nulls_first,
-    desc,
-    desc_nulls_last,
-    desc_nulls_first,
     ascii,
     base64,
     bit_length,
@@ -198,8 +278,9 @@ generate_functions_col_arg!(
     array_size
 );
 
-generate_functions_two_cols_arg!(
-    nvl,
+// functions that require exactly two col arguments
+generate_functions!(
+    two_cols: nvl,
     nullif,
     isnotnull,
     ifnull,
@@ -211,8 +292,9 @@ generate_functions_two_cols_arg!(
     power
 );
 
-generate_functions_cols_arg!(
-    coalesce,
+// functions that require one or more col arguments
+generate_functions!(
+    multiple_cols: coalesce,
     named_struct,
     least,
     greatest,
@@ -227,130 +309,6 @@ generate_functions_cols_arg!(
     create_map,
     array
 );
-
-#[allow(dead_code)]
-#[allow(unused_variables)]
-fn broadcast(df: DataFrame) {
-    unimplemented!("not implemented")
-}
-
-pub fn rand(seed: Option<i32>) -> Column {
-    invoke_func("rand", vec![lit(seed.unwrap_or(random::<i32>()))])
-}
-
-pub fn randn(seed: Option<i32>) -> Column {
-    invoke_func("randn", vec![lit(seed.unwrap_or(random::<i32>()))])
-}
-
-#[allow(dead_code)]
-#[allow(unused_variables)]
-fn when<T: ToLiteralExpr>(condition: Column, value: T) -> Column {
-    unimplemented!("not implemented")
-}
-
-pub fn bitwise_not<T: ToExpr>(col: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("~", vec![col])
-}
-
-pub fn expr(val: &str) -> Column {
-    Column::from(spark::Expression {
-        expr_type: Some(spark::expression::ExprType::ExpressionString(
-            spark::expression::ExpressionString {
-                expression: val.to_string(),
-            },
-        )),
-    })
-}
-
-// Math Functions
-
-pub fn log<T: ToExpr>(arg1: T, arg2: Option<T>) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    match arg2 {
-        Some(arg2) => invoke_func("log", vec![arg1, arg2]),
-        None => ln(arg1),
-    }
-}
-
-pub fn pow<T: ToExpr>(col1: T, col2: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    power(col1, col2)
-}
-
-pub fn round<T: ToExpr + ToLiteralExpr>(col: T, scale: Option<f32>) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    let values = vec![lit(col), lit(scale.unwrap_or(0.0)).clone()];
-    invoke_func("round", values)
-}
-
-// Datetime Functions
-
-pub fn add_months<T: ToExpr>(start: T, months: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("add_months", vec![start, months])
-}
-
-pub fn date_add<T: ToExpr>(start: T, days: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("date_add", vec![start, days])
-}
-
-pub fn dateadd<T: ToExpr>(start: T, days: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("dateadd", vec![start, days])
-}
-
-pub fn datediff<T: ToExpr>(end: T, start: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("datediff", vec![end, start])
-}
-
-pub fn date_sub<T: ToExpr>(start: T, end: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("date_sub", vec![start, end])
-}
-
-// String Functions
-
-pub fn character_length<T: ToExpr>(str: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("character_length", vec![str])
-}
-
-pub fn char_length<T: ToExpr>(str: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("char_length", vec![str])
-}
-
-pub fn ucase<T: ToExpr>(str: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("ucase", vec![str])
-}
 
 #[cfg(test)]
 mod tests {

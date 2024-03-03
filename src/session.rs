@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 use std::io::Error;
 use std::sync::Arc;
@@ -11,9 +12,8 @@ use crate::spark;
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 
-use spark::expression::Literal;
 use spark::spark_connect_service_client::SparkConnectServiceClient;
-use spark::{DataType, ExecutePlanResponse};
+use spark::ExecutePlanResponse;
 
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
@@ -58,24 +58,14 @@ impl SparkSession {
         step: i64,
         num_partitions: Option<i32>,
     ) -> DataFrame {
-        let plan_id = Some(1);
+        let range_relation = spark::relation::RelType::Range(spark::Range {
+            start,
+            end,
+            step,
+            num_partitions,
+        });
 
-        let range_relation = spark::Relation {
-            common: Some(spark::RelationCommon {
-                source_info: "na".to_string(),
-                plan_id,
-            }),
-            rel_type: Some(spark::relation::RelType::Range(spark::Range {
-                start,
-                end,
-                step,
-                num_partitions,
-            })),
-        };
-
-        let logical_plan = LogicalPlanBuilder::new(range_relation);
-
-        DataFrame::new(self, logical_plan)
+        DataFrame::new(self, LogicalPlanBuilder::from(range_relation))
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
@@ -84,30 +74,33 @@ impl SparkSession {
     }
 
     /// Returns a [DataFrame] representing the result of the given query
-    pub fn sql(self, sql_query: &str) -> DataFrame {
-        let kind = Some(spark::data_type::Kind::Null(spark::data_type::Null {
-            type_variation_reference: 1,
-        }));
+    pub async fn sql(&mut self, sql_query: &str) -> DataFrame {
+        let sql_cmd = spark::command::CommandType::SqlCommand(spark::SqlCommand {
+            sql: sql_query.to_string(),
+            args: HashMap::default(),
+            pos_args: vec![],
+        });
 
-        let sql_command = spark::Relation {
-            common: Some(spark::RelationCommon {
-                source_info: "NA".to_string(),
-                plan_id: Some(1),
-            }),
-            rel_type: Some(spark::relation::RelType::Sql(spark::Sql {
-                query: sql_query.to_string(),
-                args: HashMap::new(),
-                pos_args: vec![Literal {
-                    literal_type: Some(spark::expression::literal::LiteralType::Null(DataType {
-                        kind,
-                    })),
-                }],
-            })),
-        };
+        let plan = LogicalPlanBuilder::build_plan_cmd(sql_cmd);
 
-        let logical_plan = LogicalPlanBuilder::new(sql_command);
+        // !TODO this is gross and needs to be handled WAY better
+        let resp = self
+            .execute_plan(Some(plan))
+            .await
+            .unwrap()
+            .message()
+            .await
+            .unwrap()
+            .unwrap();
 
-        DataFrame::new(self, logical_plan)
+        match resp.response_type {
+            Some(spark::execute_plan_response::ResponseType::SqlCommandResult(sql_result)) => {
+                let logical_plan = LogicalPlanBuilder::new(sql_result.relation.unwrap());
+                DataFrame::new(self.clone(), logical_plan)
+            }
+            Some(_) => todo!("not implemented"),
+            None => panic!("got none as a response for SQL Command"),
+        }
     }
 
     fn build_execute_plan_request(&self, plan: Option<spark::Plan>) -> spark::ExecutePlanRequest {
@@ -142,7 +135,7 @@ impl SparkSession {
         }
     }
 
-    async fn execute_plan(
+    pub async fn execute_plan(
         &mut self,
         plan: Option<spark::Plan>,
     ) -> Result<Streaming<ExecutePlanResponse>, tonic::Status> {
