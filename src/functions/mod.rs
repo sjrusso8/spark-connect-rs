@@ -1,3 +1,5 @@
+//! A re-implementation of Spark functions
+
 use crate::expressions;
 use crate::spark;
 use crate::DataFrame;
@@ -10,14 +12,17 @@ use crate::utils::invoke_func;
 
 use rand::random;
 
+/// Create a column from a &str
 pub fn col(value: &str) -> Column {
     Column::from(value)
 }
 
+/// Create a column from a &str
 pub fn column(value: &str) -> Column {
     Column::from(value)
 }
 
+/// Create a literal value from a rust data type
 pub fn lit<T: ToLiteralExpr>(col: T) -> Column {
     Column::from(col.to_literal_expr())
 }
@@ -322,6 +327,14 @@ mod tests {
     // TODO Update the tests to validate against an arrow dataframe
     use super::*;
 
+    use std::sync::Arc;
+
+    use arrow::{
+        array::{Float64Array, Int32Array, Int64Array, StringArray},
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    };
+
     use crate::{SparkSession, SparkSessionBuilder};
 
     async fn setup() -> SparkSession {
@@ -336,18 +349,162 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dataframe_pi() {
+    async fn test_func_lit() {
         let spark = setup().await;
 
-        let mut df = spark.range(None, 1, 1, Some(1)).select(vec![pi()]);
+        let mut df = spark
+            .range(None, 1, 1, Some(1))
+            .select(vec![lit(5).alias("height"), col("id")]);
 
-        df.show(Some(1), None, Some(true)).await.unwrap();
+        let row = df.collect().await.unwrap();
 
-        assert_eq!(100, 100)
+        let schema = Schema::new(vec![
+            Field::new("height", DataType::Int32, false),
+            Field::new("id", DataType::Int64, false),
+        ]);
+
+        let height_val = Int32Array::from(vec![5]);
+        let id_val = Int64Array::from(vec![0]);
+
+        let expected_batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![Arc::new(height_val), Arc::new(id_val)],
+        )
+        .unwrap();
+
+        assert_eq!(expected_batch, row[0]);
     }
 
     #[tokio::test]
-    async fn test_dataframe_select() {
+    async fn test_func_asc() {
+        let spark = setup().await;
+
+        let mut df_col_asc = spark
+            .clone()
+            .range(Some(1), 3, 1, Some(1))
+            .sort(vec![col("id").asc()]);
+
+        let mut df_func_asc = spark
+            .range(Some(1), 3, 1, Some(1))
+            .sort(vec![asc(col("id"))]);
+
+        let rows_col_asc = df_col_asc.collect().await.unwrap();
+        let rows_func_asc = df_func_asc.collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+
+        let id_val = Int64Array::from(vec![1, 2]);
+
+        let expected_batch =
+            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_val)]).unwrap();
+
+        assert_eq!(expected_batch.clone(), rows_col_asc[0]);
+        assert_eq!(expected_batch, rows_func_asc[0]);
+    }
+
+    #[tokio::test]
+    async fn test_func_desc() {
+        let spark = setup().await;
+
+        let mut df_col_asc = spark
+            .clone()
+            .range(Some(1), 3, 1, Some(1))
+            .sort(vec![col("id").desc()]);
+
+        let mut df_func_asc = spark
+            .range(Some(1), 3, 1, Some(1))
+            .sort(vec![desc(col("id"))]);
+
+        let rows_col_asc = df_col_asc.collect().await.unwrap();
+        let rows_func_asc = df_func_asc.collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+
+        let id_val = Int64Array::from(vec![2, 1]);
+
+        let expected_batch =
+            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_val)]).unwrap();
+
+        assert_eq!(expected_batch.clone(), rows_col_asc[0]);
+        assert_eq!(expected_batch, rows_func_asc[0]);
+    }
+
+    #[tokio::test]
+    async fn test_func_sqrt() {
+        let spark = setup().await;
+
+        let mut df = spark.range(None, 1, 1, Some(1)).select(sqrt(lit(4)));
+
+        let row = df.collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("SQRT(4)", DataType::Float64, true)]);
+
+        let val = Float64Array::from(vec![2.0]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+
+        assert_eq!(expected_batch, row[0]);
+    }
+
+    #[tokio::test]
+    async fn test_func_add() {
+        let spark = setup().await;
+
+        let mut df = spark
+            .range(Some(1), 3, 1, Some(1))
+            .select((lit(4) + col("id")).alias("add"));
+
+        let row = df.collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("add", DataType::Int64, false)]);
+
+        let val = Int64Array::from(vec![5, 6]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+
+        assert_eq!(expected_batch, row[0]);
+    }
+
+    #[tokio::test]
+    async fn test_func_substract() {
+        let spark = setup().await;
+
+        let mut df = spark
+            .range(Some(1), 3, 1, Some(1))
+            .select((lit(4) - col("id")).alias("add"));
+
+        let row = df.collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("add", DataType::Int64, false)]);
+
+        let val = Int64Array::from(vec![3, 2]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+
+        assert_eq!(expected_batch, row[0]);
+    }
+
+    #[tokio::test]
+    async fn test_func_multiple() {
+        let spark = setup().await;
+
+        let mut df = spark
+            .range(Some(1), 3, 1, Some(1))
+            .select((lit(4) * col("id")).alias("add"));
+
+        let row = df.collect().await.unwrap();
+
+        let schema = Schema::new(vec![Field::new("add", DataType::Int64, false)]);
+
+        let val = Int64Array::from(vec![4, 8]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+
+        assert_eq!(expected_batch, row[0]);
+    }
+
+    #[tokio::test]
+    async fn test_func_col_contains() {
         let spark = setup().await;
 
         let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
@@ -359,19 +516,24 @@ mod tests {
             .option("delimiter", ";")
             .load(paths);
 
-        let value = df
-            .select(vec![col("job").alias("role"), col("name")])
-            .show(Some(2), None, Some(true))
+        let row = df
+            .filter(col("name").contains("e"))
+            .select("name")
+            .collect()
             .await
             .unwrap();
 
-        println!("{:?}", value);
+        let schema = Schema::new(vec![Field::new("name", DataType::Utf8, true)]);
 
-        assert_eq!(100, 100)
+        let val = StringArray::from(vec!["Jorge"]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+
+        assert_eq!(expected_batch, row[0]);
     }
 
     #[tokio::test]
-    async fn test_dataframe_coalesce() {
+    async fn test_func_col_isin() {
         let spark = setup().await;
 
         let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
@@ -383,17 +545,19 @@ mod tests {
             .option("delimiter", ";")
             .load(paths);
 
-        let value = df
-            .select(vec![
-                col("job").alias("role"),
-                coalesce(vec![col("name"), col("role")]).alias("new_col"),
-            ])
-            .show(Some(2), None, Some(true))
+        let row = df
+            .filter(col("name").isin(vec!["Jorge", "Bob"]))
+            .select("name")
+            .collect()
             .await
             .unwrap();
 
-        println!("{:?}", value);
+        let schema = Schema::new(vec![Field::new("name", DataType::Utf8, true)]);
 
-        assert_eq!(100, 100)
+        let val = StringArray::from(vec!["Jorge", "Bob"]);
+
+        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+
+        assert_eq!(expected_batch, row[0]);
     }
 }

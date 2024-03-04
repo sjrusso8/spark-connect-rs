@@ -72,16 +72,17 @@ pub mod spark {
     tonic::include_proto!("spark.connect");
 }
 
-pub mod client;
 pub mod dataframe;
 pub mod plan;
 pub mod readwriter;
 pub mod session;
 
+mod client;
 pub mod column;
 pub mod expressions;
 pub mod functions;
 mod handler;
+mod types;
 mod utils;
 
 pub use arrow;

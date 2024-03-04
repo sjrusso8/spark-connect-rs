@@ -307,8 +307,7 @@ impl DataFrame {
 
         let rows = self.spark_session.consume_plan(Some(plan)).await?;
 
-        let _ = pretty::print_batches(rows.as_slice());
-        Ok(())
+        pretty::print_batches(rows.as_slice())
     }
 
     /// Returns the last `n` rows as vector of [RecordBatch]

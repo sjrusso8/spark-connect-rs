@@ -1,3 +1,5 @@
+//! Logical Plan representation
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 

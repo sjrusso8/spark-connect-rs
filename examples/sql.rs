@@ -3,7 +3,8 @@ use spark_connect_rs;
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 // This example demonstrates creating a Spark DataFrame from a SQL command
-// and then displaying the results as "show(...)"
+// and leveraging &str input for `filter` and `select` to change the dataframe
+// Displaying the results as "show(...)"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut spark: SparkSession =
@@ -15,7 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
         .await;
 
-    df.select("salary").show(Some(5), None, None).await?;
+    df.filter("salary >= 3500")
+        .select("*")
+        .show(Some(5), None, None)
+        .await?;
 
     // +-----------------+
     // | show_string     |

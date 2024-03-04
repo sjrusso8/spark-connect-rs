@@ -55,3 +55,33 @@ macro_rules! generate_functions {
         )*
     };
 }
+
+#[macro_export]
+macro_rules! impl_to_data_type {
+    ($type:ty, $inner_type:ident) => {
+        impl ToDataType for $type {
+            fn to_proto_type(&self) -> spark::DataType {
+                spark::DataType {
+                    kind: Some(spark::data_type::Kind::$inner_type(
+                        spark::data_type::$inner_type {
+                            type_variation_reference: 0,
+                        },
+                    )),
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_to_literal {
+    ($type:ty, $inner_type:ident) => {
+        impl ToLiteral for $type {
+            fn to_literal(&self) -> spark::expression::Literal {
+                spark::expression::Literal {
+                    literal_type: Some(spark::expression::literal::LiteralType::$inner_type(*self)),
+                }
+            }
+        }
+    };
+}
