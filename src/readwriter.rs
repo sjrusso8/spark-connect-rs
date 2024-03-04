@@ -1,3 +1,5 @@
+//! DataFrameReader & DataFrameWriter representations
+
 use std::collections::HashMap;
 
 use crate::plan::LogicalPlanBuilder;
@@ -19,7 +21,7 @@ pub struct DataFrameReader {
 }
 
 impl DataFrameReader {
-    /// Create a new DataFraemReader with a [SparkSession]
+    /// Create a new DataFrameReader with a [SparkSession]
     pub fn new(spark_session: SparkSession) -> Self {
         Self {
             spark_session,
@@ -224,11 +226,7 @@ impl DataFrameWriter {
             save_type: Some(spark::write_operation::SaveType::Path(path.to_string())),
         });
 
-        let plan = self
-            .dataframe
-            .logical_plan
-            .clone()
-            .build_plan_cmd(write_command);
+        let plan = LogicalPlanBuilder::build_plan_cmd(write_command);
 
         self.dataframe
             .spark_session
@@ -256,11 +254,7 @@ impl DataFrameWriter {
             )),
         });
 
-        let plan = self
-            .dataframe
-            .logical_plan
-            .clone()
-            .build_plan_cmd(write_command);
+        let plan = LogicalPlanBuilder::build_plan_cmd(write_command);
 
         self.dataframe
             .spark_session

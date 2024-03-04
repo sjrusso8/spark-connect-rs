@@ -9,6 +9,8 @@
 //! Create a Spark Session and create a DataFrame from a SQL statement:
 //!
 //! ```rust
+//! use spark_connect_rs::{SparkSession, SparkSessionBuilder};
+//!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
@@ -24,9 +26,13 @@
 //! };
 //!```
 //!
-//! Create a Spark Session, create a DataFrame from a CSV file, and write the results:
+//! Create a Spark Session, create a DataFrame from a CSV file, apply function transformations, and write the results:
 //!
 //! ```rust
+//! use spark_connect_rs::{SparkSession, SparkSessionBuilder};
+//!
+//! use spark_connect_rs::functions as F;
+//!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
@@ -45,7 +51,10 @@
 //!
 //!     let mut df = df
 //!         .filter("age > 30")
-//!         .select(vec!["name"]);
+//!         .select(vec![
+//!             F::col("name"),
+//!             F::col("age").cast("int")
+//!         ]);
 //!
 //!     df.write()
 //!       .format("csv")
@@ -63,16 +72,18 @@ pub mod spark {
     tonic::include_proto!("spark.connect");
 }
 
-pub mod client;
 pub mod dataframe;
 pub mod plan;
 pub mod readwriter;
 pub mod session;
 
+mod client;
 pub mod column;
 pub mod expressions;
 pub mod functions;
 mod handler;
+mod types;
+mod utils;
 
 pub use arrow;
 pub use dataframe::{DataFrame, DataFrameReader, DataFrameWriter};
@@ -123,7 +134,7 @@ mod tests {
 
         let mut df = spark
             .range(None, 100, 1, Some(1))
-            .sort(vec!["id"], Some(vec![false]));
+            .sort(vec![col("id").desc()]);
 
         let rows = df.limit(1).collect().await.unwrap();
 
