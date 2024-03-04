@@ -1,16 +1,17 @@
+//! Logical Plan representation
+
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use crate::column::Column;
-use crate::expressions::ToExpressionVec;
+use crate::expressions::{ToFilterExpr, ToVecExpr};
 use crate::spark;
-use crate::spark::expression::SortOrder;
 
 use spark::relation::RelType;
 use spark::Relation;
 use spark::RelationCommon;
 
-use spark::expression::{ExprType, ExpressionString};
-use spark::Expression;
+use spark::expression::ExprType;
 
 /// Implements a struct to hold the current [Relation]
 /// which represents an unresolved Logical Plan
@@ -19,12 +20,32 @@ pub struct LogicalPlanBuilder {
     /// A [Relation] object that contains the unresolved
     /// logical plan
     pub relation: Relation,
+    pub plan_id: i64,
 }
 
+#[allow(clippy::declare_interior_mutable_const)]
 impl LogicalPlanBuilder {
-    /// Create a new Logical Plan from an initial [Relation]
-    pub fn new(relation: Relation) -> Self {
-        Self { relation }
+    const NEXT_PLAN_ID: Mutex<i64> = Mutex::new(1);
+
+    #[allow(clippy::clone_on_copy)]
+    fn next_plan_id() -> i64 {
+        let binding = LogicalPlanBuilder::NEXT_PLAN_ID;
+
+        let mut next_plan_id = binding.lock().expect("Could not lock plan");
+
+        let plan_id = next_plan_id.clone();
+
+        *next_plan_id += 1;
+
+        plan_id
+    }
+
+    /// Create a new Logical Plan from an initial [spark::Relation]
+    pub fn new(relation: Relation) -> LogicalPlanBuilder {
+        LogicalPlanBuilder {
+            relation,
+            plan_id: LogicalPlanBuilder::next_plan_id(),
+        }
     }
 
     pub fn relation_input(self) -> Option<Box<Relation>> {
@@ -39,39 +60,37 @@ impl LogicalPlanBuilder {
     }
 
     /// Build the Spark [spark::Plan] for a [spark::command::CommandType]
-    pub fn build_plan_cmd(self, command_type: spark::command::CommandType) -> spark::Plan {
-        let cmd = spark::Command {
-            command_type: Some(command_type),
-        };
-
+    pub fn build_plan_cmd(command_type: spark::command::CommandType) -> spark::Plan {
         spark::Plan {
-            op_type: Some(spark::plan::OpType::Command(cmd)),
+            op_type: Some(spark::plan::OpType::Command(spark::Command {
+                command_type: Some(command_type),
+            })),
         }
     }
 
     /// Create a relation from an existing [LogicalPlanBuilder]
     /// this will add additional actions to the [Relation]
-    pub fn from(&mut self, rel_type: RelType) -> LogicalPlanBuilder {
+    pub fn from(rel_type: RelType) -> LogicalPlanBuilder {
+        let plan_id = LogicalPlanBuilder::next_plan_id();
+
         let relation = Relation {
             common: Some(RelationCommon {
                 source_info: "NA".to_string(),
-                plan_id: Some(1),
+                plan_id: Some(plan_id),
             }),
             rel_type: Some(rel_type),
         };
 
-        LogicalPlanBuilder { relation }
+        LogicalPlanBuilder { relation, plan_id }
     }
 
-    pub fn select(&mut self, cols: Vec<Column>) -> LogicalPlanBuilder {
-        let expressions = cols.to_expression_vec();
-
+    pub fn select<T: ToVecExpr>(&mut self, cols: T) -> LogicalPlanBuilder {
         let rel_type = RelType::Project(Box::new(spark::Project {
-            expressions,
+            expressions: cols.to_vec_expr(),
             input: self.clone().relation_input(),
         }));
 
-        self.from(rel_type)
+        LogicalPlanBuilder::from(rel_type)
     }
 
     pub fn select_expr(&mut self, cols: Vec<&str>) -> LogicalPlanBuilder {
@@ -91,22 +110,25 @@ impl LogicalPlanBuilder {
             input: self.clone().relation_input(),
         }));
 
-        self.from(rel_type)
+        LogicalPlanBuilder::from(rel_type)
     }
 
-    pub fn filter(&mut self, condition: &str) -> LogicalPlanBuilder {
-        let filter_expr = ExprType::ExpressionString(ExpressionString {
-            expression: condition.to_string(),
-        });
-
+    pub fn filter<T: ToFilterExpr>(&mut self, condition: T) -> LogicalPlanBuilder {
         let rel_type = RelType::Filter(Box::new(spark::Filter {
             input: self.clone().relation_input(),
-            condition: Some(Expression {
-                expr_type: Some(filter_expr),
-            }),
+            condition: condition.to_filter_expr(),
         }));
 
-        self.from(rel_type)
+        LogicalPlanBuilder::from(rel_type)
+    }
+
+    pub fn contains(&mut self, condition: Column) -> LogicalPlanBuilder {
+        let rel_type = RelType::Filter(Box::new(spark::Filter {
+            input: self.clone().relation_input(),
+            condition: Some(condition.expression.clone()),
+        }));
+
+        LogicalPlanBuilder::from(rel_type)
     }
 
     pub fn limit(&mut self, limit: i32) -> LogicalPlanBuilder {
@@ -115,7 +137,7 @@ impl LogicalPlanBuilder {
             limit,
         }));
 
-        self.from(limit_expr)
+        LogicalPlanBuilder::from(limit_expr)
     }
 
     pub fn drop_duplicates(&mut self, cols: Option<Vec<&str>>) -> LogicalPlanBuilder {
@@ -135,7 +157,7 @@ impl LogicalPlanBuilder {
             })),
         };
 
-        self.from(drop_expr)
+        LogicalPlanBuilder::from(drop_expr)
     }
 
     pub fn with_columns_renamed(&mut self, cols: HashMap<String, String>) -> LogicalPlanBuilder {
@@ -144,7 +166,7 @@ impl LogicalPlanBuilder {
             rename_columns_map: cols,
         }));
 
-        self.from(rename_expr)
+        LogicalPlanBuilder::from(rename_expr)
     }
 
     pub fn drop(&mut self, cols: Vec<String>) -> LogicalPlanBuilder {
@@ -154,7 +176,7 @@ impl LogicalPlanBuilder {
             column_names: cols,
         }));
 
-        self.from(drop_expr)
+        LogicalPlanBuilder::from(drop_expr)
     }
 
     pub fn sample(
@@ -173,7 +195,7 @@ impl LogicalPlanBuilder {
             deterministic_order: false,
         }));
 
-        self.from(sample_expr)
+        LogicalPlanBuilder::from(sample_expr)
     }
 
     pub fn repartition(
@@ -187,7 +209,7 @@ impl LogicalPlanBuilder {
             shuffle,
         }));
 
-        self.from(repart_expr)
+        LogicalPlanBuilder::from(repart_expr)
     }
 
     pub fn offset(&mut self, num: i32) -> LogicalPlanBuilder {
@@ -196,56 +218,21 @@ impl LogicalPlanBuilder {
             offset: num,
         }));
 
-        self.from(offset_expr)
+        LogicalPlanBuilder::from(offset_expr)
     }
 
-    pub fn sort(&mut self, cols: Vec<&str>, ascending: Option<Vec<bool>>) -> LogicalPlanBuilder {
-        let mut order: Vec<SortOrder> = Vec::new();
-
-        match ascending {
-            None => {
-                for col in cols.iter() {
-                    let sort_order = SortOrder {
-                        child: Some(Box::new(Expression {
-                            expr_type: Some(spark::expression::ExprType::ExpressionString(
-                                spark::expression::ExpressionString {
-                                    expression: col.to_string(),
-                                },
-                            )),
-                        })),
-                        null_ordering: 0,
-                        direction: 0,
-                    };
-                    order.push(sort_order);
+    pub fn sort(&mut self, cols: Vec<Column>) -> LogicalPlanBuilder {
+        let order = cols
+            .iter()
+            .map(|col| {
+                if let ExprType::SortOrder(ord) = col.expression.clone().expr_type.unwrap() {
+                    *ord
+                } else {
+                    // TODO don't make this a panic but actually raise an error
+                    panic!("not sortable")
                 }
-            }
-            Some(ascending) => {
-                if cols.len() != ascending.len() {
-                    panic!("must be the same length")
-                };
-                for (i, col) in cols.iter().enumerate() {
-                    let sort_dir = ascending.get(i).unwrap();
-                    let direction = match sort_dir {
-                        true => 1,
-                        false => 2,
-                    };
-
-                    let sort_order = SortOrder {
-                        child: Some(Box::new(Expression {
-                            expr_type: Some(spark::expression::ExprType::ExpressionString(
-                                spark::expression::ExpressionString {
-                                    expression: col.to_string(),
-                                },
-                            )),
-                        })),
-                        null_ordering: 0,
-                        direction,
-                    };
-
-                    order.push(sort_order);
-                }
-            }
-        }
+            })
+            .collect();
 
         let sort_type = RelType::Sort(Box::new(spark::Sort {
             order,
@@ -253,6 +240,6 @@ impl LogicalPlanBuilder {
             is_global: None,
         }));
 
-        self.from(sort_type)
+        LogicalPlanBuilder::from(sort_type)
     }
 }
