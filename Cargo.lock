@@ -1441,7 +1441,7 @@ dependencies = [
 
 [[package]]
 name = "spark-connect-rs"
-version = "0.0.1-beta"
+version = "0.0.1-beta.1"
 dependencies = [
  "arrow",
  "arrow-ipc",

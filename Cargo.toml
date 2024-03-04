@@ -1,6 +1,6 @@
 [package]
 name = "spark-connect-rs"
-version = "0.0.1-beta"
+version = "0.0.1-beta.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Apache Spark Connect Client for Rust"
