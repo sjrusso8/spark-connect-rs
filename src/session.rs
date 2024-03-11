@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::io::Error;
 use std::sync::Arc;
 
+use crate::catalog::Catalog;
 pub use crate::client::SparkSessionBuilder;
 use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::handler::ResponseHandler;
@@ -72,6 +73,12 @@ impl SparkSession {
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
     pub fn read(self) -> DataFrameReader {
         DataFrameReader::new(self)
+    }
+
+    /// Interface through which the user may create, drop, alter or query underlying databases,
+    /// tables, functions, etc.
+    pub fn catalog(self) -> Catalog {
+        Catalog::new(self)
     }
 
     /// Returns a [DataFrame] representing the result of the given query
@@ -187,5 +194,21 @@ impl SparkSession {
         let stream = client.analyze_plan(request).await.unwrap();
 
         stream.into_inner().result
+    }
+
+    pub async fn consume_plan_and_fetch(&mut self, plan: Option<spark::Plan>) -> Option<String> {
+        let result = self
+            .consume_plan(plan)
+            .await
+            .expect("failed to get a result from spark connect");
+
+        let col = result[0].column(0);
+
+        let data: &arrow::array::StringArray = match col.data_type() {
+            arrow::datatypes::DataType::Utf8 => col.as_any().downcast_ref().unwrap(),
+            _ => unimplemented!("only Utf8 data types are currently handled."),
+        };
+
+        Some(data.value(0).to_string())
     }
 }

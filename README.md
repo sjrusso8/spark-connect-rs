@@ -67,10 +67,10 @@ is not yet working with this Spark Connect implementation.
 | range            | ![done] |                                                                              |
 | sql              | ![done] | Does not include the new Spark Connect 3.5 feature with "position arguments" |
 | read             | ![done] |                                                                              |
-| readStream       | ![done] |                                                                              |
+| readStream       | ![open] |                                                                              |
 | createDataFrame  | ![open] |                                                                              |
 | getActiveSession | ![open] |                                                                              |
-| catalog          | ![open] |                                                                              |
+| catalog          | ![open] | Partial. List/Get functions are implemented                                  |
 
 
 ### DataFrame

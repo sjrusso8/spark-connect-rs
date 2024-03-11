@@ -77,6 +77,7 @@ pub mod plan;
 pub mod readwriter;
 pub mod session;
 
+mod catalog;
 mod client;
 pub mod column;
 pub mod expressions;
