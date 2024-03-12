@@ -77,6 +77,7 @@ pub mod plan;
 pub mod readwriter;
 pub mod session;
 
+mod catalog;
 mod client;
 pub mod column;
 pub mod expressions;
@@ -235,5 +236,29 @@ mod tests {
             .sum();
 
         assert_eq!(total, 1000)
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_columns() {
+        let spark = setup().await;
+
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+
+        let cols = spark
+            .read()
+            .format("csv")
+            .option("header", "True")
+            .option("delimiter", ";")
+            .load(paths)
+            .columns()
+            .await;
+
+        let expected = vec![
+            String::from("name"),
+            String::from("age"),
+            String::from("job"),
+        ];
+
+        assert_eq!(cols, expected)
     }
 }

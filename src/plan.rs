@@ -225,7 +225,12 @@ impl LogicalPlanBuilder {
         let order = cols
             .iter()
             .map(|col| {
-                if let ExprType::SortOrder(ord) = col.expression.clone().expr_type.unwrap() {
+                if let ExprType::SortOrder(ord) = col
+                    .expression
+                    .clone()
+                    .expr_type
+                    .expect("provided column set is not sortable")
+                {
                     *ord
                 } else {
                     // TODO don't make this a panic but actually raise an error

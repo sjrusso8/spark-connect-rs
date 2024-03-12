@@ -9,6 +9,7 @@ use arrow_ipc::reader::StreamReader;
 use spark::execute_plan_response::{ArrowBatch, Metrics};
 use spark::{DataType, ExecutePlanResponse};
 
+#[derive(Debug, Clone)]
 pub struct ResponseHandler {
     pub schema: Option<DataType>,
     pub data: Vec<Option<ArrowBatch>>,
@@ -63,6 +64,7 @@ impl ResponseHandler {
     }
 }
 
+#[derive(Debug, Clone)]
 struct ArrowBatchReader {
     batch: ArrowBatch,
 }
