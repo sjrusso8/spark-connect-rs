@@ -87,6 +87,8 @@ is not yet working with this Spark Connect implementation.
 | sample          | ![done] |                                                                              |
 | repartition     | ![done] |                                                                              |
 | offset          | ![done] |                                                                              |
+| dtypes          | ![done] |                                                                              |
+| columns         | ![done] |                                                                              |
 | schema          | ![done] | The output needs to be handled better                                        |
 | explain         | ![done] | The output needs to be handled better                                        |
 | show            | ![done] |                                                                              |
@@ -122,7 +124,7 @@ required jars
 Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/column.html) type object and its implemented traits
 
 
-| DataFrame        | API     | Comment                                                                      |
+| Column           | API     | Comment                                                                      |
 |------------------|---------|------------------------------------------------------------------------------|
 | alias            | ![done] |                                                                              |
 | asc              | ![done] |                                                                              |
@@ -162,7 +164,7 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 
 Only a few of the functions are covered by unit tests.
 
-| DataFrame                   | API     | Comment |
+| Functions                   | API     | Comment |
 |-----------------------------|---------|---------|
 | abs                         | ![done] |         |
 | acos                        | ![open] |         |

@@ -197,6 +197,45 @@ impl DataFrame {
         }
     }
 
+    /// Retrieves the names of all columns in the DataFrame as a `Vec<String>`.
+    /// The order of the column names in the list reflects their order in the DataFrame.
+    pub async fn columns(&mut self) -> Vec<String> {
+        let schema = self.schema().await.schema.unwrap();
+
+        let struct_val = schema.kind.unwrap();
+
+        match struct_val {
+            spark::data_type::Kind::Struct(val) => val
+                .fields
+                .iter()
+                .map(|field| field.name.to_string())
+                .collect(),
+            _ => unimplemented!("Unexpected schema response"),
+        }
+    }
+
+    /// Returns all column names and their data types as a Vec containing
+    /// the field name as a String and the [spark::data_type::Kind] enum
+    pub async fn dtypes(&mut self) -> Vec<(String, Option<spark::data_type::Kind>)> {
+        let schema = self.schema().await.schema.unwrap();
+
+        let struct_val = schema.kind.unwrap();
+
+        match struct_val {
+            spark::data_type::Kind::Struct(val) => val
+                .fields
+                .iter()
+                .map(|field| {
+                    (
+                        field.name.to_string(),
+                        field.data_type.clone().unwrap().kind,
+                    )
+                })
+                .collect(),
+            _ => unimplemented!("Unexpected schema response"),
+        }
+    }
+
     /// Prints the [spark::Plan] to the console
     ///
     /// # Arguments:
