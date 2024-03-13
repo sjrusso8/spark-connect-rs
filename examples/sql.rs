@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut df = spark
         .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
-        .await;
+        .await?;
 
     df.filter("salary >= 3500")
         .select("*")

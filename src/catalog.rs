@@ -188,7 +188,8 @@ mod tests {
         spark
             .clone()
             .sql("CREATE SCHEMA IF NOT EXISTS spark_rust")
-            .await;
+            .await
+            .unwrap();
 
         let value = spark.catalog().listDatabases(None).await;
 
@@ -203,7 +204,8 @@ mod tests {
         spark
             .clone()
             .sql("CREATE SCHEMA IF NOT EXISTS spark_rust")
-            .await;
+            .await
+            .unwrap();
 
         let value = spark
             .catalog()

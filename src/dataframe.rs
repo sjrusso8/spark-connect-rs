@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use crate::column::Column;
+use crate::errors::SparkError;
 use crate::expressions::{ToFilterExpr, ToVecExpr};
 use crate::plan::LogicalPlanBuilder;
 pub use crate::readwriter::{DataFrameReader, DataFrameWriter};
@@ -334,7 +335,7 @@ impl DataFrame {
         num_rows: Option<i32>,
         truncate: Option<i32>,
         vertical: Option<bool>,
-    ) -> Result<(), ArrowError> {
+    ) -> Result<(), SparkError> {
         let show_expr = RelType::ShowString(Box::new(spark::ShowString {
             input: self.logical_plan.clone().relation_input(),
             num_rows: num_rows.unwrap_or(10),
@@ -346,7 +347,8 @@ impl DataFrame {
 
         let rows = self.spark_session.consume_plan(Some(plan)).await?;
 
-        pretty::print_batches(rows.as_slice())
+        pretty::print_batches(rows.as_slice())?;
+        Ok(())
     }
 
     /// Returns the last `n` rows as vector of [RecordBatch]

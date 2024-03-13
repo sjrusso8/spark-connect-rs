@@ -7,11 +7,11 @@ use std::sync::Arc;
 use crate::catalog::Catalog;
 pub use crate::client::SparkSessionBuilder;
 use crate::dataframe::{DataFrame, DataFrameReader};
+use crate::errors::SparkError;
 use crate::handler::ResponseHandler;
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
 
-use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 
 use spark::spark_connect_service_client::SparkConnectServiceClient;
@@ -82,7 +82,11 @@ impl SparkSession {
     }
 
     /// Returns a [DataFrame] representing the result of the given query
-    pub async fn sql(&mut self, sql_query: &str) -> DataFrame {
+    pub async fn sql(&mut self, sql_query: &str) -> Result<DataFrame, SparkError> {
+        let error_msg = SparkError::AnalysisException(
+            "Failed to get command response from Spark Connect Server".to_string(),
+        );
+
         let sql_cmd = spark::command::CommandType::SqlCommand(spark::SqlCommand {
             sql: sql_query.to_string(),
             args: HashMap::default(),
@@ -91,23 +95,16 @@ impl SparkSession {
 
         let plan = LogicalPlanBuilder::build_plan_cmd(sql_cmd);
 
-        // !TODO this is gross and needs to be handled WAY better
-        let resp = self
-            .execute_plan(Some(plan))
-            .await
-            .unwrap()
-            .message()
-            .await
-            .unwrap()
-            .unwrap();
+        let resp = self.execute_plan(Some(plan)).await?.message().await?;
 
-        match resp.response_type {
+        match resp.ok_or(error_msg)?.response_type {
             Some(spark::execute_plan_response::ResponseType::SqlCommandResult(sql_result)) => {
                 let logical_plan = LogicalPlanBuilder::new(sql_result.relation.unwrap());
-                DataFrame::new(self.clone(), logical_plan)
+                Ok(DataFrame::new(self.clone(), logical_plan))
             }
-            Some(_) => todo!("not implemented"),
-            None => todo!("got none as a response for SQL Command"),
+            _ => Err(SparkError::NotYetImplemented(
+                "Response type not implemented".to_string(),
+            )),
         }
     }
 
@@ -146,7 +143,7 @@ impl SparkSession {
     pub async fn execute_plan(
         &mut self,
         plan: Option<spark::Plan>,
-    ) -> Result<Streaming<ExecutePlanResponse>, tonic::Status> {
+    ) -> Result<Streaming<ExecutePlanResponse>, SparkError> {
         let exc_plan = self.build_execute_plan_request(plan);
 
         let mut client = self.client.lock().await;
@@ -163,25 +160,20 @@ impl SparkSession {
     pub async fn consume_plan(
         &mut self,
         plan: Option<spark::Plan>,
-    ) -> Result<Vec<RecordBatch>, ArrowError> {
-        let mut stream = self.execute_plan(plan).await.map_err(|err| {
-            ArrowError::IoError(
-                err.to_string(),
-                Error::new(std::io::ErrorKind::Other, err.to_string()),
-            )
-        })?;
+    ) -> Result<Vec<RecordBatch>, SparkError> {
+        let mut stream = self.execute_plan(plan).await?;
 
         let mut handler = ResponseHandler::new();
 
         while let Some(resp) = stream.message().await.map_err(|err| {
-            ArrowError::IoError(
+            SparkError::IoError(
                 err.to_string(),
                 Error::new(std::io::ErrorKind::Other, err.to_string()),
             )
         })? {
             let _ = handler.handle_response(&resp);
         }
-        handler.records()
+        Ok(handler.records().unwrap())
     }
 
     pub async fn analyze_plan(
@@ -200,13 +192,13 @@ impl SparkSession {
         let result = self
             .consume_plan(plan)
             .await
-            .expect("failed to get a result from spark connect");
+            .expect("Failed to get a result from Spark Connect");
 
         let col = result[0].column(0);
 
         let data: &arrow::array::StringArray = match col.data_type() {
             arrow::datatypes::DataType::Utf8 => col.as_any().downcast_ref().unwrap(),
-            _ => unimplemented!("only Utf8 data types are currently handled."),
+            _ => unimplemented!("only Utf8 data types are currently handled currently."),
         };
 
         Some(data.value(0).to_string())

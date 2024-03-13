@@ -18,7 +18,7 @@
 //!         .build()
 //!         .await?;
 //!
-//!     let mut df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`");
+//!     let mut df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`").await?;
 //!
 //!     df.filter("salary > 3000").show(Some(5), None, None).await?;
 //!
@@ -80,6 +80,7 @@ pub mod session;
 mod catalog;
 mod client;
 pub mod column;
+mod errors;
 pub mod expressions;
 pub mod functions;
 mod handler;
