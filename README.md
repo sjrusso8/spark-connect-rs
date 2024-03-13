@@ -24,15 +24,35 @@ use spark_connect_rs;
 
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
+use spark_connect_rs::functions as F;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark = SparkSessionBuilder::remote("sc://127.0.0.1:15002/".to_string())
+    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/".to_string())
             .build()
             .await?;
 
-    let mut df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`");
+    let mut df = spark
+        .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
+        .await?;
 
-    df.filter("salary > 3000").show(Some(5), None, None).await?;
+    df.filter("salary >= 3500")
+        .select(F::col("name"))
+        .show(Some(5), None, None)
+        .await?;
+
+    // +-------------+
+    // | show_string |
+    // +-------------+
+    // | +------+    |
+    // | |name  |    |
+    // | +------+    |
+    // | |Andy  |    |
+    // | |Justin|    |
+    // | |Berta |    |
+    // | +------+    |
+    // |             |
+    // +-------------+
 
     Ok(())
 }
