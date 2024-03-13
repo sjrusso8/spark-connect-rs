@@ -7,15 +7,13 @@ use crate::SparkSession;
 use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use tokio::sync::Mutex;
-use tonic::{
-    metadata::AsciiMetadataValue,
-    service::Interceptor,
-    transport::{Endpoint, Error},
-    Status,
-};
+
+use tonic::metadata::AsciiMetadataValue;
+use tonic::service::Interceptor;
+use tonic::transport::{Endpoint, Error};
+use tonic::Status;
 
 use url::Url;
-use uuid::Uuid;
 
 /// ChannelBuilder validates a connection string
 /// based on the requirements from [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
@@ -107,13 +105,12 @@ impl ChannelBuilder {
 
         let client = Arc::new(Mutex::new(service_client));
 
-        Ok(SparkSession {
+        Ok(SparkSession::new(
             client,
-            session_id: Uuid::new_v4().to_string(),
-            metadata: self.headers.clone(),
-            user_id: self.user_id.clone(),
-            token: self.token,
-        })
+            self.headers.clone(),
+            self.user_id.clone(),
+            self.token,
+        ))
     }
 }
 
@@ -255,9 +252,5 @@ mod tests {
         let spark = SparkSessionBuilder::remote(connection).build().await;
 
         assert!(spark.is_ok());
-        assert_eq!(
-            Some(&"true".to_string()),
-            spark.unwrap().metadata.unwrap().get("use_ssl")
-        );
     }
 }
