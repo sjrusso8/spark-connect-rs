@@ -5,6 +5,7 @@ use std::io::Error;
 use std::sync::Arc;
 
 use crate::catalog::Catalog;
+use crate::client::MetadataInterceptor;
 pub use crate::client::SparkSessionBuilder;
 use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::errors::SparkError;
@@ -18,8 +19,16 @@ use spark::spark_connect_service_client::SparkConnectServiceClient;
 use spark::ExecutePlanResponse;
 
 use tokio::sync::Mutex;
+use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
 use tonic::Streaming;
+
+use uuid::Uuid;
+
+// Type aliases for complex types
+type SparkClient =
+    Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>;
+type MetadataMap = HashMap<String, String>;
 
 /// The entry point to connecting to a Spark Cluster
 /// using the Spark Connection gRPC protocol.
@@ -27,28 +36,33 @@ use tonic::Streaming;
 #[derive(Clone, Debug)]
 pub struct SparkSession {
     /// Spark Connection gRPC client interface
-    pub client: Arc<
-        Mutex<
-            SparkConnectServiceClient<
-                tonic::service::interceptor::InterceptedService<
-                    Channel,
-                    crate::client::MetadataInterceptor,
-                >,
-            >,
-        >,
-    >,
-
+    pub client: SparkClient,
+    // Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>,
     /// Spark Session ID
     pub session_id: String,
 
     /// gRPC metadata collected from the connection string
-    pub metadata: Option<HashMap<String, String>>,
-    pub user_id: Option<String>,
+    metadata: Option<MetadataMap>,
+    user_id: Option<String>,
 
-    pub token: Option<&'static str>,
+    token: Option<&'static str>,
 }
 
 impl SparkSession {
+    pub fn new(
+        client: SparkClient,
+        metadata: Option<HashMap<String, String>>,
+        user_id: Option<String>,
+        token: Option<&'static str>,
+    ) -> Self {
+        Self {
+            client,
+            session_id: Uuid::new_v4().to_string(),
+            metadata,
+            user_id,
+            token,
+        }
+    }
     /// Create a [DataFrame] with a spingle column named `id`,
     /// containing elements in a range from `start` (default 0) to
     /// `end` (exclusive) with a step value `step`, and control the number
