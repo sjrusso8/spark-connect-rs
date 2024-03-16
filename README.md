@@ -82,50 +82,145 @@ is not yet working with this Spark Connect implementation.
 
 ### SparkSession
 
-| SparkSession     | API     | Comment                                                                      |
-|------------------|---------|------------------------------------------------------------------------------|
-| range            | ![done] |                                                                              |
-| sql              | ![done] | Does not include the new Spark Connect 3.5 feature with "position arguments" |
-| read             | ![done] |                                                                              |
-| readStream       | ![open] |                                                                              |
-| createDataFrame  | ![open] |                                                                              |
-| getActiveSession | ![open] |                                                                              |
-| catalog          | ![open] | Partial. List/Get functions are implemented                                  |
+[Spark Session](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/spark_session.html) type object and its implemented traits
+
+| SparkSession       | API     | Comment                                       |
+|--------------------|---------|-----------------------------------------------|
+| active             | ![open] |                                               |
+| appName            | ![open] |                                               |
+| catalog            | ![open] | Partial. Only Get/List traits are implemented |
+| createDataFrame    | ![open] |                                               |
+| range              | ![done] |                                               |
+| read               | ![done] |                                               |
+| readStream         | ![open] | streaming is currently in progress            |
+| sql                | ![done] |                                               |
+| stop               | ![open] |                                               |
+| streams            | ![open] | streaming is currently in progress            |
+| table              | ![open] |                                               |
+| version            | ![open] |                                               |
+| addArtifact(s)     | ![open] |                                               |
+| interruptAll       | ![open] |                                               |
+| interruptTag       | ![open] |                                               |
+| interruptOperation | ![open] |                                               |
+| addTag             | ![open] |                                               |
+| removeTag          | ![open] |                                               |
+| getTags            | ![open] |                                               |
+| clearTags          | ![open] |                                               |
 
 
 ### DataFrame
 
-| DataFrame       | API     | Comment                                                                      |
-|-----------------|---------|------------------------------------------------------------------------------|
-| select          | ![done] |                                                                              |
-| selectExpr      | ![done] | Does not include the new Spark Connect 3.5 feature with "position arguments" |
-| filter          | ![done] |                                                                              |
-| limit           | ![done] |                                                                              |
-| dropDuplicates  | ![done] |                                                                              |
-| withColumnsRenamed | ![done] |                                                                           |
-| drop            | ![done] |                                                                              |
-| sample          | ![done] |                                                                              |
-| repartition     | ![done] |                                                                              |
-| offset          | ![done] |                                                                              |
-| dtypes          | ![done] |                                                                              |
-| columns         | ![done] |                                                                              |
-| schema          | ![done] | The output needs to be handled better                                        |
-| explain         | ![done] | The output needs to be handled better                                        |
-| show            | ![done] |                                                                              |
-| tail            | ![done] |                                                                              |
-| collect         | ![done] |                                                                              |
-| withColumns     | ![open] |                                                                              |
-| sort            | ![done] |                                                                              |
-| groupBy         | ![open] |                                                                              |
-| createTempView  | ![open] | There is an error right now, and the functions are private till it's fixed   |
-| many more!      | ![open] |                                                                              |
+Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/dataframe.html) type object and its implemented traits
+
+| DataFrame                     | API     | Comment                                                    |
+|-------------------------------|---------|------------------------------------------------------------|
+| agg                           | ![open] | groupby and aggregrate functions are currently in progress |
+| alias                         | ![done] |                                                            |
+| approxQuantile                | ![open] |                                                            |
+| cache                         | ![done] |                                                            |
+| checkpoint                    | ![open] |                                                            |
+| coalesce                      | ![done] |                                                            |
+| colRegex                      | ![done] |                                                            |
+| collect                       | ![done] |                                                            |
+| columns                       | ![done] |                                                            |
+| corr                          | ![done] |                                                            |
+| count                         | ![open] | groupby and aggregrate functions are currently in progress |
+| cov                           | ![done] |                                                            |
+| createGlobalTempView          | ![done] |                                                            |
+| createOrReplaceGlobalTempView | ![done] |                                                            |
+| createOrReplaceTempView       | ![done] |                                                            |
+| createTempView                | ![done] |                                                            |
+| crossJoin                     | ![done] |                                                            |
+| crosstab                      | ![done] |                                                            |
+| cube                          | ![done] |                                                            |
+| describe                      | ![done] |                                                            |
+| distinct                      | ![done] |                                                            |
+| drop                          | ![done] |                                                            |
+| dropDuplicates                | ![done] |                                                            |
+| dropDuplicatesWithinWatermark | ![open] | Windowing functions are currently in progress              |
+| drop_duplicates               | ![done] |                                                            |
+| dropna                        | ![done] |                                                            |
+| dtypes                        | ![done] |                                                            |
+| exceptAll                     | ![done] |                                                            |
+| explain                       | ![done] |                                                            |
+| fillna                        | ![open] |                                                            |
+| filter                        | ![done] |                                                            |
+| first                         | ![done] |                                                            |
+| foreach                       | ![open] |                                                            |
+| foreachPartition              | ![open] |                                                            |
+| freqItems                     | ![done] |                                                            |
+| groupBy                       | ![open] | groupby and aggregrate functions are currently in progress |
+| head                          | ![done] |                                                            |
+| hint                          | ![done] |                                                            |
+| inputFiles                    | ![done] |                                                            |
+| intersect                     | ![done] |                                                            |
+| intersectAll                  | ![done] |                                                            |
+| isEmpty                       | ![done] |                                                            |
+| isLocal                       | ![open] |                                                            |
+| isStreaming                   | ![open] | streaming is currently in progress                         |
+| join                          | ![done] |                                                            |
+| limit                         | ![done] |                                                            |
+| localCheckpoint               | ![open] |                                                            |
+| mapInPandas                   | ![open] | TBD on this exact implementation                           |
+| mapInArrow                    | ![open] | TBD on this exact implementation                           |
+| melt                          | ![open] | groupby and aggregrate functions are currently in progress |
+| na                            | ![open] |                                                            |
+| observe                       | ![open] |                                                            |
+| offset                        | ![done] |                                                            |
+| orderBy                       | ![done] |                                                            |
+| persist                       | ![done] |                                                            |
+| printSchema                   | ![done] |                                                            |
+| randomSplit                   | ![open] |                                                            |
+| registerTempTable             | ![open] |                                                            |
+| repartition                   | ![done] |                                                            |
+| repartitionByRange            | ![open] |                                                            |
+| replace                       | ![open] |                                                            |
+| rollup                        | ![open] |                                                            |
+| sameSemantics                 | ![done] |                                                            |
+| sample                        | ![done] |                                                            |
+| sampleBy                      | ![open] |                                                            |
+| schema                        | ![done] |                                                            |
+| select                        | ![done] |                                                            |
+| selectExpr                    | ![done] |                                                            |
+| semanticHash                  | ![done] |                                                            |
+| show                          | ![done] |                                                            |
+| sort                          | ![done] |                                                            |
+| sortWithinPartitions          | ![done] |                                                            |
+| sparkSession                  | ![done] |                                                            |
+| stat                          | ![done] |                                                            |
+| storageLevel                  | ![done] |                                                            |
+| subtract                      | ![done] |                                                            |
+| summary                       | ![open] |                                                            |
+| tail                          | ![done] |                                                            |
+| take                          | ![done] |                                                            |
+| to                            | ![done] |                                                            |
+| toDF                          | ![done] |                                                            |
+| toJSON                        | ![open] |                                                            |
+| toLocalIterator               | ![open] |                                                            |
+| toPandas                      | ![open] | TBD on this exact implementation. Might be toPolars        |
+| transform                     | ![open] |                                                            |
+| union                         | ![done] |                                                            |
+| unionAll                      | ![done] |                                                            |
+| unionByName                   | ![done] |                                                            |
+| unpersist                     | ![done] |                                                            |
+| unpivot                       | ![open] |                                                            |
+| where                         | ![done] | use `sort` where is a keyword for rust                     |
+| withColumn                    | ![done] |                                                            |
+| withColumns                   | ![done] |                                                            |
+| withColumnRenamed             | ![open] |                                                            |
+| withColumnsRenamed            | ![done] |                                                            |
+| withMetadata                  | ![open] |                                                            |
+| withWatermark                 | ![open] |                                                            |
+| write                         | ![done] |                                                            |
+| writeStream                   | ![open] | streaming is currently in progress                         |
+| writeTo                       | ![open] |                                                            |
 
 ### DataFrameWriter
 
 Spark Connect *should* respect the format as long as your cluster supports the specified type and has the
 required jars
 
-| DataFrame       | API     | Comment                                                                      |
+| DataFrameWriter | API     | Comment                                                                      |
 |-----------------|---------|------------------------------------------------------------------------------|
 | format          | ![done] |                                                                              |
 | option          | ![done] |                                                                              |
@@ -170,11 +265,12 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | startswith       | ![done] |                                                                              |
 | substr           | ![open] |                                                                              |
 | when             | ![open] |                                                                              |
+| eq `==`          | ![done] | Rust does not like when you try to overload `==` and return something other than a `bool`. Currently implemented column equality like `col('name').eq(col('id'))`. Not the best, but it works for now                                                                           |
 | addition `+`     | ![done] |                                                                              |
 | subtration `-`   | ![done] |                                                                              |
 | multiplication `*` | ![done] |                                                                            |
 | division `/`     | ![done] |                                                                              |
-| OR `|`           | ![done] |                                                                              |
+| OR  `\|`         | ![done] |                                                                              |
 | AND `&`          | ![done] |                                                                              |
 | XOR `^`          | ![done] |                                                                              |
 | Negate `~`       | ![done] |                                                                              |

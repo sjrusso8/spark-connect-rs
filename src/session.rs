@@ -51,7 +51,7 @@ pub struct SparkSession {
 impl SparkSession {
     pub fn new(
         client: SparkClient,
-        metadata: Option<HashMap<String, String>>,
+        metadata: Option<MetadataMap>,
         user_id: Option<String>,
         token: Option<&'static str>,
     ) -> Self {
@@ -187,6 +187,7 @@ impl SparkSession {
         })? {
             let _ = handler.handle_response(&resp);
         }
+
         Ok(handler.records().unwrap())
     }
 
