@@ -265,11 +265,12 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | startswith       | ![done] |                                                                              |
 | substr           | ![open] |                                                                              |
 | when             | ![open] |                                                                              |
+| eq `==`          | ![done] | Rust does not like when you try to overload `==` and return something other than a `bool`. Currently implemented column equality like `col('name').eq(col('id'))`. Not the best, but it works for now                                                                           |
 | addition `+`     | ![done] |                                                                              |
 | subtration `-`   | ![done] |                                                                              |
 | multiplication `*` | ![done] |                                                                            |
 | division `/`     | ![done] |                                                                              |
-| OR `|`           | ![done] |                                                                              |
+| OR  `\|`         | ![done] |                                                                              |
 | AND `&`          | ![done] |                                                                              |
 | XOR `^`          | ![done] |                                                                              |
 | Negate `~`       | ![done] |                                                                              |
