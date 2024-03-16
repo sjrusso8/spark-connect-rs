@@ -4,6 +4,8 @@ use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 use spark_connect_rs::functions::col;
 
+use spark_connect_rs::dataframe::SaveMode;
+
 // This example demonstrates creating a Spark DataFrame from range()
 // alias the column name, writing the results to a CSV
 // then reading the csv file back
@@ -20,6 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     df.write()
         .format("csv")
+        .mode(SaveMode::Overwrite)
         .option("header", "true")
         .save(path)
         .await?;
