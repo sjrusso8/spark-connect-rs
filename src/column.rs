@@ -253,7 +253,7 @@ impl Column {
     ///
     /// # Arguments:
     ///
-    /// * `cols` a value that implements the [ToLiteralExpr] trait
+    /// * `cols`: a col reference that is translated into an [spark::Expression]
     ///
     /// # Example:
     /// ```rust
@@ -308,6 +308,14 @@ impl Column {
         let value = lit(other);
 
         invoke_func("rlike", vec![self.clone(), value])
+    }
+
+    /// Equality comparion. Cannot overload the '==' and return something other
+    /// than a bool
+    pub fn eq<T: ToLiteralExpr>(&self, other: T) -> Column {
+        let value = lit(other);
+
+        invoke_func("==", vec![self.clone(), value])
     }
 
     /// A filter expression that evaluates to true is the expression is null

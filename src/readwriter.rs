@@ -159,16 +159,10 @@ impl DataFrameWriter {
     /// Specifies the behavior when data or table already exists
     ///
     /// # Arguments:
-    /// - `mode`: (&str) translates to a specific [SaveMode] from the protobuf
+    /// - `mode`: [SaveMode] enum from the protobuf
     ///
-    pub fn mode(mut self, mode: &str) -> Self {
-        self.mode = match mode {
-            "append" => SaveMode::Append,
-            "overwrite" => SaveMode::Overwrite,
-            "error" | "errorifexists" => SaveMode::ErrorIfExists,
-            "ignore" => SaveMode::Ignore,
-            _ => SaveMode::Unspecified,
-        };
+    pub fn mode(mut self, mode: SaveMode) -> Self {
+        self.mode = mode;
         self
     }
 
