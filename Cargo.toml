@@ -18,7 +18,7 @@ include = [
 ]
 
 [dependencies]
-tonic = { version ="0.11.0"}
+tonic = { version ="0.11.0", features = ["tls", "tls-roots"]}
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tokio-rustls = "0.25.0"
 

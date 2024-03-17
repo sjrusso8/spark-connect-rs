@@ -19,6 +19,7 @@ use spark::spark_connect_service_client::SparkConnectServiceClient;
 use spark::ExecutePlanResponse;
 
 use tokio::sync::Mutex;
+use tonic::metadata::MetadataMap;
 use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
 use tonic::Streaming;
@@ -28,7 +29,6 @@ use uuid::Uuid;
 // Type aliases for complex types
 type SparkClient =
     Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>;
-type MetadataMap = HashMap<String, String>;
 
 /// The entry point to connecting to a Spark Cluster
 /// using the Spark Connection gRPC protocol.
@@ -42,25 +42,21 @@ pub struct SparkSession {
     pub session_id: String,
 
     /// gRPC metadata collected from the connection string
-    metadata: Option<MetadataMap>,
-    user_id: Option<String>,
-
-    token: Option<&'static str>,
+    pub metadata: Option<MetadataMap>,
+    pub user_id: Option<&'static str>,
 }
 
 impl SparkSession {
     pub fn new(
         client: SparkClient,
         metadata: Option<MetadataMap>,
-        user_id: Option<String>,
-        token: Option<&'static str>,
+        user_id: Option<&'static str>,
     ) -> Self {
         Self {
             client,
             session_id: Uuid::new_v4().to_string(),
             metadata,
             user_id,
-            token,
         }
     }
     /// Create a [DataFrame] with a spingle column named `id`,
@@ -126,8 +122,8 @@ impl SparkSession {
         spark::ExecutePlanRequest {
             session_id: self.session_id.clone(),
             user_context: Some(spark::UserContext {
-                user_id: self.user_id.clone().unwrap_or("NA".to_string()),
-                user_name: self.user_id.clone().unwrap_or("NA".to_string()),
+                user_id: self.user_id.unwrap_or("NA").to_string(),
+                user_name: self.user_id.unwrap_or("NA").to_string(),
                 extensions: vec![],
             }),
             operation_id: None,
@@ -145,8 +141,8 @@ impl SparkSession {
         spark::AnalyzePlanRequest {
             session_id: self.session_id.clone(),
             user_context: Some(spark::UserContext {
-                user_id: self.user_id.clone().unwrap_or("NA".to_string()),
-                user_name: self.user_id.clone().unwrap_or("NA".to_string()),
+                user_id: self.user_id.unwrap_or("NA").to_string(),
+                user_name: self.user_id.unwrap_or("NA").to_string(),
                 extensions: vec![],
             }),
             client_type: Some("_SPARK_CONNECT_RUST".to_string()),
