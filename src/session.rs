@@ -19,7 +19,6 @@ use spark::spark_connect_service_client::SparkConnectServiceClient;
 use spark::ExecutePlanResponse;
 
 use tokio::sync::Mutex;
-use tonic::metadata::MetadataMap;
 use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
 use tonic::Streaming;
@@ -41,8 +40,6 @@ pub struct SparkSession {
     /// Spark Session ID
     pub session_id: Uuid,
 
-    /// gRPC metadata collected from the connection string
-    pub metadata: Option<MetadataMap>,
     pub user_id: Option<&'static str>,
     user_context: spark::UserContext,
 }
@@ -50,8 +47,8 @@ pub struct SparkSession {
 impl SparkSession {
     pub fn new(
         client: SparkClient,
-        metadata: Option<MetadataMap>,
         user_id: Option<&'static str>,
+        session_id: Option<Uuid>,
     ) -> Self {
         let user_context = spark::UserContext {
             user_id: user_id.unwrap_or("NA").to_string(),
@@ -61,8 +58,7 @@ impl SparkSession {
 
         Self {
             client,
-            session_id: Uuid::new_v4(),
-            metadata,
+            session_id: session_id.unwrap_or(Uuid::new_v4()),
             user_id,
             user_context,
         }

@@ -9,25 +9,28 @@ use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use tokio::sync::Mutex;
 
+use tonic::metadata::{
+    Ascii, AsciiMetadataValue, KeyAndValueRef, MetadataKey, MetadataMap, MetadataValue,
+};
 use tonic::service::Interceptor;
 use tonic::transport::{Endpoint, Error};
 use tonic::Status;
 
-use tonic::metadata::{
-    Ascii, AsciiMetadataValue, KeyAndValueRef, MetadataKey, MetadataMap, MetadataValue,
-};
-
 use url::Url;
+use uuid::Uuid;
 
 /// ChannelBuilder validates a connection string
 /// based on the requirements from [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
 #[derive(Clone, Debug)]
 pub struct ChannelBuilder {
-    pub host: String,
-    pub port: u16,
-    pub token: Option<&'static str>,
-    pub user_id: Option<&'static str>,
-    pub headers: Option<MetadataMap>,
+    host: String,
+    port: u16,
+    session_id: Uuid,
+    token: Option<&'static str>,
+    user_id: Option<&'static str>,
+    user_agent: Option<&'static str>,
+    use_ssl: bool,
+    headers: Option<MetadataMap>,
 }
 
 impl Default for ChannelBuilder {
@@ -38,6 +41,7 @@ impl Default for ChannelBuilder {
 
 impl ChannelBuilder {
     /// create and Validate a connnection string
+    #[allow(unreachable_code)]
     pub fn create(connection: &'static str) -> Result<ChannelBuilder, String> {
         let url = Url::parse(connection).map_err(|_| "Failed to parse the url.".to_string())?;
 
@@ -55,8 +59,11 @@ impl ChannelBuilder {
         let mut channel_builder = ChannelBuilder {
             host,
             port,
+            session_id: Uuid::new_v4(),
             token: None,
             user_id: None,
+            user_agent: Some("_SPARK_CONNECT_RUST"),
+            use_ssl: false,
             headers: None,
         };
 
@@ -89,9 +96,27 @@ impl ChannelBuilder {
         if let Some(token) = headers.remove("token") {
             channel_builder.token = Some(Box::leak(format!("Bearer {token}").into_boxed_str()));
         }
+        // !TODO try to grab the user id from the system if not provided
         if let Some(user_id) = headers.remove("user_id") {
             channel_builder.user_id = Some(Box::leak(user_id.into_boxed_str()))
         }
+        if let Some(user_agent) = headers.remove("user_agent") {
+            channel_builder.user_agent = Some(Box::leak(user_agent.into_boxed_str()))
+        }
+        if let Some(session_id) = headers.remove("session_id") {
+            channel_builder.session_id = Uuid::from_str(session_id.as_str()).unwrap()
+        }
+        if let Some(use_ssl) = headers.remove("use_ssl") {
+            if use_ssl.to_lowercase() == "true" {
+                #[cfg(not(feature = "tls"))]
+                {
+                    panic!(
+                        "The 'use_ssl' option requires the 'tls' feature, but it's not enabled!"
+                    );
+                };
+                channel_builder.use_ssl = true
+            }
+        };
 
         channel_builder.headers = Some(metadata_builder(headers));
 
@@ -101,7 +126,10 @@ impl ChannelBuilder {
     async fn create_client(&self) -> Result<SparkSession, Error> {
         let endpoint = format!("https://{}:{}", self.host, self.port);
 
-        let channel = Endpoint::from_shared(endpoint)?.connect().await?;
+        let channel = Endpoint::from_shared(endpoint)?
+            .user_agent(self.user_agent.unwrap_or("_SPARK_CONNECT_RUST"))?
+            .connect()
+            .await?;
 
         let service_client = SparkConnectServiceClient::with_interceptor(
             channel,
@@ -115,8 +143,8 @@ impl ChannelBuilder {
 
         Ok(SparkSession::new(
             client,
-            self.headers.clone(),
             self.user_id,
+            Some(self.session_id),
         ))
     }
 }
@@ -131,7 +159,7 @@ impl Interceptor for MetadataInterceptor {
         if let Some(header) = &self.metadata {
             merge_metadata(req.metadata_mut(), header);
         }
-        if let Some(token) = self.token {
+        if let Some(token) = &self.token {
             req.metadata_mut()
                 .insert("authorization", AsciiMetadataValue::from_static(token));
         }
@@ -143,10 +171,10 @@ impl Interceptor for MetadataInterceptor {
 fn metadata_builder(headers: HashMap<String, String>) -> MetadataMap {
     let mut metadata_map = MetadataMap::new();
     for (key, val) in headers.into_iter() {
-        let mval = MetadataValue::from_str(val.as_str()).unwrap();
-        let mkey = MetadataKey::from_str(key.as_str()).unwrap();
+        let meta_val = MetadataValue::from_str(val.as_str()).unwrap();
+        let meta_key = MetadataKey::from_str(key.as_str()).unwrap();
 
-        metadata_map.insert(mkey, mval);
+        metadata_map.insert(meta_key, meta_val);
     }
 
     metadata_map
@@ -164,8 +192,8 @@ fn metadata_for_each<F>(metadata: &MetadataMap, mut f: F)
 where
     F: FnMut(&MetadataKey<Ascii>, &MetadataValue<Ascii>),
 {
-    for key_and_value in metadata.iter() {
-        match key_and_value {
+    for kv_ref in metadata.iter() {
+        match kv_ref {
             KeyAndValueRef::Ascii(key, value) => f(key, value),
             KeyAndValueRef::Binary(_key, _value) => {}
         }
@@ -251,9 +279,18 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "The 'use_ssl' option requires the 'tls' feature, but it's not enabled!"
+    )]
+    fn test_panic_ssl() {
+        let connection = "sc://127.0.0.1:443/;use_ssl=true";
+
+        ChannelBuilder::create(&connection).unwrap();
+    }
+
+    #[test]
     fn test_spark_session_builder() {
-        let connection =
-            "sc://myhost.com:443/;use_ssl=true;token=ABCDEFG;user_agent=some_agent;user_id=user123";
+        let connection = "sc://myhost.com:443/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
 
         let ssbuilder = SparkSessionBuilder::remote(connection);
 
@@ -267,31 +304,13 @@ mod tests {
             "user123".to_string(),
             ssbuilder.channel_builder.user_id.unwrap()
         );
-        // assert_eq!(
-        //     "true",
-        //     ssbuilder
-        //         .channel_builder
-        //         .headers
-        //         .unwrap()
-        //         .get("use_ssl")
-        //         .unwrap()
-        //         .to_str()
-        //         .unwrap()
-        // );
-        // assert_eq!(
-        //     Some("some_agent"),
-        //     ssbuilder
-        //         .channel_builder
-        //         .headers
-        //         .clone()
-        //         .unwrap()
-        //         .get("user_agent")
-        // );
+        assert_eq!(Some("some_agent"), ssbuilder.channel_builder.user_agent);
     }
 
     #[tokio::test]
     async fn test_spark_session_create() {
-        let connection = "sc://localhost:15002/;use_ssl=true;token=ABCDEFG;user_agent=some_agent;user_id=user123";
+        let connection =
+            "sc://localhost:15002/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
 
         let spark = SparkSessionBuilder::remote(connection).build().await;
 
