@@ -18,7 +18,7 @@ include = [
 ]
 
 [dependencies]
-tonic = { version ="0.11.0", features = ["tls", "tls-roots"]}
+tonic = "0.11.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tokio-rustls = "0.25.0"
 
@@ -39,6 +39,9 @@ tonic-build = "0.11.0"
 [lib]
 doctest = false
 
+[features]
+tls = ["tonic/tls", "tonic/tls-roots"]
+
 [[example]]
 name = "reader"
 
@@ -47,3 +50,7 @@ name = "sql"
 
 [[example]]
 name = "writer"
+
+[[example]]
+name = "databricks"
+required-features = ["tls"]
