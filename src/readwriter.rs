@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
@@ -9,18 +10,16 @@ use crate::DataFrame;
 
 use spark::write_operation::SaveMode;
 
-use arrow::error::ArrowError;
-
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
-pub struct DataFrameReader {
+pub struct DataFrameReader<'a> {
     spark_session: SparkSession,
-    format: Option<String>,
+    format: Option<&'a str>,
     read_options: HashMap<String, String>,
 }
 
-impl DataFrameReader {
+impl<'a> DataFrameReader<'a> {
     /// Create a new DataFrameReader with a [SparkSession]
     pub fn new(spark_session: SparkSession) -> Self {
         Self {
@@ -31,8 +30,8 @@ impl DataFrameReader {
     }
 
     /// Specifies the input data source format
-    pub fn format(mut self, format: &str) -> Self {
-        self.format = Some(format.to_string());
+    pub fn format(mut self, format: &'a str) -> Self {
+        self.format = Some(format);
         self
     }
 
@@ -57,14 +56,14 @@ impl DataFrameReader {
     /// // returns a DataFrame from a csv file with a header from a the specific path
     /// let mut df = spark.read().format("csv").option("header", "true").load(paths);
     /// ```
-    pub fn load(&mut self, paths: Vec<String>) -> DataFrame {
+    pub fn load(&mut self, paths: Vec<&str>) -> DataFrame {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
             is_streaming: false,
             read_type: Some(spark::read::ReadType::DataSource(spark::read::DataSource {
-                format: self.format.clone(),
+                format: Some(self.format.unwrap().to_string()),
                 schema: None,
                 options: self.read_options.clone(),
-                paths,
+                paths: paths.iter().map(|path| path.to_string()).collect(),
                 predicates: vec![],
             })),
         }));
@@ -208,7 +207,7 @@ impl DataFrameWriter {
     /// Save the contents of the [DataFrame] to a data source.
     ///
     /// The data source is specified by the `format` and a set of `options`.
-    pub async fn save(&mut self, path: &str) -> Result<(), ArrowError> {
+    pub async fn save(&mut self, path: &str) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
             input: Some(self.dataframe.logical_plan.relation.clone()),
             source: self.format.clone(),
@@ -231,7 +230,7 @@ impl DataFrameWriter {
         Ok(())
     }
 
-    async fn save_table(&mut self, table_name: &str, save_method: i32) -> Result<(), ArrowError> {
+    async fn save_table(&mut self, table_name: &str, save_method: i32) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
             input: Some(self.dataframe.logical_plan.relation.clone()),
             source: self.format.clone(),
@@ -261,7 +260,7 @@ impl DataFrameWriter {
 
     /// Saves the context of the [DataFrame] as the specified table.
     #[allow(non_snake_case)]
-    pub async fn saveAsTable(&mut self, table_name: &str) -> Result<(), ArrowError> {
+    pub async fn saveAsTable(&mut self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 1).await
     }
 
@@ -273,7 +272,7 @@ impl DataFrameWriter {
     /// Unlike `saveAsTable()`, this method ignores the column names and just uses
     /// position-based resolution
     #[allow(non_snake_case)]
-    pub async fn insertInto(&mut self, table_name: &str) -> Result<(), ArrowError> {
+    pub async fn insertInto(&mut self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
     }
 }

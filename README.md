@@ -71,10 +71,10 @@ cargo build && cargo test
 
 ## Features
 
-The following section outlines some of the larger functionality that
+The following section outlines some larger functionality that
 is not yet working with this Spark Connect implementation.
 
-- ![open] TLS authentication & Databricks compatability
+- ![done] TLS authentication & Databricks compatability
 - ![open] streaming implementation
 - ![open] groupBy, aggregation, and window functions
 - ![open] better error handling

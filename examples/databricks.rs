@@ -1,32 +1,44 @@
-// This example demonstrates creating a Spark DataFrame from a CSV with read options
-// and then adding transformations for 'select' & 'sort'
-// The resulting dataframe is saved in the `delta` format as a `managed` table
-// and `spark.sql` queries are run against the delta table
+// This example demonstrates connecting to a Databricks Cluster via a
+// tls connection.
 //
-// The remote spark session must have the spark package `io.delta:delta-spark_2.12:{DELTA_VERSION}` enabled.
-// Where the `DELTA_VERSION` is the specified Delta Lake version.
+// This demo requires access to a Databricks Workspace, a personal access token,
+// and a cluster id. The cluster should be running a 13.3LTS runtime or greater. Populate
+// the remote URL string between the `<>` with the appropriate details.
+//
+// To view the connected Spark Session, go to the cluster Spark UI and select the 'Connect' tab.
 
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::remote("sc://<workspace id>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>")
-        .build()
-        .await?;
+    let spark: SparkSession = SparkSessionBuilder::remote("sc://<workspace id>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>");
 
     spark
-        .read()
-        .table("datalake.wine_quality.red", None)
-        .limit(5)
-        .collect()
+        .range(None, 10, 1, Some(1))
+        .selectExpr(vec!["id * 4"])
+        .show(Some(10), None, None)
         .await
         .unwrap();
-    //
-    // let df = spark
-    //     .range(Some(1), 100, 1, Some(1))
-    //     .collect()
-    //     .await
-    //     .unwrap();
+
+    // +-------------+
+    // | show_string |
+    // +-------------+
+    // | +--------+  |
+    // | |(id * 4)|  |
+    // | +--------+  |
+    // | |0       |  |
+    // | |4       |  |
+    // | |8       |  |
+    // | |12      |  |
+    // | |16      |  |
+    // | |20      |  |
+    // | |24      |  |
+    // | |28      |  |
+    // | |32      |  |
+    // | |36      |  |
+    // | +--------+  |
+    // |             |
+    // +-------------+
 
     Ok(())
 }

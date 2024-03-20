@@ -85,7 +85,7 @@ impl SparkSession {
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
-    pub fn read(self) -> DataFrameReader {
+    pub fn read(self) -> DataFrameReader<'static> {
         DataFrameReader::new(self)
     }
 

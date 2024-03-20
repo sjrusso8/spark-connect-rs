@@ -118,7 +118,7 @@ impl ChannelBuilder {
             }
         };
 
-        channel_builder.headers = Some(metadata_builder(headers));
+        channel_builder.headers = Some(metadata_builder(&headers));
 
         Ok(channel_builder)
     }
@@ -168,9 +168,9 @@ impl Interceptor for MetadataInterceptor {
     }
 }
 
-fn metadata_builder(headers: HashMap<String, String>) -> MetadataMap {
+fn metadata_builder(headers: &HashMap<String, String>) -> MetadataMap {
     let mut metadata_map = MetadataMap::new();
-    for (key, val) in headers.into_iter() {
+    for (key, val) in headers.iter() {
         let meta_val = MetadataValue::from_str(val.as_str()).unwrap();
         let meta_key = MetadataKey::from_str(key.as_str()).unwrap();
 

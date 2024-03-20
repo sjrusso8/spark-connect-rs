@@ -903,7 +903,7 @@ mod tests {
             cols
         );
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let cols = spark
             .read()
@@ -1000,7 +1000,7 @@ mod tests {
     async fn test_describe() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
@@ -1040,7 +1040,7 @@ mod tests {
     async fn test_drop() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
@@ -1060,7 +1060,7 @@ mod tests {
     async fn test_join() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .clone()
@@ -1071,7 +1071,7 @@ mod tests {
             .load(paths)
             .alias("df");
 
-        let mut df1 = spark
+        let df1 = spark
             .clone()
             .range(None, 1, 1, Some(1))
             .select(vec![lit("Bob").alias("name"), lit(1).alias("id")])

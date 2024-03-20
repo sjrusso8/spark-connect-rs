@@ -9,7 +9,7 @@ use spark_connect_rs::functions as F;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spark: SparkSession = SparkSessionBuilder::default().build().await?;
 
-    let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+    let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
     let mut df = spark
         .read()

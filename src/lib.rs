@@ -154,7 +154,7 @@ mod tests {
     async fn test_dataframe_read() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
@@ -197,7 +197,7 @@ mod tests {
             .read()
             .format("csv")
             .option("header", "true")
-            .load(vec![path.to_string()]);
+            .load(vec![path]);
 
         let total: usize = df
             .select(vec![col("range_id")])

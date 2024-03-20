@@ -507,7 +507,7 @@ mod tests {
     async fn test_func_col_contains() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
@@ -536,7 +536,7 @@ mod tests {
     async fn test_func_col_isin() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
