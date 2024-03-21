@@ -8,7 +8,7 @@ use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut spark: SparkSession =
-        SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
+        SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs")
             .build()
             .await?;
 
