@@ -82,33 +82,3 @@ impl Error for SparkError {
         }
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//
-//     #[test]
-//     fn error_source() {
-//         let e1 = SparkError::DivideByZero;
-//         assert!(e1.source().is_none());
-//
-//         // one level of wrapping
-//         let e2 = SparkError::ExternalError(Box::new(e1));
-//         let source = e2.source().unwrap().downcast_ref::<SparkError>().unwrap();
-//         assert!(matches!(source, SparkError::DivideByZero));
-//
-//         // two levels of wrapping
-//         let e3 = SparkError::ExternalError(Box::new(e2));
-//         let source = e3
-//             .source()
-//             .unwrap()
-//             .downcast_ref::<SparkError>()
-//             .unwrap()
-//             .source()
-//             .unwrap()
-//             .downcast_ref::<SparkError>()
-//             .unwrap();
-//
-//         assert!(matches!(source, SparkError::DivideByZero));
-//     }
-// }

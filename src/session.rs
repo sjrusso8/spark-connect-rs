@@ -19,6 +19,7 @@ use spark::spark_connect_service_client::SparkConnectServiceClient;
 use spark::ExecutePlanResponse;
 
 use tokio::sync::Mutex;
+use tonic::metadata::MetadataMap;
 use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
 use tonic::Streaming;
@@ -28,7 +29,6 @@ use uuid::Uuid;
 // Type aliases for complex types
 type SparkClient =
     Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>;
-type MetadataMap = HashMap<String, String>;
 
 /// The entry point to connecting to a Spark Cluster
 /// using the Spark Connection gRPC protocol.
@@ -39,28 +39,28 @@ pub struct SparkSession {
     pub client: SparkClient,
     // Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>,
     /// Spark Session ID
-    pub session_id: String,
+    pub session_id: Uuid,
 
     /// gRPC metadata collected from the connection string
     metadata: Option<MetadataMap>,
     user_id: Option<String>,
-
-    token: Option<&'static str>,
+    user_agent: String,
 }
 
 impl SparkSession {
     pub fn new(
         client: SparkClient,
+        session_id: Option<Uuid>,
         metadata: Option<MetadataMap>,
         user_id: Option<String>,
-        token: Option<&'static str>,
+        user_agent: Option<String>,
     ) -> Self {
         Self {
             client,
-            session_id: Uuid::new_v4().to_string(),
+            session_id: session_id.unwrap_or(Uuid::new_v4()),
             metadata,
             user_id,
-            token,
+            user_agent: user_agent.unwrap_or("_SPARK_CONNECT_RUST".to_string()),
         }
     }
     /// Create a [DataFrame] with a spingle column named `id`,
@@ -124,7 +124,7 @@ impl SparkSession {
 
     fn build_execute_plan_request(&self, plan: Option<spark::Plan>) -> spark::ExecutePlanRequest {
         spark::ExecutePlanRequest {
-            session_id: self.session_id.clone(),
+            session_id: self.session_id.to_string(),
             user_context: Some(spark::UserContext {
                 user_id: self.user_id.clone().unwrap_or("NA".to_string()),
                 user_name: self.user_id.clone().unwrap_or("NA".to_string()),
@@ -132,7 +132,7 @@ impl SparkSession {
             }),
             operation_id: None,
             plan,
-            client_type: Some("_SPARK_CONNECT_RUST".to_string()),
+            client_type: Some(self.user_agent.clone()),
             request_options: vec![],
             tags: vec![],
         }
@@ -143,13 +143,13 @@ impl SparkSession {
         analyze: Option<spark::analyze_plan_request::Analyze>,
     ) -> spark::AnalyzePlanRequest {
         spark::AnalyzePlanRequest {
-            session_id: self.session_id.clone(),
+            session_id: self.session_id.to_string(),
             user_context: Some(spark::UserContext {
                 user_id: self.user_id.clone().unwrap_or("NA".to_string()),
                 user_name: self.user_id.clone().unwrap_or("NA".to_string()),
                 extensions: vec![],
             }),
-            client_type: Some("_SPARK_CONNECT_RUST".to_string()),
+            client_type: Some(self.user_agent.clone()),
             analyze,
         }
     }

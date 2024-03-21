@@ -28,7 +28,7 @@ use spark_connect_rs::functions as F;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/".to_string())
+    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
             .build()
             .await?;
 
@@ -74,7 +74,7 @@ cargo build && cargo test
 The following section outlines some of the larger functionality that
 is not yet working with this Spark Connect implementation.
 
-- ![open] TLS authentication & Databricks compatability
+- ![done] TLS authentication & Databricks compatability
 - ![open] streaming implementation
 - ![open] groupBy, aggregation, and window functions
 - ![open] better error handling

@@ -37,7 +37,10 @@ url = "2.2"
 tonic-build = "0.11.0"
 
 [lib]
+
 doctest = false
+[features]
+tls = ["tonic/tls", "tonic/tls-roots"]
 
 [[example]]
 name = "reader"
@@ -47,3 +50,10 @@ name = "sql"
 
 [[example]]
 name = "writer"
+
+[[example]]
+name = "delta"
+
+[[example]]
+name = "databricks"
+required-features = ["tls"]
