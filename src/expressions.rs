@@ -45,6 +45,15 @@ where
     }
 }
 
+impl<const N: usize, T> ToVecExpr for [T; N]
+where
+    T: ToExpr,
+{
+    fn to_vec_expr(&self) -> Vec<spark::Expression> {
+        self.iter().map(|col| col.to_expr()).collect()
+    }
+}
+
 pub trait ToFilterExpr {
     fn to_filter_expr(&self) -> Option<spark::Expression>;
 }

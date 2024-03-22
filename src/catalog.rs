@@ -54,7 +54,9 @@ impl Catalog {
 
     /// Returns a list of catalogs in this session
     #[allow(non_snake_case)]
-    pub async fn listCatalogs(&mut self, pattern: Option<String>) -> Vec<RecordBatch> {
+    pub async fn listCatalogs(&mut self, pattern: Option<&str>) -> Vec<RecordBatch> {
+        let pattern = pattern.map(|val| val.to_owned());
+
         let cat_type = Some(spark::catalog::CatType::ListCatalogs(spark::ListCatalogs {
             pattern,
         }));
@@ -72,7 +74,9 @@ impl Catalog {
 
     /// Returns a list of databases in this session
     #[allow(non_snake_case)]
-    pub async fn listDatabases(&mut self, pattern: Option<String>) -> Vec<RecordBatch> {
+    pub async fn listDatabases(&mut self, pattern: Option<&str>) -> Vec<RecordBatch> {
+        let pattern = pattern.map(|val| val.to_owned());
+
         let cat_type = Some(spark::catalog::CatType::ListDatabases(
             spark::ListDatabases { pattern },
         ));
@@ -92,12 +96,12 @@ impl Catalog {
     #[allow(non_snake_case)]
     pub async fn listTables(
         &mut self,
-        dbName: Option<String>,
-        pattern: Option<String>,
+        dbName: Option<&str>,
+        pattern: Option<&str>,
     ) -> Vec<RecordBatch> {
         let cat_type = Some(spark::catalog::CatType::ListTables(spark::ListTables {
-            db_name: dbName,
-            pattern,
+            db_name: dbName.map(|db| db.to_owned()),
+            pattern: pattern.map(|val| val.to_owned()),
         }));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
@@ -113,14 +117,10 @@ impl Catalog {
 
     /// Returns a list of columns for the given tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listColumns(
-        &mut self,
-        tableName: String,
-        dbName: Option<String>,
-    ) -> Vec<RecordBatch> {
+    pub async fn listColumns(&mut self, tableName: &str, dbName: Option<&str>) -> Vec<RecordBatch> {
         let cat_type = Some(spark::catalog::CatType::ListColumns(spark::ListColumns {
-            table_name: tableName,
-            db_name: dbName,
+            table_name: tableName.to_owned(),
+            db_name: dbName.map(|val| val.to_owned()),
         }));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
@@ -207,10 +207,7 @@ mod tests {
             .await
             .unwrap();
 
-        let value = spark
-            .catalog()
-            .listDatabases(Some("*rust".to_string()))
-            .await;
+        let value = spark.catalog().listDatabases(Some("*rust")).await;
 
         assert_eq!(4, value[0].num_columns());
         assert_eq!(1, value[0].num_rows());

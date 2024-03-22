@@ -134,12 +134,15 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(ctab_rel)
     }
 
-    pub fn describe(&mut self, cols: Option<Vec<&str>>) -> LogicalPlanBuilder {
+    pub fn describe<'a, I>(&mut self, cols: Option<I>) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = &'a str> + std::default::Default,
+    {
         let desc = spark::StatDescribe {
             input: self.clone().relation_input(),
             cols: cols
                 .unwrap_or_default()
-                .iter()
+                .into_iter()
                 .map(|col| col.to_string())
                 .collect(),
         };
@@ -150,7 +153,7 @@ impl LogicalPlanBuilder {
     }
 
     pub fn distinct(&mut self) -> LogicalPlanBuilder {
-        self.drop_duplicates(None)
+        self.drop_duplicates::<Vec<_>>(None)
     }
 
     pub fn drop<T: ToVecExpr>(&mut self, cols: T) -> LogicalPlanBuilder {
@@ -163,11 +166,14 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(drop_expr)
     }
 
-    pub fn drop_duplicates(&mut self, cols: Option<Vec<&str>>) -> LogicalPlanBuilder {
+    pub fn drop_duplicates<'a, I>(&mut self, cols: Option<I>) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = &'a str> + std::default::Default,
+    {
         let drop_expr = match cols {
             Some(cols) => RelType::Deduplicate(Box::new(spark::Deduplicate {
                 input: self.clone().relation_input(),
-                column_names: cols.iter().map(|col| col.to_string()).collect(),
+                column_names: cols.into_iter().map(|col| col.to_string()).collect(),
                 all_columns_as_keys: Some(false),
                 within_watermark: Some(false),
             })),
@@ -183,12 +189,15 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(drop_expr)
     }
 
-    pub fn dropna(
+    pub fn dropna<'a, I>(
         &mut self,
         how: &str,
         threshold: Option<i32>,
-        subset: Option<Vec<&str>>,
-    ) -> LogicalPlanBuilder {
+        subset: Option<I>,
+    ) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = &'a str> + std::default::Default,
+    {
         let mut min_non_nulls = match how {
             "all" => Some(1),
             "any" => None,
@@ -203,7 +212,7 @@ impl LogicalPlanBuilder {
             input: self.clone().relation_input(),
             cols: subset
                 .unwrap_or_default()
-                .iter()
+                .into_iter()
                 .map(|col| col.to_string())
                 .collect(),
             min_non_nulls,
@@ -214,10 +223,13 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(dropna_rel)
     }
 
-    pub fn to_df(&mut self, cols: Vec<&str>) -> LogicalPlanBuilder {
+    pub fn to_df<'a, I>(&mut self, cols: I) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         let to_df = spark::ToDf {
             input: self.clone().relation_input(),
-            column_names: cols.iter().map(|col| col.to_string()).collect(),
+            column_names: cols.into_iter().map(|col| col.to_string()).collect(),
         };
 
         let to_df_rel = RelType::ToDf(Box::new(to_df));
@@ -329,10 +341,13 @@ impl LogicalPlanBuilder {
     }
 
     #[allow(non_snake_case)]
-    pub fn freqItems(&mut self, cols: Vec<&str>, support: Option<f64>) -> LogicalPlanBuilder {
+    pub fn freqItems<'a, I>(&mut self, cols: I, support: Option<f64>) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         let freq_items = spark::StatFreqItems {
             input: self.clone().relation_input(),
-            cols: cols.iter().map(|col| col.to_string()).collect(),
+            cols: cols.into_iter().map(|col| col.to_string()).collect(),
             support,
         };
 
@@ -358,13 +373,17 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(hint_rel)
     }
 
-    pub fn join<T: ToExpr>(
+    pub fn join<'a, T, I>(
         &mut self,
         right: LogicalPlanBuilder,
         join_condition: Option<T>,
         join_type: spark::join::JoinType,
-        using_columns: Vec<String>,
-    ) -> LogicalPlanBuilder {
+        using_columns: I,
+    ) -> LogicalPlanBuilder
+    where
+        T: ToExpr,
+        I: IntoIterator<Item = &'a str>,
+    {
         let join_condition = join_condition.map(|join| join.to_expr());
 
         let join = spark::Join {
@@ -372,7 +391,10 @@ impl LogicalPlanBuilder {
             right: right.clone().relation_input(),
             join_condition,
             join_type: join_type.into(),
-            using_columns,
+            using_columns: using_columns
+                .into_iter()
+                .map(|col| col.to_string())
+                .collect(),
             join_data_type: None,
         };
 
@@ -441,9 +463,12 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(rel_type)
     }
 
-    pub fn select_expr(&mut self, cols: Vec<&str>) -> LogicalPlanBuilder {
+    pub fn select_expr<'a, I>(&mut self, cols: I) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         let expressions = cols
-            .iter()
+            .into_iter()
             .map(|col| spark::Expression {
                 expr_type: Some(spark::expression::ExprType::ExpressionString(
                     spark::expression::ExpressionString {
@@ -461,9 +486,12 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(rel_type)
     }
 
-    pub fn sort(&mut self, cols: Vec<Column>) -> LogicalPlanBuilder {
+    pub fn sort<I>(&mut self, cols: I) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = Column>,
+    {
         let order = cols
-            .iter()
+            .into_iter()
             .map(|col| {
                 if let ExprType::SortOrder(ord) = col
                     .expression
@@ -489,16 +517,6 @@ impl LogicalPlanBuilder {
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumnsRenamed(&mut self, cols: HashMap<String, String>) -> LogicalPlanBuilder {
-        let rename_expr = RelType::WithColumnsRenamed(Box::new(spark::WithColumnsRenamed {
-            input: self.clone().relation_input(),
-            rename_columns_map: cols,
-        }));
-
-        LogicalPlanBuilder::from(rename_expr)
-    }
-
-    #[allow(non_snake_case)]
     pub fn withColumn(&mut self, colName: &str, col: Column) -> LogicalPlanBuilder {
         let aliases: Vec<spark::expression::Alias> = vec![spark::expression::Alias {
             expr: Some(Box::new(col.to_expr())),
@@ -515,7 +533,11 @@ impl LogicalPlanBuilder {
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumns(&mut self, colMap: HashMap<&str, Column>) -> LogicalPlanBuilder {
+    pub fn withColumns<I, K>(&mut self, colMap: I) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = (K, Column)>,
+        K: ToString,
+    {
         let aliases: Vec<spark::expression::Alias> = colMap
             .into_iter()
             .map(|(name, col)| spark::expression::Alias {
@@ -531,5 +553,25 @@ impl LogicalPlanBuilder {
         }));
 
         LogicalPlanBuilder::from(with_col)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn withColumnsRenamed<I, K, V>(&mut self, cols: I) -> LogicalPlanBuilder
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        let rename_columns_map: HashMap<String, String> = cols
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
+            .collect();
+
+        let rename_expr = RelType::WithColumnsRenamed(Box::new(spark::WithColumnsRenamed {
+            input: self.clone().relation_input(),
+            rename_columns_map,
+        }));
+
+        LogicalPlanBuilder::from(rename_expr)
     }
 }

@@ -9,16 +9,16 @@ use spark_connect_rs::functions as F;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spark: SparkSession = SparkSessionBuilder::default().build().await?;
 
-    let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+    let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
     let mut df = spark
         .read()
         .format("csv")
         .option("header", "True")
         .option("delimiter", ";")
-        .load(paths);
+        .load(path);
 
-    df.select(vec![
+    df.select([
         F::col("name"),
         F::col("age").cast("int").alias("age_int"),
         (F::lit(3.0) + F::col("age").cast("int")).alias("addition"),

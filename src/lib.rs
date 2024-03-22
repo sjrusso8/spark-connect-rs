@@ -154,14 +154,14 @@ mod tests {
     async fn test_dataframe_read() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths);
+            .load(path);
 
         let rows = df
             .filter("age > 30")
@@ -197,7 +197,7 @@ mod tests {
             .read()
             .format("csv")
             .option("header", "true")
-            .load(vec![path.to_string()]);
+            .load([path]);
 
         let total: usize = df
             .select(vec![col("range_id")])
