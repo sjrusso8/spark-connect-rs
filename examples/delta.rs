@@ -14,7 +14,7 @@ use spark_connect_rs::dataframe::SaveMode;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut spark: SparkSession = SparkSessionBuilder::default().build().await?;
 
-    let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+    let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
 
     let df = spark
         .clone()

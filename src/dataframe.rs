@@ -1,7 +1,5 @@
 //! DataFrame with Reader/Writer repesentation
 
-use std::collections::HashMap;
-
 use crate::column::Column;
 use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
@@ -159,44 +157,36 @@ impl DataFrame {
         Some(data?.value(0))
     }
 
-    #[allow(non_snake_case, dead_code)]
+    #[allow(non_snake_case)]
     pub async fn createTempView(&mut self, name: &str) {
-        self.create_view_cmd(name.to_string(), false, false)
-            .await
-            .unwrap()
+        self.create_view_cmd(name, false, false).await.unwrap()
     }
 
-    #[allow(non_snake_case, dead_code)]
+    #[allow(non_snake_case)]
     pub async fn createGlobalTempView(&mut self, name: &str) {
-        self.create_view_cmd(name.to_string(), true, false)
-            .await
-            .unwrap()
+        self.create_view_cmd(name, true, false).await.unwrap()
     }
 
-    #[allow(non_snake_case, dead_code)]
+    #[allow(non_snake_case)]
     pub async fn createOrReplaceGlobalTempView(&mut self, name: &str) {
-        self.create_view_cmd(name.to_string(), true, true)
-            .await
-            .unwrap()
+        self.create_view_cmd(name, true, true).await.unwrap()
     }
 
-    #[allow(non_snake_case, dead_code)]
+    #[allow(non_snake_case)]
     pub async fn createOrReplaceTempView(&mut self, name: &str) {
-        self.create_view_cmd(name.to_string(), false, true)
-            .await
-            .unwrap()
+        self.create_view_cmd(name, false, true).await.unwrap()
     }
 
     async fn create_view_cmd(
         &mut self,
-        name: String,
+        name: &str,
         is_global: bool,
         replace: bool,
     ) -> Result<(), SparkError> {
         let command_type =
             spark::command::CommandType::CreateDataframeView(spark::CreateDataFrameViewCommand {
                 input: Some(self.logical_plan.clone().relation),
-                name,
+                name: name.to_string(),
                 is_global,
                 replace,
             });
@@ -357,7 +347,10 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn freqItems(&mut self, cols: Vec<&str>, support: Option<f64>) -> DataFrame {
+    pub fn freqItems<'a, I>(&mut self, cols: I, support: Option<f64>) -> DataFrame
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         DataFrame::new(
             self.spark_session.clone(),
             self.logical_plan.freqItems(cols, support),
@@ -455,7 +448,10 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn orderBy(&mut self, cols: Vec<Column>) -> DataFrame {
+    pub fn orderBy<I>(&mut self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = Column>,
+    {
         DataFrame::new(self.spark_session.clone(), self.logical_plan.sort(cols))
     }
 
@@ -583,7 +579,10 @@ impl DataFrame {
     /// }
     /// ```
     #[allow(non_snake_case)]
-    pub fn selectExpr(&mut self, cols: Vec<&str>) -> DataFrame {
+    pub fn selectExpr<'a, I>(&mut self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         DataFrame::new(
             self.spark_session.clone(),
             self.logical_plan.select_expr(cols),
@@ -692,7 +691,10 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn toDF(&mut self, cols: Vec<&str>) -> DataFrame {
+    pub fn toDF<'a, I>(&mut self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         DataFrame::new(self.spark_session.clone(), self.logical_plan.to_df(cols))
     }
 
@@ -752,7 +754,11 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumns(&mut self, colMap: HashMap<&str, Column>) -> DataFrame {
+    pub fn withColumns<I, K>(&mut self, colMap: I) -> DataFrame
+    where
+        I: IntoIterator<Item = (K, Column)>,
+        K: ToString,
+    {
         DataFrame::new(
             self.spark_session.clone(),
             self.logical_plan.withColumns(colMap),
@@ -760,10 +766,15 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] by renaming multiple columns from a
-    /// `HashMap<String, String>` containing the `existing` as the key
-    /// and the `new` as the value.
+    /// an iterator of containing a key/value pair with the key as the `existing`
+    /// column name and the value as the `new` column name.
     #[allow(non_snake_case)]
-    pub fn withColumnsRenamed(&mut self, cols: HashMap<String, String>) -> DataFrame {
+    pub fn withColumnsRenamed<I, K, V>(&mut self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
         DataFrame::new(
             self.spark_session.clone(),
             self.logical_plan.withColumnsRenamed(cols),
@@ -903,14 +914,14 @@ mod tests {
             cols
         );
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let cols = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths)
+            .load(path)
             .columns()
             .await;
 
@@ -1000,14 +1011,14 @@ mod tests {
     async fn test_describe() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths);
+            .load(path);
 
         let mut df = df
             .select(col("age").cast("int").alias("age_int"))
@@ -1040,14 +1051,14 @@ mod tests {
     async fn test_drop() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths);
+            .load(path);
 
         let mut df = df.drop(vec!["age", "job"]);
 
@@ -1060,7 +1071,7 @@ mod tests {
     async fn test_join() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .clone()
@@ -1068,10 +1079,10 @@ mod tests {
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths)
+            .load(path)
             .alias("df");
 
-        let mut df1 = spark
+        let df1 = spark
             .clone()
             .range(None, 1, 1, Some(1))
             .select(vec![lit("Bob").alias("name"), lit(1).alias("id")])

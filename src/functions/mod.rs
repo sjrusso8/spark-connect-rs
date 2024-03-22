@@ -507,14 +507,14 @@ mod tests {
     async fn test_func_col_contains() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths);
+            .load(path);
 
         let row = df
             .filter(col("name").contains("e"))
@@ -536,14 +536,14 @@ mod tests {
     async fn test_func_col_isin() {
         let spark = setup().await;
 
-        let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
         let mut df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(paths);
+            .load(path);
 
         let row = df
             .filter(col("name").isin(vec!["Jorge", "Bob"]))

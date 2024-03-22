@@ -42,9 +42,18 @@ impl DataFrameReader {
         self
     }
 
-    /// Set many input options based on a [HashMap] for the underlying data source
-    pub fn options(mut self, options: HashMap<String, String>) -> Self {
-        self.read_options = options;
+    /// Set many input options based on an iterator of (key/value pairs) for the underlying data source
+    pub fn options<I, K, V>(mut self, options: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        self.read_options = options
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
+            .collect();
+
         self
     }
 
@@ -52,19 +61,22 @@ impl DataFrameReader {
     ///
     /// Example:
     /// ```rust
-    /// let paths = vec!["some/dir/path/on/the/remote/cluster/".to_string()];
+    /// let path = vec!["some/dir/path/on/the/remote/cluster/"];
     ///
     /// // returns a DataFrame from a csv file with a header from a the specific path
-    /// let mut df = spark.read().format("csv").option("header", "true").load(paths);
+    /// let mut df = spark.read().format("csv").option("header", "true").load(path);
     /// ```
-    pub fn load(&mut self, paths: Vec<String>) -> DataFrame {
+    pub fn load<'a, I>(&mut self, paths: I) -> DataFrame
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
             is_streaming: false,
             read_type: Some(spark::read::ReadType::DataSource(spark::read::DataSource {
                 format: self.format.clone(),
                 schema: None,
                 options: self.read_options.clone(),
-                paths,
+                paths: paths.into_iter().map(|p| p.to_string()).collect(),
                 predicates: vec![],
             })),
         }));
@@ -170,9 +182,12 @@ impl DataFrameWriter {
     /// If specified, the output is laid out on the file system
     /// similar to Hive’s bucketing scheme.
     #[allow(non_snake_case)]
-    pub fn bucketBy(mut self, num_buckets: i32, buckets: Vec<String>) -> Self {
+    pub fn bucketBy<'a, I>(mut self, num_buckets: i32, buckets: I) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
         self.bucket_by = Some(spark::write_operation::BucketBy {
-            bucket_column_names: buckets,
+            bucket_column_names: buckets.into_iter().map(|b| b.to_string()).collect(),
             num_buckets,
         });
         self
@@ -180,15 +195,21 @@ impl DataFrameWriter {
 
     /// Sorts the output in each bucket by the given columns on the file system
     #[allow(non_snake_case)]
-    pub fn sortBy(mut self, cols: Vec<String>) -> Self {
-        self.sort_by = cols;
+    pub fn sortBy<'a, I>(mut self, cols: I) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        self.sort_by = cols.into_iter().map(|col| col.to_string()).collect();
         self
     }
 
     /// Partitions the output by the given columns on the file system
     #[allow(non_snake_case)]
-    pub fn partitionBy(mut self, cols: Vec<String>) -> Self {
-        self.sort_by = cols;
+    pub fn partitionBy<'a, I>(mut self, cols: I) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        self.sort_by = cols.into_iter().map(|col| col.to_string()).collect();
         self
     }
 
@@ -199,9 +220,17 @@ impl DataFrameWriter {
         self
     }
 
-    /// Set many input options based on a [HashMap] for the underlying data source
-    pub fn options(mut self, options: HashMap<String, String>) -> Self {
-        self.write_options = options;
+    /// Set many input options based on an iterator of (key/value pairs) for the underlying data source
+    pub fn options<I, K, V>(mut self, options: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        self.write_options = options
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
+            .collect();
         self
     }
 
