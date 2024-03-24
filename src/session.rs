@@ -1,67 +1,31 @@
 //! Spark Session containing the remote gRPC client
 
 use std::collections::HashMap;
-use std::io::Error;
-use std::sync::Arc;
 
 use crate::catalog::Catalog;
-use crate::client::MetadataInterceptor;
 pub use crate::client::SparkSessionBuilder;
+use crate::client::{MetadataInterceptor, SparkConnectClient};
 use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::errors::SparkError;
-use crate::handler::ResponseHandler;
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
 
-use arrow::record_batch::RecordBatch;
-
-use spark::spark_connect_service_client::SparkConnectServiceClient;
-use spark::ExecutePlanResponse;
-
-use tokio::sync::Mutex;
-use tonic::metadata::MetadataMap;
 use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
-use tonic::Streaming;
-
-use uuid::Uuid;
-
-// Type aliases for complex types
-type SparkClient =
-    Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>;
 
 /// The entry point to connecting to a Spark Cluster
 /// using the Spark Connection gRPC protocol.
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct SparkSession {
     /// Spark Connection gRPC client interface
-    pub client: SparkClient,
-    // Arc<Mutex<SparkConnectServiceClient<InterceptedService<Channel, MetadataInterceptor>>>>,
-    /// Spark Session ID
-    pub session_id: Uuid,
-
-    /// gRPC metadata collected from the connection string
-    metadata: Option<MetadataMap>,
-    user_id: Option<String>,
-    user_agent: String,
+    pub client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
 }
 
 impl SparkSession {
     pub fn new(
-        client: SparkClient,
-        session_id: Option<Uuid>,
-        metadata: Option<MetadataMap>,
-        user_id: Option<String>,
-        user_agent: Option<String>,
+        client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
     ) -> Self {
-        Self {
-            client,
-            session_id: session_id.unwrap_or(Uuid::new_v4()),
-            metadata,
-            user_id,
-            user_agent: user_agent.unwrap_or("_SPARK_CONNECT_RUST".to_string()),
-        }
+        Self { client }
     }
     /// Create a [DataFrame] with a spingle column named `id`,
     /// containing elements in a range from `start` (default 0) to
@@ -97,10 +61,6 @@ impl SparkSession {
 
     /// Returns a [DataFrame] representing the result of the given query
     pub async fn sql(&mut self, sql_query: &str) -> Result<DataFrame, SparkError> {
-        let error_msg = SparkError::AnalysisException(
-            "Failed to get command response from Spark Connect Server".to_string(),
-        );
-
         let sql_cmd = spark::command::CommandType::SqlCommand(spark::SqlCommand {
             sql: sql_query.to_string(),
             args: HashMap::default(),
@@ -109,113 +69,12 @@ impl SparkSession {
 
         let plan = LogicalPlanBuilder::build_plan_cmd(sql_cmd);
 
-        let resp = self.execute_plan(Some(plan)).await?.message().await?;
+        self.client.execute_command(plan).await?;
 
-        match resp.ok_or(error_msg)?.response_type {
-            Some(spark::execute_plan_response::ResponseType::SqlCommandResult(sql_result)) => {
-                let logical_plan = LogicalPlanBuilder::new(sql_result.relation.unwrap());
-                Ok(DataFrame::new(self.clone(), logical_plan))
-            }
-            _ => Err(SparkError::NotYetImplemented(
-                "Response type not implemented".to_string(),
-            )),
-        }
-    }
+        let cmd = self.client.handler.sql_command_result.to_owned().unwrap();
 
-    fn build_execute_plan_request(&self, plan: Option<spark::Plan>) -> spark::ExecutePlanRequest {
-        spark::ExecutePlanRequest {
-            session_id: self.session_id.to_string(),
-            user_context: Some(spark::UserContext {
-                user_id: self.user_id.clone().unwrap_or("NA".to_string()),
-                user_name: self.user_id.clone().unwrap_or("NA".to_string()),
-                extensions: vec![],
-            }),
-            operation_id: None,
-            plan,
-            client_type: Some(self.user_agent.clone()),
-            request_options: vec![],
-            tags: vec![],
-        }
-    }
+        let logical_plan = LogicalPlanBuilder::new(cmd.relation.unwrap());
 
-    fn build_analyze_plan_request(
-        &self,
-        analyze: Option<spark::analyze_plan_request::Analyze>,
-    ) -> spark::AnalyzePlanRequest {
-        spark::AnalyzePlanRequest {
-            session_id: self.session_id.to_string(),
-            user_context: Some(spark::UserContext {
-                user_id: self.user_id.clone().unwrap_or("NA".to_string()),
-                user_name: self.user_id.clone().unwrap_or("NA".to_string()),
-                extensions: vec![],
-            }),
-            client_type: Some(self.user_agent.clone()),
-            analyze,
-        }
-    }
-
-    pub async fn execute_plan(
-        &mut self,
-        plan: Option<spark::Plan>,
-    ) -> Result<Streaming<ExecutePlanResponse>, SparkError> {
-        let exc_plan = self.build_execute_plan_request(plan);
-
-        let mut client = self.client.lock().await;
-
-        let value = client.execute_plan(exc_plan).await?.into_inner();
-
-        Ok(value)
-    }
-
-    /// Call a service on the remote Spark Connect server by running
-    /// a provided [spark::Plan].
-    ///
-    /// A [spark::Plan] produces a vector of [RecordBatch] records
-    pub async fn consume_plan(
-        &mut self,
-        plan: Option<spark::Plan>,
-    ) -> Result<Vec<RecordBatch>, SparkError> {
-        let mut stream = self.execute_plan(plan).await?;
-
-        let mut handler = ResponseHandler::new();
-
-        while let Some(resp) = stream.message().await.map_err(|err| {
-            SparkError::IoError(
-                err.to_string(),
-                Error::new(std::io::ErrorKind::Other, err.to_string()),
-            )
-        })? {
-            let _ = handler.handle_response(&resp);
-        }
-
-        Ok(handler.records().unwrap())
-    }
-
-    pub async fn analyze_plan(
-        &mut self,
-        analyze: Option<spark::analyze_plan_request::Analyze>,
-    ) -> Option<spark::analyze_plan_response::Result> {
-        let request = self.build_analyze_plan_request(analyze);
-        let mut client = self.client.lock().await;
-
-        let stream = client.analyze_plan(request).await.unwrap();
-
-        stream.into_inner().result
-    }
-
-    pub async fn consume_plan_and_fetch(&mut self, plan: Option<spark::Plan>) -> Option<String> {
-        let result = self
-            .consume_plan(plan)
-            .await
-            .expect("Failed to get a result from Spark Connect");
-
-        let col = result[0].column(0);
-
-        let data: &arrow::array::StringArray = match col.data_type() {
-            arrow::datatypes::DataType::Utf8 => col.as_any().downcast_ref().unwrap(),
-            _ => unimplemented!("only Utf8 data types are currently handled currently."),
-        };
-
-        Some(data.value(0).to_string())
+        Ok(DataFrame::new(self.clone(), logical_plan))
     }
 }

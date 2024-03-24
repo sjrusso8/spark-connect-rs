@@ -372,7 +372,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 
     #[tokio::test]
@@ -398,8 +398,8 @@ mod tests {
         let expected_batch =
             RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_val)]).unwrap();
 
-        assert_eq!(expected_batch.clone(), rows_col_asc[0]);
-        assert_eq!(expected_batch, rows_func_asc[0]);
+        assert_eq!(expected_batch.clone(), rows_col_asc);
+        assert_eq!(expected_batch, rows_func_asc);
     }
 
     #[tokio::test]
@@ -425,8 +425,8 @@ mod tests {
         let expected_batch =
             RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_val)]).unwrap();
 
-        assert_eq!(expected_batch.clone(), rows_col_asc[0]);
-        assert_eq!(expected_batch, rows_func_asc[0]);
+        assert_eq!(expected_batch.clone(), rows_col_asc);
+        assert_eq!(expected_batch, rows_func_asc);
     }
 
     #[tokio::test]
@@ -443,7 +443,7 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 
     #[tokio::test]
@@ -462,7 +462,7 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 
     #[tokio::test]
@@ -481,7 +481,7 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 
     #[tokio::test]
@@ -500,7 +500,7 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 
     #[tokio::test]
@@ -529,7 +529,7 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 
     #[tokio::test]
@@ -558,6 +558,6 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
 
-        assert_eq!(expected_batch, row[0]);
+        assert_eq!(expected_batch, row);
     }
 }

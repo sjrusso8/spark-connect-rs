@@ -42,7 +42,7 @@ impl DataFrame {
     }
 
     fn check_same_session(&self, other: &DataFrame) -> Result<(), SparkError> {
-        if self.spark_session.session_id != other.spark_session.session_id {
+        if self.spark_session.client.session_id() != other.spark_session.client.session_id() {
             return Err(SparkError::AnalysisException(
                 "Spark Session is not the same!".to_string(),
             ));
@@ -81,7 +81,7 @@ impl DataFrame {
         Column::from(expr)
     }
 
-    /// Returns all records as a vector of [RecordBatch]
+    /// Returns all records as a [RecordBatch]
     ///
     /// # Example:
     ///
@@ -90,14 +90,9 @@ impl DataFrame {
     ///     df.collect().await?;
     /// }
     /// ```
-    pub async fn collect(&mut self) -> Result<Vec<RecordBatch>, SparkError> {
-        let rows = self
-            .spark_session
-            .consume_plan(Some(self.logical_plan.clone().build_plan_root()))
-            .await
-            .unwrap();
-
-        Ok(rows)
+    pub async fn collect(&mut self) -> Result<RecordBatch, SparkError> {
+        let plan = self.logical_plan.clone().build_plan_root();
+        self.spark_session.client.to_arrow(plan).await
     }
 
     /// Retrieves the names of all columns in the [DataFrame] as a `Vec<String>`.
@@ -127,7 +122,7 @@ impl DataFrame {
         .await
         .unwrap();
 
-        let col = result[0].column(0);
+        let col = result.column(0);
 
         let data: Option<&PrimitiveArray<Float64Type>> = match col.data_type() {
             DataType::Float64 => col.as_any().downcast_ref(),
@@ -147,7 +142,7 @@ impl DataFrame {
         .await
         .unwrap();
 
-        let col = result[0].column(0);
+        let col = result.column(0);
 
         let data: Option<&PrimitiveArray<Float64Type>> = match col.data_type() {
             DataType::Float64 => col.as_any().downcast_ref(),
@@ -193,7 +188,11 @@ impl DataFrame {
 
         let plan = LogicalPlanBuilder::build_plan_cmd(command_type);
 
-        self.spark_session.consume_plan(Some(plan)).await.unwrap();
+        self.spark_session
+            .client
+            .execute_command(plan)
+            .await
+            .unwrap();
 
         Ok(())
     }
@@ -311,20 +310,30 @@ impl DataFrame {
             None => ExplainMode::Simple,
         };
 
-        let analyze = Some(spark::analyze_plan_request::Analyze::Explain(
-            spark::analyze_plan_request::Explain {
+        let analyze =
+            spark::analyze_plan_request::Analyze::Explain(spark::analyze_plan_request::Explain {
                 plan: Some(self.logical_plan.clone().build_plan_root()),
                 explain_mode: explain_mode.into(),
-            },
-        ));
+            });
 
-        let explain = match self.spark_session.analyze_plan(analyze).await {
-            Some(spark::analyze_plan_response::Result::Explain(explain)) => explain,
-            _ => panic!("Unexpected response from Analyze Plan"),
-        };
+        self.spark_session.client.analyze(analyze).await.unwrap();
 
-        println!("{}", explain.explain_string);
-        Ok(explain.explain_string)
+        let explain = self
+            .spark_session
+            .client
+            .analyzer
+            .explain
+            .to_owned()
+            .unwrap();
+
+        println!("{}", explain);
+
+        Ok(explain)
+        //
+        // let explain = match self.spark_session.analyze_plan(analyze).await {
+        //     Some(spark::analyze_plan_response::Result::Explain(explain)) => explain,
+        //     _ => panic!("Unexpected response from Analyze Plan"),
+        // };
     }
 
     /// Filters rows using a given conditions and returns a new [DataFrame]
@@ -342,7 +351,7 @@ impl DataFrame {
         )
     }
 
-    pub async fn first(&mut self) -> Vec<RecordBatch> {
+    pub async fn first(&mut self) -> RecordBatch {
         self.head(None).await
     }
 
@@ -357,7 +366,7 @@ impl DataFrame {
         )
     }
 
-    pub async fn head(&mut self, n: Option<i32>) -> Vec<RecordBatch> {
+    pub async fn head(&mut self, n: Option<i32>) -> RecordBatch {
         self.limit(n.unwrap_or(1)).collect().await.unwrap()
     }
 
@@ -369,19 +378,25 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub async fn inputFiles(&mut self) -> Option<Vec<String>> {
-        let input_files = Some(spark::analyze_plan_request::Analyze::InputFiles(
+    pub async fn inputFiles(&mut self) -> Vec<String> {
+        let input_files = spark::analyze_plan_request::Analyze::InputFiles(
             spark::analyze_plan_request::InputFiles {
                 plan: Some(self.logical_plan.clone().build_plan_root()),
             },
-        ));
+        );
 
-        let resp = self.spark_session.analyze_plan(input_files).await;
+        self.spark_session
+            .client
+            .analyze(input_files)
+            .await
+            .unwrap();
 
-        match resp {
-            Some(spark::analyze_plan_response::Result::InputFiles(files)) => Some(files.files),
-            _ => panic!("Unexpected response from Analyze plan"),
-        }
+        self.spark_session
+            .client
+            .analyzer
+            .input_files
+            .to_owned()
+            .unwrap()
     }
 
     pub fn intersect(&mut self, other: DataFrame) -> DataFrame {
@@ -403,7 +418,7 @@ impl DataFrame {
 
     #[allow(non_snake_case)]
     pub async fn isEmpty(&mut self) -> bool {
-        let val = &self.select("*").limit(1).collect().await.unwrap()[0];
+        let val = &self.select("*").limit(1).collect().await.unwrap();
 
         val.num_rows() == 0
     }
@@ -456,35 +471,38 @@ impl DataFrame {
     }
 
     pub async fn persist(&mut self, storage_level: storage::StorageLevel) -> DataFrame {
-        let analyze = Some(spark::analyze_plan_request::Analyze::Persist(
-            spark::analyze_plan_request::Persist {
+        let analyze =
+            spark::analyze_plan_request::Analyze::Persist(spark::analyze_plan_request::Persist {
                 relation: Some(self.logical_plan.clone().relation),
                 storage_level: Some(storage_level.into()),
-            },
-        ));
+            });
 
-        self.spark_session.analyze_plan(analyze).await;
+        self.spark_session.client.analyze(analyze).await.unwrap();
 
         DataFrame::new(self.spark_session.clone(), self.logical_plan.clone())
     }
 
     #[allow(non_snake_case)]
-    pub async fn printSchema(&mut self, level: Option<i32>) -> Option<String> {
-        let input_files = Some(spark::analyze_plan_request::Analyze::TreeString(
+    pub async fn printSchema(&mut self, level: Option<i32>) -> String {
+        let tree_string = spark::analyze_plan_request::Analyze::TreeString(
             spark::analyze_plan_request::TreeString {
                 plan: Some(self.logical_plan.clone().build_plan_root()),
                 level,
             },
-        ));
+        );
 
-        let resp = self.spark_session.analyze_plan(input_files).await;
+        self.spark_session
+            .client
+            .analyze(tree_string)
+            .await
+            .unwrap();
 
-        match resp {
-            Some(spark::analyze_plan_response::Result::TreeString(tstring)) => {
-                Some(tstring.tree_string)
-            }
-            _ => panic!("Unexpected response from Analyze plan"),
-        }
+        self.spark_session
+            .client
+            .analyzer
+            .tree_string
+            .to_owned()
+            .unwrap()
     }
 
     /// Returns a new [DataFrame] partitioned by the given partition number and shuffle option
@@ -503,21 +521,25 @@ impl DataFrame {
 
     #[allow(non_snake_case)]
     pub async fn sameSemantics(&mut self, other: DataFrame) -> bool {
-        let same_semantics = Some(spark::analyze_plan_request::Analyze::SameSemantics(
+        let same_semantics = spark::analyze_plan_request::Analyze::SameSemantics(
             spark::analyze_plan_request::SameSemantics {
                 target_plan: Some(self.logical_plan.clone().build_plan_root()),
                 other_plan: Some(other.logical_plan.clone().build_plan_root()),
             },
-        ));
+        );
 
-        let resp = self.spark_session.analyze_plan(same_semantics).await;
+        self.spark_session
+            .client
+            .analyze(same_semantics)
+            .await
+            .unwrap();
 
-        match resp {
-            Some(spark::analyze_plan_response::Result::SameSemantics(semantics)) => {
-                semantics.result
-            }
-            _ => panic!("Unexpected response from Analyze plan"),
-        }
+        self.spark_session
+            .client
+            .analyzer
+            .same_semantics
+            .to_owned()
+            .unwrap()
     }
 
     /// Returns a sampled subset of this [DataFrame]
@@ -538,25 +560,21 @@ impl DataFrame {
     /// Returns the schema of this DataFrame as a [spark::DataType]
     /// which contains the schema of a DataFrame
     pub async fn schema(&mut self) -> Option<spark::DataType> {
-        let analyze = Some(spark::analyze_plan_request::Analyze::Schema(
-            spark::analyze_plan_request::Schema {
+        let analyze =
+            spark::analyze_plan_request::Analyze::Schema(spark::analyze_plan_request::Schema {
                 plan: Some(self.logical_plan.clone().build_plan_root()),
-            },
-        ));
+            });
 
-        let schema = self.spark_session.analyze_plan(analyze).await;
+        self.spark_session.client.analyze(analyze).await.unwrap();
 
-        match schema {
-            Some(spark::analyze_plan_response::Result::Schema(schema)) => schema.schema,
-            _ => panic!("Unexpected result"),
-        }
+        self.spark_session.client.analyzer.schema.to_owned()
     }
 
     /// Projects a set of expressions and returns a new [DataFrame]
     ///
     /// # Arguments:
     ///
-    /// * `cols` is a vector of `&str` which resolve to a specific column
+    /// * `cols` - An object that implements [ToVecExpr]
     ///
     /// # Example:
     /// ```rust
@@ -591,18 +609,24 @@ impl DataFrame {
 
     #[allow(non_snake_case)]
     pub async fn semanticHash(&mut self) -> i32 {
-        let semantic_hash = Some(spark::analyze_plan_request::Analyze::SemanticHash(
+        let semantic_hash = spark::analyze_plan_request::Analyze::SemanticHash(
             spark::analyze_plan_request::SemanticHash {
                 plan: Some(self.logical_plan.clone().build_plan_root()),
             },
-        ));
+        );
 
-        let resp = self.spark_session.analyze_plan(semantic_hash).await;
+        self.spark_session
+            .client
+            .analyze(semantic_hash)
+            .await
+            .unwrap();
 
-        match resp {
-            Some(spark::analyze_plan_response::Result::SemanticHash(hash)) => hash.result,
-            _ => panic!("Unexpected response from Analyze plan"),
-        }
+        self.spark_session
+            .client
+            .analyzer
+            .semantic_hash
+            .to_owned()
+            .unwrap()
     }
 
     /// Prints the first `n` rows to the console
@@ -628,10 +652,9 @@ impl DataFrame {
 
         let plan = LogicalPlanBuilder::from(show_expr).build_plan_root();
 
-        let rows = self.spark_session.consume_plan(Some(plan)).await?;
+        let rows = self.spark_session.client.to_arrow(plan).await?;
 
-        pretty::print_batches(rows.as_slice())?;
-        Ok(())
+        Ok(pretty::print_batches(&[rows])?)
     }
 
     pub fn sort(&mut self, cols: Vec<Column>) -> DataFrame {
@@ -644,21 +667,26 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub async fn storageLevel(&mut self) -> Option<storage::StorageLevel> {
-        let storage_level = Some(spark::analyze_plan_request::Analyze::GetStorageLevel(
+    pub async fn storageLevel(&mut self) -> storage::StorageLevel {
+        let storage_level = spark::analyze_plan_request::Analyze::GetStorageLevel(
             spark::analyze_plan_request::GetStorageLevel {
                 relation: Some(self.logical_plan.clone().relation),
             },
-        ));
+        );
 
-        let resp = self.spark_session.analyze_plan(storage_level).await;
+        self.spark_session
+            .client
+            .analyze(storage_level)
+            .await
+            .unwrap();
 
-        match resp {
-            Some(spark::analyze_plan_response::Result::GetStorageLevel(level)) => {
-                Some(level.storage_level.unwrap().into())
-            }
-            _ => panic!("Unexpected response from Analyze plan"),
-        }
+        self.spark_session
+            .client
+            .analyzer
+            .get_storage_level
+            .to_owned()
+            .unwrap()
+            .into()
     }
 
     pub fn subtract(&mut self, other: DataFrame) -> DataFrame {
@@ -669,11 +697,11 @@ impl DataFrame {
         )
     }
 
-    /// Returns the last `n` rows as vector of [RecordBatch]
+    /// Returns the last `n` rows as a [RecordBatch]
     ///
     /// Running tail requires moving the data and results in an action
     ///
-    pub async fn tail(&mut self, limit: i32) -> Result<Vec<RecordBatch>, SparkError> {
+    pub async fn tail(&mut self, limit: i32) -> RecordBatch {
         let limit_expr = RelType::Tail(Box::new(spark::Tail {
             input: self.logical_plan.clone().relation_input(),
             limit,
@@ -681,12 +709,10 @@ impl DataFrame {
 
         let plan = LogicalPlanBuilder::from(limit_expr).build_plan_root();
 
-        let rows = self.spark_session.consume_plan(Some(plan)).await.unwrap();
-
-        Ok(rows)
+        self.spark_session.client.to_arrow(plan).await.unwrap()
     }
 
-    pub async fn take(&mut self, n: i32) -> Vec<RecordBatch> {
+    pub async fn take(&mut self, n: i32) -> RecordBatch {
         self.limit(n).collect().await.unwrap()
     }
 
@@ -729,20 +755,17 @@ impl DataFrame {
         )
     }
 
-    pub async fn unpersist(self, blocking: Option<bool>) -> DataFrame {
-        let unpersist = Some(spark::analyze_plan_request::Analyze::Unpersist(
+    pub async fn unpersist(&mut self, blocking: Option<bool>) -> DataFrame {
+        let unpersist = spark::analyze_plan_request::Analyze::Unpersist(
             spark::analyze_plan_request::Unpersist {
                 relation: Some(self.logical_plan.clone().relation),
                 blocking,
             },
-        ));
+        );
 
-        let resp = self.spark_session.clone().analyze_plan(unpersist).await;
+        self.spark_session.client.analyze(unpersist).await.unwrap();
 
-        match resp {
-            Some(spark::analyze_plan_response::Result::Unpersist(_)) => self,
-            _ => panic!("Unexpected response from Analyze plan"),
-        }
+        DataFrame::new(self.spark_session.clone(), self.logical_plan.clone())
     }
 
     #[allow(non_snake_case)]
@@ -797,7 +820,8 @@ mod tests {
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
-        let connection = "sc://127.0.0.1:15002/;user_id=rust_df";
+        let connection =
+            "sc://127.0.0.1:15002/;user_id=rust_df;session_id=b5714cb4-6bb4-4c02-90b1-b9b93c70b323";
 
         SparkSessionBuilder::remote(connection)
             .build()
@@ -825,7 +849,7 @@ mod tests {
             .select(vec!["df_as1.name", "df_as2.name", "df_as2.value"])
             .collect()
             .await
-            .unwrap()[0];
+            .unwrap();
 
         assert_eq!(res.num_columns(), 3);
         assert_eq!(res.num_rows(), 4);
@@ -864,7 +888,7 @@ mod tests {
             .select(df.colRegex("`(Col1)?+.+`"))
             .collect()
             .await
-            .unwrap()[0];
+            .unwrap();
 
         assert_eq!(
             vec![&"Col2".to_string(),],
@@ -889,7 +913,7 @@ mod tests {
             .distinct()
             .collect()
             .await
-            .unwrap()[0];
+            .unwrap();
 
         assert_eq!(1, val.num_rows())
     }
@@ -971,7 +995,7 @@ mod tests {
             .select(vec![col("id").alias("col1"), col("id").alias("col2")])
             .crosstab("col1", "col2");
 
-        let res = &df.collect().await.unwrap()[0];
+        let res = &df.collect().await.unwrap();
 
         assert!(df.columns().await.contains(&"col1_col2".to_string()));
         assert_eq!(6, res.num_columns())
@@ -997,7 +1021,7 @@ mod tests {
             .crossJoin(df2)
             .select(vec!["df1.name", "df2.name", "df2.value"]);
 
-        let res = &df3.collect().await.unwrap()[0];
+        let res = &df3.collect().await.unwrap();
 
         assert_eq!(res.num_columns(), 3);
         assert_eq!(res.num_rows(), 4);
@@ -1024,7 +1048,7 @@ mod tests {
             .select(col("age").cast("int").alias("age_int"))
             .describe(Some(vec!["age_int"]));
 
-        let res = &df.collect().await.unwrap()[0];
+        let res = &df.collect().await.unwrap();
 
         assert!(df.columns().await.contains(&"summary".to_string()));
         assert_eq!(5, res.num_rows());
@@ -1040,8 +1064,8 @@ mod tests {
 
         let mut df_dist = df.distinct();
 
-        let res = &df.collect().await.unwrap()[0];
-        let res_dist = &df_dist.collect().await.unwrap()[0];
+        let res = &df.collect().await.unwrap();
+        let res_dist = &df_dist.collect().await.unwrap();
 
         assert_eq!(100, res.num_rows());
         assert_eq!(1, res_dist.num_rows())
@@ -1104,7 +1128,7 @@ mod tests {
             )
             .collect()
             .await
-            .unwrap()[0];
+            .unwrap();
 
         assert_eq!(1, res.num_rows());
 
@@ -1118,7 +1142,7 @@ mod tests {
             )
             .collect()
             .await
-            .unwrap()[0];
+            .unwrap();
 
         assert_eq!(2, res.num_rows());
 
@@ -1132,7 +1156,7 @@ mod tests {
             )
             .collect()
             .await
-            .unwrap()[0];
+            .unwrap();
 
         assert_eq!(1, res.num_rows());
     }
