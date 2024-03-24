@@ -1,6 +1,6 @@
 [package]
 name = "spark-connect-rs"
-version = "0.0.1-beta.1"
+version = "0.0.1-beta.2"
 edition = "2021"
 license = "Apache-2.0"
 description = "Apache Spark Connect Client for Rust"
@@ -20,10 +20,10 @@ include = [
 [dependencies]
 tonic = { version ="0.11.0"}
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-tokio-rustls = "0.25.0"
+tokio-rustls = "0.26.0"
 
-arrow = { version = "50.0.0", features = ["prettyprint"] }
-arrow-ipc = "50.0.0"
+arrow = { version = "51.0.0", features = ["prettyprint"] }
+arrow-ipc = "51.0.0"
 
 prost = "0.12.0"
 prost-types = "0.12.0"
