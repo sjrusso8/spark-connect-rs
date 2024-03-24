@@ -2,14 +2,13 @@
 
 use std::collections::HashMap;
 
+use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
 use crate::DataFrame;
 
 use spark::write_operation::SaveMode;
-
-use arrow::error::ArrowError;
 
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
@@ -237,7 +236,7 @@ impl DataFrameWriter {
     /// Save the contents of the [DataFrame] to a data source.
     ///
     /// The data source is specified by the `format` and a set of `options`.
-    pub async fn save(&mut self, path: &str) -> Result<(), ArrowError> {
+    pub async fn save(&mut self, path: &str) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
             input: Some(self.dataframe.logical_plan.relation.clone()),
             source: self.format.clone(),
@@ -253,14 +252,14 @@ impl DataFrameWriter {
 
         self.dataframe
             .spark_session
-            .consume_plan(Some(plan))
-            .await
-            .unwrap();
+            .client
+            .execute_command(plan)
+            .await?;
 
         Ok(())
     }
 
-    async fn save_table(&mut self, table_name: &str, save_method: i32) -> Result<(), ArrowError> {
+    async fn save_table(&mut self, table_name: &str, save_method: i32) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
             input: Some(self.dataframe.logical_plan.relation.clone()),
             source: self.format.clone(),
@@ -281,16 +280,16 @@ impl DataFrameWriter {
 
         self.dataframe
             .spark_session
-            .consume_plan(Some(plan))
-            .await
-            .unwrap();
+            .client
+            .execute_command(plan)
+            .await?;
 
         Ok(())
     }
 
     /// Saves the context of the [DataFrame] as the specified table.
     #[allow(non_snake_case)]
-    pub async fn saveAsTable(&mut self, table_name: &str) -> Result<(), ArrowError> {
+    pub async fn saveAsTable(&mut self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 1).await
     }
 
@@ -302,7 +301,7 @@ impl DataFrameWriter {
     /// Unlike `saveAsTable()`, this method ignores the column names and just uses
     /// position-based resolution
     #[allow(non_snake_case)]
-    pub async fn insertInto(&mut self, table_name: &str) -> Result<(), ArrowError> {
+    pub async fn insertInto(&mut self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
     }
 }

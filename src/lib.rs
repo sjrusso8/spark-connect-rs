@@ -83,7 +83,6 @@ pub mod column;
 mod errors;
 mod expressions;
 pub mod functions;
-mod handler;
 pub mod storage;
 mod types;
 mod utils;
@@ -124,11 +123,9 @@ mod tests {
 
         let mut df = spark.range(None, 100, 1, Some(8));
 
-        let rows = df.collect().await.unwrap();
+        let records = df.collect().await.unwrap();
 
-        let total: usize = rows.iter().map(|batch| batch.num_rows()).sum();
-
-        assert_eq!(total, 100)
+        assert_eq!(records.num_rows(), 100)
     }
 
     #[tokio::test]
@@ -147,7 +144,7 @@ mod tests {
 
         let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(value)]).unwrap();
 
-        assert_eq!(expected_batch, rows[0])
+        assert_eq!(expected_batch, rows)
     }
 
     #[tokio::test]
@@ -170,8 +167,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(rows[0].num_rows(), 1);
-        // assert_eq!(rows[0].column(0).);
+        assert_eq!(rows.num_rows(), 1);
     }
 
     #[tokio::test]
@@ -199,16 +195,9 @@ mod tests {
             .option("header", "true")
             .load([path]);
 
-        let total: usize = df
-            .select(vec![col("range_id")])
-            .collect()
-            .await
-            .unwrap()
-            .iter()
-            .map(|batch| batch.num_rows())
-            .sum();
+        let records = df.select(vec![col("range_id")]).collect().await.unwrap();
 
-        assert_eq!(total, 1000)
+        assert_eq!(records.num_rows(), 1000)
     }
 
     #[tokio::test]
@@ -228,15 +217,8 @@ mod tests {
 
         let mut df = spark.clone().read().table("test_table", None);
 
-        let total: usize = df
-            .select(vec![col("range_id")])
-            .collect()
-            .await
-            .unwrap()
-            .iter()
-            .map(|batch| batch.num_rows())
-            .sum();
+        let records = df.select(vec![col("range_id")]).collect().await.unwrap();
 
-        assert_eq!(total, 1000)
+        assert_eq!(records.num_rows(), 1000)
     }
 }
