@@ -148,14 +148,14 @@ impl ChannelBuilder {
 
         let client = Arc::new(Mutex::new(service_client));
 
-        let value = SparkConnectClient {
+        let spark_connnect_client = SparkConnectClient {
             stub: client.clone(),
             builder: self.clone(),
             handler: ResponseHandler::default(),
             analyzer: AnalyzeHandler::default(),
         };
 
-        Ok(SparkSession::new(value))
+        Ok(SparkSession::new(spark_connnect_client))
     }
 }
 

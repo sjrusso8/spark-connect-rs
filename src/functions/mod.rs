@@ -340,7 +340,7 @@ mod tests {
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
-        let connection = "sc://127.0.0.1:15002/;user_id=rust_func;session_id=b5714cb4-6bb4-4c02-90b1-b9b93c70b323";
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_func";
 
         SparkSessionBuilder::remote(connection)
             .build()
