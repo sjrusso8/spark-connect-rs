@@ -27,11 +27,7 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
 
-        self.spark_session
-            .clone()
-            .consume_plan_and_fetch(Some(plan))
-            .await
-            .unwrap()
+        self.spark_session.client.to_first_value(plan).await
     }
 
     /// Returns the current default database in this session
@@ -45,16 +41,12 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
 
-        self.spark_session
-            .clone()
-            .consume_plan_and_fetch(Some(plan))
-            .await
-            .unwrap()
+        self.spark_session.client.to_first_value(plan).await
     }
 
     /// Returns a list of catalogs in this session
     #[allow(non_snake_case)]
-    pub async fn listCatalogs(&mut self, pattern: Option<&str>) -> Vec<RecordBatch> {
+    pub async fn listCatalogs(&mut self, pattern: Option<&str>) -> RecordBatch {
         let pattern = pattern.map(|val| val.to_owned());
 
         let cat_type = Some(spark::catalog::CatType::ListCatalogs(spark::ListCatalogs {
@@ -65,16 +57,12 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
 
-        self.spark_session
-            .clone()
-            .consume_plan(Some(plan))
-            .await
-            .unwrap()
+        self.spark_session.client.to_arrow(plan).await.unwrap()
     }
 
     /// Returns a list of databases in this session
     #[allow(non_snake_case)]
-    pub async fn listDatabases(&mut self, pattern: Option<&str>) -> Vec<RecordBatch> {
+    pub async fn listDatabases(&mut self, pattern: Option<&str>) -> RecordBatch {
         let pattern = pattern.map(|val| val.to_owned());
 
         let cat_type = Some(spark::catalog::CatType::ListDatabases(
@@ -85,20 +73,12 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
 
-        self.spark_session
-            .clone()
-            .consume_plan(Some(plan))
-            .await
-            .unwrap()
+        self.spark_session.client.to_arrow(plan).await.unwrap()
     }
 
     /// Returns a list of tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listTables(
-        &mut self,
-        dbName: Option<&str>,
-        pattern: Option<&str>,
-    ) -> Vec<RecordBatch> {
+    pub async fn listTables(&mut self, dbName: Option<&str>, pattern: Option<&str>) -> RecordBatch {
         let cat_type = Some(spark::catalog::CatType::ListTables(spark::ListTables {
             db_name: dbName.map(|db| db.to_owned()),
             pattern: pattern.map(|val| val.to_owned()),
@@ -108,16 +88,12 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
 
-        self.spark_session
-            .clone()
-            .consume_plan(Some(plan))
-            .await
-            .unwrap()
+        self.spark_session.client.to_arrow(plan).await.unwrap()
     }
 
     /// Returns a list of columns for the given tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listColumns(&mut self, tableName: &str, dbName: Option<&str>) -> Vec<RecordBatch> {
+    pub async fn listColumns(&mut self, tableName: &str, dbName: Option<&str>) -> RecordBatch {
         let cat_type = Some(spark::catalog::CatType::ListColumns(spark::ListColumns {
             table_name: tableName.to_owned(),
             db_name: dbName.map(|val| val.to_owned()),
@@ -127,11 +103,7 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
 
-        self.spark_session
-            .clone()
-            .consume_plan(Some(plan))
-            .await
-            .unwrap()
+        self.spark_session.client.to_arrow(plan).await.unwrap()
     }
 }
 
@@ -177,8 +149,8 @@ mod tests {
 
         let value = spark.catalog().listCatalogs(None).await;
 
-        assert_eq!(2, value[0].num_columns());
-        assert_eq!(1, value[0].num_rows());
+        assert_eq!(2, value.num_columns());
+        assert_eq!(1, value.num_rows());
     }
 
     #[tokio::test]
@@ -193,8 +165,8 @@ mod tests {
 
         let value = spark.catalog().listDatabases(None).await;
 
-        assert_eq!(4, value[0].num_columns());
-        assert_eq!(2, value[0].num_rows());
+        assert_eq!(4, value.num_columns());
+        assert_eq!(2, value.num_rows());
     }
 
     #[tokio::test]
@@ -209,7 +181,7 @@ mod tests {
 
         let value = spark.catalog().listDatabases(Some("*rust")).await;
 
-        assert_eq!(4, value[0].num_columns());
-        assert_eq!(1, value[0].num_rows());
+        assert_eq!(4, value.num_columns());
+        assert_eq!(1, value.num_rows());
     }
 }
