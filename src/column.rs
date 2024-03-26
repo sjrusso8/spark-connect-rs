@@ -88,9 +88,9 @@ impl Column {
     ///
     /// df.select(cols);
     /// ```
-    pub fn alias(&mut self, value: &str) -> Column {
+    pub fn alias(self, value: &str) -> Column {
         let alias = spark::expression::Alias {
-            expr: Some(Box::new(self.expression.clone())),
+            expr: Some(Box::new(self.expression)),
             name: vec![value.to_string()],
             metadata: None,
         };
@@ -103,7 +103,7 @@ impl Column {
     }
 
     /// An alias for the function `alias`
-    pub fn name(&mut self, value: &str) -> Column {
+    pub fn name(self, value: &str) -> Column {
         self.alias(value)
     }
 
@@ -115,13 +115,13 @@ impl Column {
     ///
     /// let mut df: DataFrame = df.sort(asc(col("id")));
     /// ```
-    pub fn asc(&mut self) -> Column {
+    pub fn asc(self) -> Column {
         self.asc_nulls_first()
     }
 
-    pub fn asc_nulls_first(&mut self) -> Column {
+    pub fn asc_nulls_first(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 1,
             null_ordering: 1,
         };
@@ -133,9 +133,9 @@ impl Column {
         Column::from(expression)
     }
 
-    pub fn asc_nulls_last(&mut self) -> Column {
+    pub fn asc_nulls_last(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 1,
             null_ordering: 2,
         };
@@ -155,13 +155,13 @@ impl Column {
     ///
     /// let mut df: DataFrame = df.sort(desc(col("id")));
     /// ```
-    pub fn desc(&mut self) -> Column {
+    pub fn desc(self) -> Column {
         self.desc_nulls_first()
     }
 
-    pub fn desc_nulls_first(&mut self) -> Column {
+    pub fn desc_nulls_first(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 2,
             null_ordering: 1,
         };
@@ -173,9 +173,9 @@ impl Column {
         Column::from(expression)
     }
 
-    pub fn desc_nulls_last(&mut self) -> Column {
+    pub fn desc_nulls_last(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 2,
             null_ordering: 2,
         };
@@ -202,11 +202,11 @@ impl Column {
     ///     .collect()
     ///     .await?;
     /// ```
-    pub fn cast(&mut self, to_type: &str) -> Column {
+    pub fn cast(self, to_type: &str) -> Column {
         let type_str = spark::expression::cast::CastToType::TypeStr(to_type.to_string());
 
         let cast = spark::expression::Cast {
-            expr: Some(Box::new(self.expression.clone())),
+            expr: Some(Box::new(self.expression)),
             cast_to_type: Some(type_str),
         };
 
@@ -238,13 +238,13 @@ impl Column {
     ///     .filter(col("name").isin(vec!["Jorge", "Bob"]))
     ///     .select("name");
     /// ```
-    pub fn isin<T: ToLiteralExpr>(&self, cols: Vec<T>) -> Column {
+    pub fn isin<T: ToLiteralExpr>(self, cols: Vec<T>) -> Column {
         let mut values = cols
             .iter()
             .map(|col| Column::from(col.to_literal_expr()))
             .collect::<Vec<Column>>();
 
-        values.insert(0, self.clone());
+        values.insert(0, self);
 
         invoke_func("in", values)
     }
@@ -269,70 +269,70 @@ impl Column {
     ///     .filter(col("name").contains("ge"))
     ///     .select("name");
     /// ```
-    pub fn contains<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn contains<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("contains", vec![self.clone(), value])
+        invoke_func("contains", vec![self, value])
     }
 
     /// A filter expression that evaluates if the column startswith a string literal
-    pub fn startswith<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn startswith<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("startswith", vec![self.clone(), value])
+        invoke_func("startswith", vec![self, value])
     }
 
     /// A filter expression that evaluates if the column endswith a string literal
-    pub fn endswith<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn endswith<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("endswith", vec![self.clone(), value])
+        invoke_func("endswith", vec![self, value])
     }
 
     /// A SQL LIKE filter expression that evaluates the column based on a case sensitive match
-    pub fn like<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn like<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("like", vec![self.clone(), value])
+        invoke_func("like", vec![self, value])
     }
 
     /// A SQL ILIKE filter expression that evaluates the column based on a case insensitive match
-    pub fn ilike<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn ilike<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("ilike", vec![self.clone(), value])
+        invoke_func("ilike", vec![self, value])
     }
 
     /// A SQL RLIKE filter expression that evaluates the column based on a regex match
-    pub fn rlike<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn rlike<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("rlike", vec![self.clone(), value])
+        invoke_func("rlike", vec![self, value])
     }
 
     /// Equality comparion. Cannot overload the '==' and return something other
     /// than a bool
-    pub fn eq<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn eq<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("==", vec![self.clone(), value])
+        invoke_func("==", vec![self, value])
     }
 
     /// A filter expression that evaluates to true is the expression is null
     #[allow(non_snake_case)]
-    pub fn isNull(&self) -> Column {
-        invoke_func("isnull", self.clone())
+    pub fn isNull(self) -> Column {
+        invoke_func("isnull", self)
     }
 
     /// A filter expression that evaluates to true is the expression is NOT null
     #[allow(non_snake_case)]
-    pub fn isNotNull(&self) -> Column {
-        invoke_func("isnotnull", self.clone())
+    pub fn isNotNull(self) -> Column {
+        invoke_func("isnotnull", self)
     }
 
     #[allow(non_snake_case)]
-    pub fn isNaN(&self) -> Column {
-        invoke_func("isNaN", self.clone())
+    pub fn isNaN(self) -> Column {
+        invoke_func("isNaN", self)
     }
 }
 

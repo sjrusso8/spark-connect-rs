@@ -352,7 +352,7 @@ mod tests {
     async fn test_func_lit() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(None, 1, 1, Some(1))
             .select(vec![lit(5).alias("height"), col("id")]);
 
@@ -379,12 +379,12 @@ mod tests {
     async fn test_func_asc() {
         let spark = setup().await;
 
-        let mut df_col_asc = spark
+        let df_col_asc = spark
             .clone()
             .range(Some(1), 3, 1, Some(1))
             .sort(vec![col("id").asc()]);
 
-        let mut df_func_asc = spark
+        let df_func_asc = spark
             .range(Some(1), 3, 1, Some(1))
             .sort(vec![asc(col("id"))]);
 
@@ -406,12 +406,12 @@ mod tests {
     async fn test_func_desc() {
         let spark = setup().await;
 
-        let mut df_col_asc = spark
+        let df_col_asc = spark
             .clone()
             .range(Some(1), 3, 1, Some(1))
             .sort(vec![col("id").desc()]);
 
-        let mut df_func_asc = spark
+        let df_func_asc = spark
             .range(Some(1), 3, 1, Some(1))
             .sort(vec![desc(col("id"))]);
 
@@ -433,7 +433,7 @@ mod tests {
     async fn test_func_sqrt() {
         let spark = setup().await;
 
-        let mut df = spark.range(None, 1, 1, Some(1)).select(sqrt(lit(4)));
+        let df = spark.range(None, 1, 1, Some(1)).select(sqrt(lit(4)));
 
         let row = df.collect().await.unwrap();
 
@@ -450,7 +450,7 @@ mod tests {
     async fn test_func_add() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(Some(1), 3, 1, Some(1))
             .select((lit(4) + col("id")).alias("add"));
 
@@ -469,7 +469,7 @@ mod tests {
     async fn test_func_substract() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(Some(1), 3, 1, Some(1))
             .select((lit(4) - col("id")).alias("add"));
 
@@ -488,7 +488,7 @@ mod tests {
     async fn test_func_multiple() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(Some(1), 3, 1, Some(1))
             .select((lit(4) * col("id")).alias("add"));
 
@@ -509,7 +509,7 @@ mod tests {
 
         let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df = spark
+        let df = spark
             .read()
             .format("csv")
             .option("header", "True")
@@ -538,7 +538,7 @@ mod tests {
 
         let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df = spark
+        let df = spark
             .read()
             .format("csv")
             .option("header", "True")

@@ -18,35 +18,35 @@ impl Catalog {
 
     /// Returns the current default catalog in this session
     #[allow(non_snake_case)]
-    pub async fn currentCatalog(&mut self) -> String {
+    pub async fn currentCatalog(self) -> String {
         let cat_type = Some(spark::catalog::CatType::CurrentCatalog(
             spark::CurrentCatalog {},
         ));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_first_value(plan).await
+        self.spark_session.client().to_first_value(plan).await
     }
 
     /// Returns the current default database in this session
     #[allow(non_snake_case)]
-    pub async fn currentDatabase(&mut self) -> String {
+    pub async fn currentDatabase(self) -> String {
         let cat_type = Some(spark::catalog::CatType::CurrentDatabase(
             spark::CurrentDatabase {},
         ));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_first_value(plan).await
+        self.spark_session.client().to_first_value(plan).await
     }
 
     /// Returns a list of catalogs in this session
     #[allow(non_snake_case)]
-    pub async fn listCatalogs(&mut self, pattern: Option<&str>) -> RecordBatch {
+    pub async fn listCatalogs(self, pattern: Option<&str>) -> RecordBatch {
         let pattern = pattern.map(|val| val.to_owned());
 
         let cat_type = Some(spark::catalog::CatType::ListCatalogs(spark::ListCatalogs {
@@ -55,14 +55,14 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await.unwrap()
     }
 
     /// Returns a list of databases in this session
     #[allow(non_snake_case)]
-    pub async fn listDatabases(&mut self, pattern: Option<&str>) -> RecordBatch {
+    pub async fn listDatabases(self, pattern: Option<&str>) -> RecordBatch {
         let pattern = pattern.map(|val| val.to_owned());
 
         let cat_type = Some(spark::catalog::CatType::ListDatabases(
@@ -71,14 +71,14 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await.unwrap()
     }
 
     /// Returns a list of tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listTables(&mut self, dbName: Option<&str>, pattern: Option<&str>) -> RecordBatch {
+    pub async fn listTables(self, dbName: Option<&str>, pattern: Option<&str>) -> RecordBatch {
         let cat_type = Some(spark::catalog::CatType::ListTables(spark::ListTables {
             db_name: dbName.map(|db| db.to_owned()),
             pattern: pattern.map(|val| val.to_owned()),
@@ -86,14 +86,14 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await.unwrap()
     }
 
     /// Returns a list of columns for the given tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listColumns(&mut self, tableName: &str, dbName: Option<&str>) -> RecordBatch {
+    pub async fn listColumns(self, tableName: &str, dbName: Option<&str>) -> RecordBatch {
         let cat_type = Some(spark::catalog::CatType::ListColumns(spark::ListColumns {
             table_name: tableName.to_owned(),
             db_name: dbName.map(|val| val.to_owned()),
@@ -101,9 +101,9 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await.unwrap()
     }
 }
 

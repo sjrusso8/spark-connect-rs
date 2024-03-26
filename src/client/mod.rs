@@ -14,7 +14,7 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
 
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 
 use tonic::codegen::{Body, Bytes, StdError};
 use tonic::metadata::{
@@ -367,11 +367,12 @@ where
         }
     }
 
+    #[allow(clippy::await_holding_lock)]
     async fn execute_and_fetch(
         &mut self,
         req: spark::ExecutePlanRequest,
     ) -> Result<(), SparkError> {
-        let mut client = self.stub.lock().await;
+        let mut client = self.stub.lock();
 
         let mut resp = client.execute_plan(req).await?.into_inner();
 
@@ -386,21 +387,22 @@ where
                 std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
             )
         })? {
-            self.handle_response(&resp)?;
+            self.handle_response(resp)?;
         }
 
         Ok(())
     }
 
+    #[allow(clippy::await_holding_lock)]
     pub async fn analyze(
         &mut self,
         analyze: spark::analyze_plan_request::Analyze,
-    ) -> Result<(), SparkError> {
+    ) -> Result<&mut Self, SparkError> {
         let mut req = self.analyze_plan_request_with_metadata();
 
         req.analyze = Some(analyze);
 
-        let mut client = self.stub.lock().await;
+        let mut client = self.stub.lock();
 
         // clear out any prior responses
         self.analyzer = AnalyzeHandler::new();
@@ -409,12 +411,10 @@ where
 
         drop(client);
 
-        self.handle_analyze(resp)?;
-
-        Ok(())
+        self.handle_analyze(resp)
     }
 
-    fn handle_response(&mut self, resp: &spark::ExecutePlanResponse) -> Result<(), SparkError> {
+    fn handle_response(&mut self, resp: spark::ExecutePlanResponse) -> Result<(), SparkError> {
         self.validate_session(&resp.session_id)?;
 
         if let Some(schema) = &resp.schema {
@@ -423,7 +423,7 @@ where
         if let Some(metrics) = &resp.metrics {
             self.handler.metrics = Some(metrics.clone());
         }
-        if let Some(data) = &resp.response_type {
+        if let Some(data) = resp.response_type {
             match data {
                 ResponseType::ArrowBatch(res) => {
                     self.deserialize(res.data.as_slice(), res.row_count)?
@@ -433,17 +433,16 @@ where
                     self.handler.sql_command_result = Some(sql_cmd.clone())
                 }
                 ResponseType::WriteStreamOperationStartResult(write_stream_op) => {
-                    self.handler.write_stream_operation_start_result = Some(write_stream_op.clone())
+                    self.handler.write_stream_operation_start_result = Some(write_stream_op)
                 }
                 ResponseType::StreamingQueryCommandResult(stream_qry_cmd) => {
-                    self.handler.streaming_query_command_result = Some(stream_qry_cmd.clone())
+                    self.handler.streaming_query_command_result = Some(stream_qry_cmd)
                 }
                 ResponseType::GetResourcesCommandResult(resource_cmd) => {
-                    self.handler.get_resources_command_result = Some(resource_cmd.clone())
+                    self.handler.get_resources_command_result = Some(resource_cmd)
                 }
                 ResponseType::StreamingQueryManagerCommandResult(stream_qry_mngr_cmd) => {
-                    self.handler.streaming_query_manager_command_result =
-                        Some(stream_qry_mngr_cmd.clone())
+                    self.handler.streaming_query_manager_command_result = Some(stream_qry_mngr_cmd)
                 }
                 _ => {
                     return Err(SparkError::NotYetImplemented(
@@ -455,7 +454,10 @@ where
         Ok(())
     }
 
-    fn handle_analyze(&mut self, resp: spark::AnalyzePlanResponse) -> Result<(), SparkError> {
+    fn handle_analyze(
+        &mut self,
+        resp: spark::AnalyzePlanResponse,
+    ) -> Result<&mut Self, SparkError> {
         self.validate_session(&resp.session_id)?;
         if let Some(result) = resp.result {
             match result {
@@ -497,7 +499,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(self)
     }
 
     fn validate_session(&self, session_id: &str) -> Result<(), SparkError> {
@@ -526,6 +528,7 @@ where
         }
         Ok(())
     }
+
     pub async fn execute_command(&mut self, plan: spark::Plan) -> Result<(), SparkError> {
         let mut req = self.execute_plan_request_with_metadata();
 
@@ -534,6 +537,19 @@ where
         self.execute_and_fetch(req).await?;
 
         Ok(())
+    }
+
+    pub async fn execute_command_and_fetch(
+        &mut self,
+        plan: spark::Plan,
+    ) -> Result<ResponseHandler, SparkError> {
+        let mut req = self.execute_plan_request_with_metadata();
+
+        req.plan = Some(plan);
+
+        self.execute_and_fetch(req).await?;
+
+        Ok(self.handler.clone())
     }
 
     #[allow(clippy::wrong_self_convention)]
@@ -561,6 +577,50 @@ where
         };
 
         data.value(0).to_string()
+    }
+
+    pub fn schema(&mut self) -> Result<spark::DataType, SparkError> {
+        Ok(self.analyzer.schema.to_owned().unwrap())
+    }
+
+    pub fn explain(&mut self) -> Result<String, SparkError> {
+        Ok(self.analyzer.explain.to_owned().unwrap())
+    }
+
+    pub fn tree_string(&mut self) -> Result<String, SparkError> {
+        Ok(self.analyzer.tree_string.to_owned().unwrap())
+    }
+
+    pub fn is_local(&mut self) -> Result<bool, SparkError> {
+        Ok(self.analyzer.is_local.to_owned().unwrap())
+    }
+
+    pub fn is_streaming(&mut self) -> Result<bool, SparkError> {
+        Ok(self.analyzer.is_streaming.to_owned().unwrap())
+    }
+
+    pub fn input_files(&mut self) -> Result<Vec<String>, SparkError> {
+        Ok(self.analyzer.input_files.to_owned().unwrap())
+    }
+
+    pub fn spark_version(&mut self) -> Result<String, SparkError> {
+        Ok(self.analyzer.spark_version.to_owned().unwrap())
+    }
+
+    pub fn ddl_parse(&mut self) -> Result<spark::DataType, SparkError> {
+        Ok(self.analyzer.ddl_parse.to_owned().unwrap())
+    }
+
+    pub fn same_semantics(&mut self) -> Result<bool, SparkError> {
+        Ok(self.analyzer.same_semantics.to_owned().unwrap())
+    }
+
+    pub fn semantic_hash(&mut self) -> Result<i32, SparkError> {
+        Ok(self.analyzer.semantic_hash.to_owned().unwrap())
+    }
+
+    pub fn get_storage_level(&mut self) -> Result<spark::StorageLevel, SparkError> {
+        Ok(self.analyzer.get_storage_level.to_owned().unwrap())
     }
 }
 

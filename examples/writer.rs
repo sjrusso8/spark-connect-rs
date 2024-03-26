@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .save(path)
         .await?;
 
-    let mut df = spark
+    let df = spark
         .clone()
         .read()
         .format("csv")

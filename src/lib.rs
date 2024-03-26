@@ -121,7 +121,7 @@ mod tests {
     async fn test_dataframe_range() {
         let spark = setup().await;
 
-        let mut df = spark.range(None, 100, 1, Some(8));
+        let df = spark.range(None, 100, 1, Some(8));
 
         let records = df.collect().await.unwrap();
 
@@ -132,7 +132,7 @@ mod tests {
     async fn test_dataframe_sort() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(None, 100, 1, Some(1))
             .sort(vec![col("id").desc()]);
 
@@ -153,7 +153,7 @@ mod tests {
 
         let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df = spark
+        let df = spark
             .read()
             .format("csv")
             .option("header", "True")
@@ -188,7 +188,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut df = spark
+        let df = spark
             .clone()
             .read()
             .format("csv")
@@ -215,7 +215,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut df = spark.clone().read().table("test_table", None);
+        let df = spark.clone().read().table("test_table", None);
 
         let records = df.select(vec![col("range_id")]).collect().await.unwrap();
 

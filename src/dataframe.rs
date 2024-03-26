@@ -42,7 +42,7 @@ impl DataFrame {
     }
 
     fn check_same_session(&self, other: &DataFrame) -> Result<(), SparkError> {
-        if self.spark_session.client.session_id() != other.spark_session.client.session_id() {
+        if self.spark_session.session_id() != other.spark_session.session_id() {
             return Err(SparkError::AnalysisException(
                 "Spark Session is not the same!".to_string(),
             ));
@@ -52,18 +52,18 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] with an alias set.
-    pub fn alias(&mut self, alias: &str) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.alias(alias))
+    pub fn alias(self, alias: &str) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.alias(alias))
     }
 
     /// Persists the [DataFrame] with the default [storage::StorageLevel::MemoryAndDiskDeser] (MEMORY_AND_DISK_DESER).
-    pub async fn cache(&mut self) -> DataFrame {
+    pub async fn cache(self) -> DataFrame {
         self.persist(storage::StorageLevel::MemoryAndDiskDeser)
             .await
     }
 
     /// Returns a new [DataFrame] that has exactly `num_partitions` partitions.
-    pub fn coalesce(&mut self, num_partitions: u32) -> DataFrame {
+    pub fn coalesce(self, num_partitions: u32) -> DataFrame {
         self.repartition(num_partitions, Some(false))
     }
 
@@ -74,7 +74,7 @@ impl DataFrame {
             expr_type: Some(spark::expression::ExprType::UnresolvedRegex(
                 spark::expression::UnresolvedRegex {
                     col_name: col_name.to_string(),
-                    plan_id: Some(self.logical_plan.plan_id),
+                    plan_id: Some(self.logical_plan.plan_id()),
                 },
             )),
         };
@@ -90,14 +90,14 @@ impl DataFrame {
     ///     df.collect().await?;
     /// }
     /// ```
-    pub async fn collect(&mut self) -> Result<RecordBatch, SparkError> {
-        let plan = self.logical_plan.clone().build_plan_root();
-        self.spark_session.client.to_arrow(plan).await
+    pub async fn collect(self) -> Result<RecordBatch, SparkError> {
+        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+        self.spark_session.client().to_arrow(plan).await
     }
 
     /// Retrieves the names of all columns in the [DataFrame] as a `Vec<String>`.
     /// The order of the column names in the list reflects their order in the [DataFrame].
-    pub async fn columns(&mut self) -> Vec<String> {
+    pub async fn columns(self) -> Vec<String> {
         let schema = self.schema().await.unwrap();
 
         let struct_val = schema.kind.unwrap();
@@ -113,14 +113,11 @@ impl DataFrame {
     }
     /// Calculates the correlation of two columns of a [DataFrame] as a `f64`.
     /// Currently only supports the Pearson Correlation Coefficient.
-    pub async fn corr(&mut self, col1: &str, col2: &str) -> Option<f64> {
-        let result = DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.corr(col1, col2),
-        )
-        .collect()
-        .await
-        .unwrap();
+    pub async fn corr(self, col1: &str, col2: &str) -> Option<f64> {
+        let result = DataFrame::new(self.spark_session, self.logical_plan.corr(col1, col2))
+            .collect()
+            .await
+            .unwrap();
 
         let col = result.column(0);
 
@@ -133,14 +130,11 @@ impl DataFrame {
     }
 
     /// Calculate the sample covariance for the given columns, specified by their names, as a f64
-    pub async fn cov(&mut self, col1: &str, col2: &str) -> Option<f64> {
-        let result = DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.cov(col1, col2),
-        )
-        .collect()
-        .await
-        .unwrap();
+    pub async fn cov(self, col1: &str, col2: &str) -> Option<f64> {
+        let result = DataFrame::new(self.spark_session, self.logical_plan.cov(col1, col2))
+            .collect()
+            .await
+            .unwrap();
 
         let col = result.column(0);
 
@@ -153,82 +147,74 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub async fn createTempView(&mut self, name: &str) {
+    pub async fn createTempView(self, name: &str) {
         self.create_view_cmd(name, false, false).await.unwrap()
     }
 
     #[allow(non_snake_case)]
-    pub async fn createGlobalTempView(&mut self, name: &str) {
+    pub async fn createGlobalTempView(self, name: &str) {
         self.create_view_cmd(name, true, false).await.unwrap()
     }
 
     #[allow(non_snake_case)]
-    pub async fn createOrReplaceGlobalTempView(&mut self, name: &str) {
+    pub async fn createOrReplaceGlobalTempView(self, name: &str) {
         self.create_view_cmd(name, true, true).await.unwrap()
     }
 
     #[allow(non_snake_case)]
-    pub async fn createOrReplaceTempView(&mut self, name: &str) {
+    pub async fn createOrReplaceTempView(self, name: &str) {
         self.create_view_cmd(name, false, true).await.unwrap()
     }
 
     async fn create_view_cmd(
-        &mut self,
+        self,
         name: &str,
         is_global: bool,
         replace: bool,
     ) -> Result<(), SparkError> {
         let command_type =
             spark::command::CommandType::CreateDataframeView(spark::CreateDataFrameViewCommand {
-                input: Some(self.logical_plan.clone().relation),
+                input: Some(self.logical_plan.relation()),
                 name: name.to_string(),
                 is_global,
                 replace,
             });
 
-        let plan = LogicalPlanBuilder::build_plan_cmd(command_type);
+        let plan = LogicalPlanBuilder::plan_cmd(command_type);
 
-        self.spark_session
-            .client
-            .execute_command(plan)
-            .await
-            .unwrap();
-
+        self.spark_session.client().execute_command(plan).await?;
         Ok(())
     }
 
     /// Returns the cartesian product with another [DataFrame].
     #[allow(non_snake_case)]
-    pub fn crossJoin(&mut self, other: DataFrame) -> DataFrame {
+    pub fn crossJoin(self, other: DataFrame) -> DataFrame {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan
                 .join(other.logical_plan, None::<&str>, JoinType::Cross, vec![]),
         )
     }
 
     /// Computes a pair-wise frequency table of the given columns. Also known as a contingency table.
-    pub fn crosstab(&mut self, col1: &str, col2: &str) -> DataFrame {
-        DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.crosstab(col1, col2),
-        )
+    pub fn crosstab(self, col1: &str, col2: &str) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.crosstab(col1, col2))
     }
 
     // Computes basic statistics for numeric and string columns. This includes count, mean, stddev, min, and max.
     // If no columns are given, this function computes statistics for all numerical or string columns.
-    pub fn describe(&mut self, cols: Option<Vec<&str>>) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.describe(cols))
+    pub fn describe(self, cols: Option<Vec<&str>>) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.describe(cols))
     }
 
     /// Returns a new [DataFrame] containing the distinct rows in this [DataFrame].
-    pub fn distinct(&mut self) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.distinct())
+    pub fn distinct(self) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.distinct())
     }
 
     /// Returns a new [DataFrame] without the specified columns
-    pub fn drop<T: ToVecExpr>(&mut self, cols: T) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.drop(cols))
+    pub fn drop<T: ToVecExpr>(self, cols: T) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.drop(cols))
     }
 
     /// Return a new [DataFrame] with duplicate rows removed,
@@ -238,33 +224,25 @@ impl DataFrame {
     ///
     /// Alias for `dropDuplciates`
     ///
-    pub fn drop_duplicates(&mut self, cols: Option<Vec<&str>>) -> DataFrame {
-        DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.drop_duplicates(cols),
-        )
+    pub fn drop_duplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.drop_duplicates(cols))
     }
 
     #[allow(non_snake_case)]
-    pub fn dropDuplicates(&mut self, cols: Option<Vec<&str>>) -> DataFrame {
+    pub fn dropDuplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
         self.drop_duplicates(cols)
     }
 
-    pub fn dropna(
-        &mut self,
-        how: &str,
-        threshold: Option<i32>,
-        subset: Option<Vec<&str>>,
-    ) -> DataFrame {
+    pub fn dropna(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.dropna(how, threshold, subset),
         )
     }
 
     /// Returns all column names and their data types as a Vec containing
     /// the field name as a String and the [spark::data_type::Kind] enum
-    pub async fn dtypes(&mut self) -> Vec<(String, Option<spark::data_type::Kind>)> {
+    pub async fn dtypes(self) -> Vec<(String, Option<spark::data_type::Kind>)> {
         let schema = self.schema().await.unwrap();
 
         let struct_val = schema.kind.unwrap();
@@ -285,10 +263,10 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn exceptAll(&mut self, other: DataFrame) -> DataFrame {
+    pub fn exceptAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.exceptAll(other.logical_plan),
         )
     }
@@ -304,36 +282,30 @@ impl DataFrame {
     ///     - `formatted`
     ///     - `unspecified`
     ///
-    pub async fn explain(&mut self, mode: Option<ExplainMode>) -> Result<String, SparkError> {
+    pub async fn explain(self, mode: Option<ExplainMode>) -> Result<String, SparkError> {
         let explain_mode = match mode {
             Some(mode) => mode,
             None => ExplainMode::Simple,
         };
 
+        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+
         let analyze =
             spark::analyze_plan_request::Analyze::Explain(spark::analyze_plan_request::Explain {
-                plan: Some(self.logical_plan.clone().build_plan_root()),
+                plan: Some(plan),
                 explain_mode: explain_mode.into(),
             });
 
-        self.spark_session.client.analyze(analyze).await.unwrap();
-
         let explain = self
             .spark_session
-            .client
-            .analyzer
-            .explain
-            .to_owned()
-            .unwrap();
+            .client()
+            .analyze(analyze)
+            .await?
+            .explain()?;
 
         println!("{}", explain);
 
         Ok(explain)
-        //
-        // let explain = match self.spark_session.analyze_plan(analyze).await {
-        //     Some(spark::analyze_plan_response::Result::Explain(explain)) => explain,
-        //     _ => panic!("Unexpected response from Analyze Plan"),
-        // };
     }
 
     /// Filters rows using a given conditions and returns a new [DataFrame]
@@ -344,80 +316,70 @@ impl DataFrame {
     ///     df.filter("salary > 4000").collect().await?;
     /// }
     /// ```
-    pub fn filter<T: ToFilterExpr>(&mut self, condition: T) -> DataFrame {
-        DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.filter(condition),
-        )
+    pub fn filter<T: ToFilterExpr>(self, condition: T) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.filter(condition))
     }
 
-    pub async fn first(&mut self) -> RecordBatch {
+    pub async fn first(self) -> RecordBatch {
         self.head(None).await
     }
 
     #[allow(non_snake_case)]
-    pub fn freqItems<'a, I>(&mut self, cols: I, support: Option<f64>) -> DataFrame
+    pub fn freqItems<'a, I>(self, cols: I, support: Option<f64>) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
     {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.freqItems(cols, support),
         )
     }
 
-    pub async fn head(&mut self, n: Option<i32>) -> RecordBatch {
+    pub async fn head(self, n: Option<i32>) -> RecordBatch {
         self.limit(n.unwrap_or(1)).collect().await.unwrap()
     }
 
-    pub fn hint<T: ToVecExpr>(&mut self, name: &str, parameters: Option<T>) -> DataFrame {
-        DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.hint(name, parameters),
-        )
+    pub fn hint<T: ToVecExpr>(self, name: &str, parameters: Option<T>) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.hint(name, parameters))
     }
 
     #[allow(non_snake_case)]
-    pub async fn inputFiles(&mut self) -> Vec<String> {
+    pub async fn inputFiles(self) -> Result<Vec<String>, SparkError> {
         let input_files = spark::analyze_plan_request::Analyze::InputFiles(
             spark::analyze_plan_request::InputFiles {
-                plan: Some(self.logical_plan.clone().build_plan_root()),
+                plan: Some(LogicalPlanBuilder::plan_root(self.logical_plan)),
             },
         );
 
-        self.spark_session
-            .client
+        let files = self
+            .spark_session
+            .client()
             .analyze(input_files)
-            .await
-            .unwrap();
+            .await?
+            .input_files()?;
 
-        self.spark_session
-            .client
-            .analyzer
-            .input_files
-            .to_owned()
-            .unwrap()
+        Ok(files)
     }
 
-    pub fn intersect(&mut self, other: DataFrame) -> DataFrame {
+    pub fn intersect(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.intersect(other.logical_plan),
         )
     }
 
     #[allow(non_snake_case)]
-    pub fn intersectAll(&mut self, other: DataFrame) -> DataFrame {
+    pub fn intersectAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.intersectAll(other.logical_plan),
         )
     }
 
     #[allow(non_snake_case)]
-    pub async fn isEmpty(&mut self) -> bool {
+    pub async fn isEmpty(self) -> bool {
         let val = &self.select("*").limit(1).collect().await.unwrap();
 
         val.num_rows() == 0
@@ -438,9 +400,9 @@ impl DataFrame {
     /// }
     /// ```
 
-    pub fn join<T: ToExpr>(&mut self, other: DataFrame, on: Option<T>, how: JoinType) -> DataFrame {
+    pub fn join<T: ToExpr>(self, other: DataFrame, on: Option<T>, how: JoinType) -> DataFrame {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.join(other.logical_plan, on, how, vec![]),
         )
     }
@@ -453,56 +415,56 @@ impl DataFrame {
     ///     df.limit(10).collect().await?;
     /// }
     /// ```
-    pub fn limit(&mut self, limit: i32) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.limit(limit))
+    pub fn limit(self, limit: i32) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.limit(limit))
     }
 
     /// Returns a new [DataFrame] by skiping the first n rows
-    pub fn offset(&mut self, num: i32) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.offset(num))
+    pub fn offset(self, num: i32) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.offset(num))
     }
 
     #[allow(non_snake_case)]
-    pub fn orderBy<I>(&mut self, cols: I) -> DataFrame
+    pub fn orderBy<I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = Column>,
     {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.sort(cols))
+        DataFrame::new(self.spark_session, self.logical_plan.sort(cols))
     }
 
-    pub async fn persist(&mut self, storage_level: storage::StorageLevel) -> DataFrame {
+    pub async fn persist(self, storage_level: storage::StorageLevel) -> DataFrame {
         let analyze =
             spark::analyze_plan_request::Analyze::Persist(spark::analyze_plan_request::Persist {
-                relation: Some(self.logical_plan.clone().relation),
+                relation: Some(self.logical_plan.clone().relation()),
                 storage_level: Some(storage_level.into()),
             });
 
-        self.spark_session.client.analyze(analyze).await.unwrap();
-
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.clone())
-    }
-
-    #[allow(non_snake_case)]
-    pub async fn printSchema(&mut self, level: Option<i32>) -> String {
-        let tree_string = spark::analyze_plan_request::Analyze::TreeString(
-            spark::analyze_plan_request::TreeString {
-                plan: Some(self.logical_plan.clone().build_plan_root()),
-                level,
-            },
-        );
-
         self.spark_session
-            .client
-            .analyze(tree_string)
+            .clone()
+            .client()
+            .analyze(analyze)
             .await
             .unwrap();
 
-        self.spark_session
-            .client
-            .analyzer
-            .tree_string
-            .to_owned()
-            .unwrap()
+        DataFrame::new(self.spark_session, self.logical_plan)
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn printSchema(self, level: Option<i32>) -> Result<String, SparkError> {
+        let tree_string = spark::analyze_plan_request::Analyze::TreeString(
+            spark::analyze_plan_request::TreeString {
+                plan: Some(LogicalPlanBuilder::plan_root(self.logical_plan)),
+                level,
+            },
+        );
+        let tree = self
+            .spark_session
+            .client()
+            .analyze(tree_string)
+            .await?
+            .tree_string()?;
+
+        Ok(tree)
     }
 
     /// Returns a new [DataFrame] partitioned by the given partition number and shuffle option
@@ -512,46 +474,44 @@ impl DataFrame {
     /// * `num_partitions`: the target number of partitions
     /// * (optional) `shuffle`: to induce a shuffle. Default is `false`
     ///
-    pub fn repartition(&mut self, num_partitions: u32, shuffle: Option<bool>) -> DataFrame {
+    pub fn repartition(self, num_partitions: u32, shuffle: Option<bool>) -> DataFrame {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.repartition(num_partitions, shuffle),
         )
     }
 
     #[allow(non_snake_case)]
-    pub async fn sameSemantics(&mut self, other: DataFrame) -> bool {
+    pub async fn sameSemantics(self, other: DataFrame) -> Result<bool, SparkError> {
+        let target_plan = Some(LogicalPlanBuilder::plan_root(self.logical_plan));
+        let other_plan = Some(LogicalPlanBuilder::plan_root(other.logical_plan));
+
         let same_semantics = spark::analyze_plan_request::Analyze::SameSemantics(
             spark::analyze_plan_request::SameSemantics {
-                target_plan: Some(self.logical_plan.clone().build_plan_root()),
-                other_plan: Some(other.logical_plan.clone().build_plan_root()),
+                target_plan,
+                other_plan,
             },
         );
-
-        self.spark_session
-            .client
+        let same_semantics = self
+            .spark_session
+            .client()
             .analyze(same_semantics)
-            .await
-            .unwrap();
+            .await?
+            .same_semantics()?;
 
-        self.spark_session
-            .client
-            .analyzer
-            .same_semantics
-            .to_owned()
-            .unwrap()
+        Ok(same_semantics)
     }
 
     /// Returns a sampled subset of this [DataFrame]
     pub fn sample(
-        &mut self,
+        self,
         lower_bound: f64,
         upper_bound: f64,
         with_replacement: Option<bool>,
         seed: Option<i64>,
     ) -> DataFrame {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan
                 .sample(lower_bound, upper_bound, with_replacement, seed),
         )
@@ -559,15 +519,22 @@ impl DataFrame {
 
     /// Returns the schema of this DataFrame as a [spark::DataType]
     /// which contains the schema of a DataFrame
-    pub async fn schema(&mut self) -> Option<spark::DataType> {
-        let analyze =
+    pub async fn schema(self) -> Result<spark::DataType, SparkError> {
+        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+
+        let schema =
             spark::analyze_plan_request::Analyze::Schema(spark::analyze_plan_request::Schema {
-                plan: Some(self.logical_plan.clone().build_plan_root()),
+                plan: Some(plan),
             });
 
-        self.spark_session.client.analyze(analyze).await.unwrap();
+        let data_type = self
+            .spark_session
+            .client()
+            .analyze(schema)
+            .await?
+            .schema()?;
 
-        self.spark_session.client.analyzer.schema.to_owned()
+        Ok(data_type)
     }
 
     /// Projects a set of expressions and returns a new [DataFrame]
@@ -582,8 +549,8 @@ impl DataFrame {
     ///     df.select(vec![col("age"), col("name")]).collect().await?;
     /// }
     /// ```
-    pub fn select<T: ToVecExpr>(&mut self, cols: T) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.select(cols))
+    pub fn select<T: ToVecExpr>(self, cols: T) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.select(cols))
     }
 
     /// Project a set of SQL expressions and returns a new [DataFrame]
@@ -597,36 +564,29 @@ impl DataFrame {
     /// }
     /// ```
     #[allow(non_snake_case)]
-    pub fn selectExpr<'a, I>(&mut self, cols: I) -> DataFrame
+    pub fn selectExpr<'a, I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
     {
-        DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.select_expr(cols),
-        )
+        DataFrame::new(self.spark_session, self.logical_plan.select_expr(cols))
     }
 
     #[allow(non_snake_case)]
-    pub async fn semanticHash(&mut self) -> i32 {
+    pub async fn semanticHash(self) -> Result<i32, SparkError> {
+        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+
         let semantic_hash = spark::analyze_plan_request::Analyze::SemanticHash(
-            spark::analyze_plan_request::SemanticHash {
-                plan: Some(self.logical_plan.clone().build_plan_root()),
-            },
+            spark::analyze_plan_request::SemanticHash { plan: Some(plan) },
         );
 
-        self.spark_session
-            .client
+        let semantic_hash = self
+            .spark_session
+            .client()
             .analyze(semantic_hash)
-            .await
-            .unwrap();
+            .await?
+            .semantic_hash()?;
 
-        self.spark_session
-            .client
-            .analyzer
-            .semantic_hash
-            .to_owned()
-            .unwrap()
+        Ok(semantic_hash)
     }
 
     /// Prints the first `n` rows to the console
@@ -638,27 +598,27 @@ impl DataFrame {
     /// * `vertical`: (bool, optional) If set to true, prints output rows vertically (one line per column value).
     ///
     pub async fn show(
-        &mut self,
+        self,
         num_rows: Option<i32>,
         truncate: Option<i32>,
         vertical: Option<bool>,
     ) -> Result<(), SparkError> {
         let show_expr = RelType::ShowString(Box::new(spark::ShowString {
-            input: self.logical_plan.clone().relation_input(),
+            input: self.logical_plan.relation_input(),
             num_rows: num_rows.unwrap_or(10),
             truncate: truncate.unwrap_or(0),
             vertical: vertical.unwrap_or(false),
         }));
 
-        let plan = LogicalPlanBuilder::from(show_expr).build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(show_expr));
 
-        let rows = self.spark_session.client.to_arrow(plan).await?;
+        let rows = self.spark_session.client().to_arrow(plan).await?;
 
         Ok(pretty::print_batches(&[rows])?)
     }
 
-    pub fn sort(&mut self, cols: Vec<Column>) -> DataFrame {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.sort(cols))
+    pub fn sort(self, cols: Vec<Column>) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.sort(cols))
     }
 
     #[allow(non_snake_case)]
@@ -667,32 +627,27 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub async fn storageLevel(&mut self) -> storage::StorageLevel {
+    pub async fn storageLevel(self) -> Result<storage::StorageLevel, SparkError> {
         let storage_level = spark::analyze_plan_request::Analyze::GetStorageLevel(
             spark::analyze_plan_request::GetStorageLevel {
-                relation: Some(self.logical_plan.clone().relation),
+                relation: Some(self.logical_plan.relation()),
             },
         );
 
-        self.spark_session
-            .client
+        let storage = self
+            .spark_session
+            .client()
             .analyze(storage_level)
-            .await
-            .unwrap();
+            .await?
+            .get_storage_level()?;
 
-        self.spark_session
-            .client
-            .analyzer
-            .get_storage_level
-            .to_owned()
-            .unwrap()
-            .into()
+        Ok(storage.into())
     }
 
-    pub fn subtract(&mut self, other: DataFrame) -> DataFrame {
+    pub fn subtract(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.substract(other.logical_plan),
         )
     }
@@ -701,105 +656,105 @@ impl DataFrame {
     ///
     /// Running tail requires moving the data and results in an action
     ///
-    pub async fn tail(&mut self, limit: i32) -> RecordBatch {
+    pub async fn tail(self, limit: i32) -> Result<RecordBatch, SparkError> {
         let limit_expr = RelType::Tail(Box::new(spark::Tail {
-            input: self.logical_plan.clone().relation_input(),
+            input: self.logical_plan.relation_input(),
             limit,
         }));
 
-        let plan = LogicalPlanBuilder::from(limit_expr).build_plan_root();
+        let logical_plan = LogicalPlanBuilder::from(limit_expr);
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        DataFrame::new(self.spark_session, logical_plan)
+            .collect()
+            .await
     }
 
-    pub async fn take(&mut self, n: i32) -> RecordBatch {
+    pub async fn take(self, n: i32) -> RecordBatch {
         self.limit(n).collect().await.unwrap()
     }
 
     #[allow(non_snake_case)]
-    pub fn toDF<'a, I>(&mut self, cols: I) -> DataFrame
+    pub fn toDF<'a, I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
     {
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.to_df(cols))
+        DataFrame::new(self.spark_session, self.logical_plan.to_df(cols))
     }
 
-    pub fn union(&mut self, other: DataFrame) -> DataFrame {
+    pub fn union(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.unionAll(other.logical_plan),
         )
     }
 
     #[allow(non_snake_case)]
-    pub fn unionAll(&mut self, other: DataFrame) -> DataFrame {
+    pub fn unionAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.unionAll(other.logical_plan),
         )
     }
 
     #[allow(non_snake_case)]
-    pub fn unionByName(
-        &mut self,
-        other: DataFrame,
-        allow_missing_columns: Option<bool>,
-    ) -> DataFrame {
+    pub fn unionByName(self, other: DataFrame, allow_missing_columns: Option<bool>) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan
                 .unionByName(other.logical_plan, allow_missing_columns),
         )
     }
 
-    pub async fn unpersist(&mut self, blocking: Option<bool>) -> DataFrame {
+    pub async fn unpersist(self, blocking: Option<bool>) -> DataFrame {
         let unpersist = spark::analyze_plan_request::Analyze::Unpersist(
             spark::analyze_plan_request::Unpersist {
-                relation: Some(self.logical_plan.clone().relation),
+                relation: Some(self.logical_plan.clone().relation()),
                 blocking,
             },
         );
 
-        self.spark_session.client.analyze(unpersist).await.unwrap();
+        self.spark_session
+            .clone()
+            .client()
+            .analyze(unpersist)
+            .await
+            .unwrap();
 
-        DataFrame::new(self.spark_session.clone(), self.logical_plan.clone())
+        DataFrame::new(self.spark_session, self.logical_plan)
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumn(&mut self, colName: &str, col: Column) -> DataFrame {
+    pub fn withColumn(self, colName: &str, col: Column) -> DataFrame {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.withColumn(colName, col),
         )
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumns<I, K>(&mut self, colMap: I) -> DataFrame
+    pub fn withColumns<I, K>(self, colMap: I) -> DataFrame
     where
         I: IntoIterator<Item = (K, Column)>,
         K: ToString,
     {
-        DataFrame::new(
-            self.spark_session.clone(),
-            self.logical_plan.withColumns(colMap),
-        )
+        DataFrame::new(self.spark_session, self.logical_plan.withColumns(colMap))
     }
 
     /// Returns a new [DataFrame] by renaming multiple columns from a
     /// an iterator of containing a key/value pair with the key as the `existing`
     /// column name and the value as the `new` column name.
     #[allow(non_snake_case)]
-    pub fn withColumnsRenamed<I, K, V>(&mut self, cols: I) -> DataFrame
+    pub fn withColumnsRenamed<I, K, V>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
         V: AsRef<str>,
     {
         DataFrame::new(
-            self.spark_session.clone(),
+            self.spark_session,
             self.logical_plan.withColumnsRenamed(cols),
         )
     }
@@ -833,19 +788,20 @@ mod tests {
     async fn test_alias() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .clone()
             .range(None, 2, 1, Some(1))
             .select(vec![lit("John").alias("name"), lit(1).alias("value")]);
 
-        let mut df_as1 = df.clone().alias("df_as1");
+        let df_as1 = df.clone().alias("df_as1");
         let df_as2 = df.alias("df_as2");
 
         let condition = Some(col("df_as1.name").eq(col("df_as2.name")));
 
-        let mut joined_df = df_as1.join(df_as2, condition, JoinType::Inner);
+        let joined_df = df_as1.join(df_as2, condition, JoinType::Inner);
 
-        let res = &joined_df
+        let res = joined_df
+            .clone()
             .select(vec!["df_as1.name", "df_as2.name", "df_as2.value"])
             .collect()
             .await
@@ -868,10 +824,10 @@ mod tests {
     async fn test_cache() {
         let spark = setup().await;
 
-        let mut df = spark.range(None, 2, 1, None);
-        df.cache().await;
+        let df = spark.range(None, 2, 1, None);
+        df.clone().cache().await;
 
-        let exp = df.explain(None).await.unwrap();
+        let exp = df.clone().explain(None).await.unwrap();
         assert!(exp.contains("InMemoryTableScan"));
     }
 
@@ -990,12 +946,12 @@ mod tests {
     async fn test_crosstab() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(None, 5, 1, Some(1))
             .select(vec![col("id").alias("col1"), col("id").alias("col2")])
             .crosstab("col1", "col2");
 
-        let res = &df.collect().await.unwrap();
+        let res = df.clone().collect().await.unwrap();
 
         assert!(df.columns().await.contains(&"col1_col2".to_string()));
         assert_eq!(6, res.num_columns())
@@ -1005,7 +961,7 @@ mod tests {
     async fn test_crossjoin() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .clone()
             .range(None, 2, 1, Some(1))
             .select(vec![lit("John").alias("name"), col("id").alias("value")])
@@ -1017,11 +973,11 @@ mod tests {
             .select(vec![lit("Steve").alias("name"), col("id").alias("value")])
             .alias("df2");
 
-        let mut df3 = df
+        let df3 = df
             .crossJoin(df2)
             .select(vec!["df1.name", "df2.name", "df2.value"]);
 
-        let res = &df3.collect().await.unwrap();
+        let res = df3.clone().collect().await.unwrap();
 
         assert_eq!(res.num_columns(), 3);
         assert_eq!(res.num_rows(), 4);
@@ -1037,18 +993,18 @@ mod tests {
 
         let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df = spark
+        let df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
             .load(path);
 
-        let mut df = df
+        let df = df
             .select(col("age").cast("int").alias("age_int"))
             .describe(Some(vec!["age_int"]));
 
-        let res = &df.collect().await.unwrap();
+        let res = df.clone().collect().await.unwrap();
 
         assert!(df.columns().await.contains(&"summary".to_string()));
         assert_eq!(5, res.num_rows());
@@ -1058,11 +1014,11 @@ mod tests {
     async fn test_distinct() {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
             .range(None, 100, 1, Some(1))
             .select(lit(1).alias("val"));
 
-        let mut df_dist = df.distinct();
+        let df_dist = df.clone().distinct();
 
         let res = &df.collect().await.unwrap();
         let res_dist = &df_dist.collect().await.unwrap();
@@ -1077,18 +1033,18 @@ mod tests {
 
         let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df = spark
+        let df = spark
             .read()
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
             .load(path);
 
-        let mut df = df.drop(vec!["age", "job"]);
+        let df = df.clone().drop(vec!["age", "job"]);
 
-        assert!(!df.columns().await.contains(&"age".to_string()));
-        assert!(!df.columns().await.contains(&"job".to_string()));
-        assert_eq!(1, df.columns().await.len());
+        assert!(!df.clone().columns().await.contains(&"age".to_string()));
+        assert!(!df.clone().columns().await.contains(&"job".to_string()));
+        assert_eq!(1, df.clone().columns().await.len());
     }
 
     #[tokio::test]
@@ -1097,7 +1053,7 @@ mod tests {
 
         let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df = spark
+        let df = spark
             .clone()
             .read()
             .format("csv")
@@ -1112,7 +1068,7 @@ mod tests {
             .select(vec![lit("Bob").alias("name"), lit(1).alias("id")])
             .alias("df1");
 
-        let mut df2 = spark
+        let df2 = spark
             .clone()
             .range(None, 1, 1, Some(1))
             .select(vec![lit("Steve").alias("name"), lit(2).alias("id")])
@@ -1121,6 +1077,7 @@ mod tests {
         // inner join
         // only a single record for "Bob"
         let res = &df
+            .clone()
             .join(
                 df1.clone(),
                 Some(col("df.name").eq(col("df1.name"))),
@@ -1135,6 +1092,7 @@ mod tests {
         // left outer join
         // two records "Bob" & "Jorge"
         let res = &df
+            .clone()
             .join(
                 df1,
                 Some(col("df.name").eq(col("df1.name"))),

@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-    let mut df = spark
+    let df = spark
         .read()
         .format("csv")
         .option("header", "True")

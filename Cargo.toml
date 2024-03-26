@@ -25,6 +25,8 @@ tokio-rustls = "0.26.0"
 arrow = { version = "51.0.0", features = ["prettyprint"] }
 arrow-ipc = "51.0.0"
 
+parking_lot = "0.12.1"
+
 prost = "0.12.0"
 prost-types = "0.12.0"
 
