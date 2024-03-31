@@ -327,7 +327,6 @@ Only a few of the functions are covered by unit tests.
 | bround                      | ![open] |         |
 | bucket                      | ![open] |         |
 | call_udf                    | ![open] |         |
-| cast                        | ![open] |         |
 | cbrt                        | ![open] |         |
 | ceil                        | ![done] |         |
 | coalesce                    | ![done] |         |

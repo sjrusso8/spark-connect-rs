@@ -17,6 +17,12 @@ impl ToExpr for &str {
     }
 }
 
+impl ToExpr for String {
+    fn to_expr(&self) -> spark::Expression {
+        Column::from(self.as_str()).expression.clone()
+    }
+}
+
 impl ToExpr for Column {
     fn to_expr(&self) -> spark::Expression {
         self.expression.clone()
@@ -33,6 +39,12 @@ where
 {
     fn to_vec_expr(&self) -> Vec<spark::Expression> {
         vec![self.to_expr()]
+    }
+}
+
+impl ToVecExpr for Vec<spark::Expression> {
+    fn to_vec_expr(&self) -> Vec<spark::Expression> {
+        self.to_vec()
     }
 }
 
@@ -135,6 +147,33 @@ impl ToLiteralExpr for Column {
 }
 
 impl<T> ToLiteralExpr for Vec<T>
+where
+    T: ToDataType + ToLiteral,
+{
+    fn to_literal_expr(&self) -> spark::Expression {
+        let kind = self
+            .first()
+            .expect("Array can not be empty")
+            .to_proto_type();
+
+        let literal_vec = self.iter().map(|val| val.to_literal()).collect();
+
+        let array_type = spark::expression::literal::Array {
+            element_type: Some(kind),
+            elements: literal_vec,
+        };
+
+        spark::Expression {
+            expr_type: Some(spark::expression::ExprType::Literal(
+                spark::expression::Literal {
+                    literal_type: Some(spark::expression::literal::LiteralType::Array(array_type)),
+                },
+            )),
+        }
+    }
+}
+
+impl<const N: usize, T> ToLiteralExpr for [T; N]
 where
     T: ToDataType + ToLiteral,
 {

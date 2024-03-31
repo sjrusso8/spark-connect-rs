@@ -10,6 +10,8 @@ use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
 
+use arrow::record_batch::RecordBatch;
+
 use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
 
@@ -83,6 +85,12 @@ impl SparkSession {
 
         let logical_plan = LogicalPlanBuilder::new(relation.unwrap());
 
+        Ok(DataFrame::new(self, logical_plan))
+    }
+
+    #[allow(non_snake_case)]
+    pub fn createDataFrame(self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
+        let logical_plan = LogicalPlanBuilder::local_relation(data)?;
         Ok(DataFrame::new(self, logical_plan))
     }
 

@@ -27,7 +27,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Rem, Sub};
 
 use crate::spark;
 
-use crate::expressions::ToLiteralExpr;
+use crate::expressions::{ToExpr, ToLiteralExpr};
 use crate::functions::lit;
 use crate::utils::invoke_func;
 
@@ -312,12 +312,20 @@ impl Column {
 
     /// Equality comparion. Cannot overload the '==' and return something other
     /// than a bool
-    pub fn eq<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("==", vec![self, value])
+    pub fn eq<T: ToExpr>(self, other: T) -> Column {
+        invoke_func("==", vec![self.to_expr(), other.to_expr()])
     }
 
+    /// Logical AND comparion. Cannot overload the '&&' and return something other
+    /// than a bool
+    pub fn and<T: ToExpr>(self, other: T) -> Column {
+        invoke_func("and", vec![self.to_expr(), other.to_expr()])
+    }
+
+    /// Logical OR comparion.
+    pub fn or<T: ToExpr>(self, other: T) -> Column {
+        invoke_func("or", vec![self.to_expr(), other.to_expr()])
+    }
     /// A filter expression that evaluates to true is the expression is null
     #[allow(non_snake_case)]
     pub fn isNull(self) -> Column {

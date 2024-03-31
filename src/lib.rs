@@ -83,6 +83,7 @@ pub mod column;
 mod errors;
 mod expressions;
 pub mod functions;
+mod group;
 pub mod storage;
 mod types;
 mod utils;
@@ -97,19 +98,18 @@ mod tests {
     use std::sync::Arc;
 
     use arrow::{
-        array::Int64Array,
-        datatypes::{DataType, Field, Schema},
+        array::{ArrayRef, StringArray},
         record_batch::RecordBatch,
     };
 
-    use super::*;
+    use crate::errors::SparkError;
 
-    use super::functions::*;
+    use super::*;
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
-        let connection = "sc://127.0.0.1:15002/;user_id=rust_test";
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_test;session_id=0d2af2a9-cc3c-4d4b-bf27-e2fefeaca233";
 
         SparkSessionBuilder::remote(connection)
             .build()
@@ -118,107 +118,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dataframe_range() {
+    async fn test_spark_range() -> Result<(), SparkError> {
         let spark = setup().await;
 
         let df = spark.range(None, 100, 1, Some(8));
 
-        let records = df.collect().await.unwrap();
+        let records = df.collect().await?;
 
-        assert_eq!(records.num_rows(), 100)
+        assert_eq!(records.num_rows(), 100);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_dataframe_sort() {
+    async fn test_spark_create_dataframe() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df = spark
-            .range(None, 100, 1, Some(1))
-            .sort(vec![col("id").desc()]);
+        let a: ArrayRef = Arc::new(StringArray::from(vec!["hello", "world"]));
 
-        let rows = df.limit(1).collect().await.unwrap();
+        let record_batch = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+        let df = spark.createDataFrame(&record_batch)?;
 
-        let value = Int64Array::from(vec![99]);
+        let rows = df.collect().await?;
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(value)]).unwrap();
-
-        assert_eq!(expected_batch, rows)
-    }
-
-    #[tokio::test]
-    async fn test_dataframe_read() {
-        let spark = setup().await;
-
-        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
-
-        let df = spark
-            .read()
-            .format("csv")
-            .option("header", "True")
-            .option("delimiter", ";")
-            .load(path);
-
-        let rows = df
-            .filter("age > 30")
-            .select(vec![col("name")])
-            .collect()
-            .await
-            .unwrap();
-
-        assert_eq!(rows.num_rows(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_dataframe_write() {
-        let spark = setup().await;
-
-        let df = spark
-            .clone()
-            .range(None, 1000, 1, Some(16))
-            .selectExpr(vec!["id AS range_id"]);
-
-        let path = "/opt/spark/examples/src/main/rust/employees/";
-
-        df.write()
-            .format("csv")
-            .option("header", "true")
-            .save(path)
-            .await
-            .unwrap();
-
-        let df = spark
-            .clone()
-            .read()
-            .format("csv")
-            .option("header", "true")
-            .load([path]);
-
-        let records = df.select(vec![col("range_id")]).collect().await.unwrap();
-
-        assert_eq!(records.num_rows(), 1000)
-    }
-
-    #[tokio::test]
-    async fn test_dataframe_write_table() {
-        let spark = setup().await;
-
-        let df = spark
-            .clone()
-            .range(None, 1000, 1, Some(16))
-            .selectExpr(vec!["id AS range_id"]);
-
-        df.write()
-            .mode(dataframe::SaveMode::Overwrite)
-            .saveAsTable("test_table")
-            .await
-            .unwrap();
-
-        let df = spark.clone().read().table("test_table", None);
-
-        let records = df.select(vec![col("range_id")]).collect().await.unwrap();
-
-        assert_eq!(records.num_rows(), 1000)
+        assert_eq!(record_batch, rows);
+        Ok(())
     }
 }

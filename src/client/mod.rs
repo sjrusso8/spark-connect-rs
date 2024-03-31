@@ -567,8 +567,8 @@ where
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub async fn to_first_value(&mut self, plan: spark::Plan) -> String {
-        let rows = self.to_arrow(plan).await.unwrap();
+    pub async fn to_first_value(&mut self, plan: spark::Plan) -> Result<String, SparkError> {
+        let rows = self.to_arrow(plan).await?;
         let col = rows.column(0);
 
         let data: &arrow::array::StringArray = match col.data_type() {
@@ -576,7 +576,7 @@ where
             _ => unimplemented!("only Utf8 data types are currently handled currently."),
         };
 
-        data.value(0).to_string()
+        Ok(data.value(0).to_string())
     }
 
     pub fn schema(&mut self) -> Result<spark::DataType, SparkError> {

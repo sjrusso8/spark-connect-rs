@@ -297,3 +297,96 @@ impl DataFrameWriter {
         self.save_table(table_name, 2).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use crate::errors::SparkError;
+    use crate::functions::*;
+    use crate::SparkSessionBuilder;
+
+    async fn setup() -> SparkSession {
+        println!("SparkSession Setup");
+
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_write;session_id=32c39012-896c-42fa-b487-969ee50e253b";
+
+        SparkSessionBuilder::remote(connection)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
+
+        let df = spark
+            .read()
+            .format("csv")
+            .option("header", "True")
+            .option("delimiter", ";")
+            .load(path);
+
+        let rows = df.collect().await?;
+
+        assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        let path = "/opt/spark/examples/src/main/rust/employees/";
+
+        df.write()
+            .format("csv")
+            .option("header", "true")
+            .save(path)
+            .await?;
+
+        let df = spark
+            .clone()
+            .read()
+            .format("csv")
+            .option("header", "true")
+            .load([path]);
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_table() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .saveAsTable("test_table")
+            .await?;
+
+        let df = spark.clone().read().table("test_table", None);
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+
+        Ok(())
+    }
+}

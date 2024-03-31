@@ -4,13 +4,17 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use crate::column::Column;
+use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::spark;
 
+use arrow::array::RecordBatch;
+use arrow_ipc::writer::StreamWriter;
 use spark::relation::RelType;
 use spark::Relation;
 use spark::RelationCommon;
 
+use spark::aggregate::GroupType;
 use spark::expression::ExprType;
 use spark::set_operation::SetOpType;
 
@@ -107,6 +111,38 @@ impl LogicalPlanBuilder {
         let alias_rel = RelType::SubqueryAlias(Box::new(subquery));
 
         LogicalPlanBuilder::from(alias_rel)
+    }
+
+    pub fn aggregate<T: ToVecExpr>(
+        input: LogicalPlanBuilder,
+        group_type: GroupType,
+        grouping_cols: Vec<spark::Expression>,
+        agg_expression: T,
+    ) -> LogicalPlanBuilder {
+        let agg = spark::Aggregate {
+            input: input.relation_input(),
+            group_type: group_type.into(),
+            grouping_expressions: grouping_cols,
+            aggregate_expressions: agg_expression.to_vec_expr(),
+            pivot: None,
+        };
+
+        let agg_rel = RelType::Aggregate(Box::new(agg));
+
+        LogicalPlanBuilder::from(agg_rel)
+    }
+
+    pub fn local_relation(batch: &RecordBatch) -> Result<LogicalPlanBuilder, SparkError> {
+        let serialized = serialize(batch)?;
+
+        let local_rel = spark::LocalRelation {
+            data: Some(serialized),
+            schema: None,
+        };
+
+        let local_rel = RelType::LocalRelation(local_rel);
+
+        Ok(LogicalPlanBuilder::from(local_rel))
     }
 
     pub fn corr(self, col1: &str, col2: &str) -> LogicalPlanBuilder {
@@ -581,4 +617,14 @@ impl LogicalPlanBuilder {
 
         LogicalPlanBuilder::from(rename_expr)
     }
+}
+
+fn serialize(batch: &RecordBatch) -> Result<Vec<u8>, SparkError> {
+    let buffer: Vec<u8> = Vec::new();
+    let schema = &batch.schema();
+
+    let mut writer = StreamWriter::try_new(buffer, schema)?;
+    writer.write(batch)?;
+
+    Ok(writer.into_inner()?)
 }
