@@ -7,6 +7,8 @@ use crate::types::ToDataType;
 
 use crate::impl_to_literal;
 
+const MICROSECONDS: i32 = 1000000;
+
 pub trait ToExpr {
     fn to_expr(&self) -> spark::Expression;
 }
@@ -120,6 +122,34 @@ impl ToLiteral for &str {
         spark::expression::Literal {
             literal_type: Some(spark::expression::literal::LiteralType::String(
                 self.to_string(),
+            )),
+        }
+    }
+}
+
+impl<Tz: chrono::TimeZone> ToLiteral for chrono::DateTime<Tz> {
+    fn to_literal(&self) -> spark::expression::Literal {
+        // timestamps for spark have to be the microsends since 1/1/1970
+        let timestamp = self.timestamp() * MICROSECONDS as i64;
+
+        spark::expression::Literal {
+            literal_type: Some(spark::expression::literal::LiteralType::TimestampNtz(
+                timestamp,
+            )),
+        }
+    }
+}
+
+impl ToLiteral for chrono::NaiveDate {
+    fn to_literal(&self) -> spark::expression::Literal {
+        // Spark works based on unix time. I.e. seconds since 1/1/1970
+        // to get dates to work you have to do this math
+        let days_since_unix_epoch =
+            self.signed_duration_since(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
+
+        spark::expression::Literal {
+            literal_type: Some(spark::expression::literal::LiteralType::Date(
+                days_since_unix_epoch.num_days() as i32,
             )),
         }
     }

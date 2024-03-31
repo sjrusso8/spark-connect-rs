@@ -15,3 +15,25 @@ impl_to_data_type!(f32, Float);
 impl_to_data_type!(f64, Double);
 impl_to_data_type!(&str, String);
 impl_to_data_type!(String, String);
+
+impl ToDataType for chrono::NaiveDate {
+    fn to_proto_type(&self) -> spark::DataType {
+        spark::DataType {
+            kind: Some(spark::data_type::Kind::Date(spark::data_type::Date {
+                type_variation_reference: 0,
+            })),
+        }
+    }
+}
+
+impl<Tz: chrono::TimeZone> ToDataType for chrono::DateTime<Tz> {
+    fn to_proto_type(&self) -> spark::DataType {
+        spark::DataType {
+            kind: Some(spark::data_type::Kind::TimestampNtz(
+                spark::data_type::TimestampNtz {
+                    type_variation_reference: 0,
+                },
+            )),
+        }
+    }
+}
