@@ -23,21 +23,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .option("header", "True")
         .option("delimiter", ";")
         .option("inferSchema", "True")
-        .load(paths);
+        .load(paths)?;
 
     df.write()
         .format("delta")
         .mode(SaveMode::Overwrite)
         .saveAsTable("default.people_delta")
-        .await
-        .unwrap();
+        .await?;
 
     spark
         .sql("DESCRIBE HISTORY default.people_delta")
         .await?
         .show(Some(1), None, Some(true))
-        .await
-        .unwrap();
+        .await?;
 
     // print results
     // +-------------------------------------------------------------------------------------------------------+

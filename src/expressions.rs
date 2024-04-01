@@ -1,4 +1,20 @@
 //! Traits for converting Rust Types to Spark Connect Expression Types
+//!
+//! Spark Connect has a few different ways of creating expressions and different gRPC methods
+//! require expressions in different forms. These traits are used to either translate a value into
+//! a [spark::Expression] or into a [spark::expression::Literal].
+//!
+//! ## Overview
+//!
+//! - [ToExpr] accepts a `&str`, `String`, or [Column]. This trait uses the method `from`
+//! on the Column to create an expression.
+//! - [ToLiteral] is used for taking rust types into a [spark::expression::Literal]. These values
+//! are then converted into an expression
+//! - [ToLiteralExpr`] takes a literal value and converts it into a [spark::Expression]
+//! - [ToVecExpr] many gRPC methods require a `Vec<spark::Expression>` this trait is a shorthand
+//! for that transformation
+//! - [ToFilterExpr] is specifically used for filter statements
+//!
 
 use crate::spark;
 
@@ -9,6 +25,7 @@ use crate::impl_to_literal;
 
 const MICROSECONDS: i32 = 1000000;
 
+/// Translate string values into a `spark::Expression`
 pub trait ToExpr {
     fn to_expr(&self) -> spark::Expression;
 }
@@ -31,6 +48,7 @@ impl ToExpr for Column {
     }
 }
 
+/// Translate values into a `Vec<spark::Expression>`
 pub trait ToVecExpr {
     fn to_vec_expr(&self) -> Vec<spark::Expression>;
 }
@@ -68,6 +86,7 @@ where
     }
 }
 
+/// Create a filter expression
 pub trait ToFilterExpr {
     fn to_filter_expr(&self) -> Option<spark::Expression>;
 }
@@ -90,6 +109,7 @@ impl ToFilterExpr for &str {
     }
 }
 
+/// Translate a rust value into a literal type
 pub trait ToLiteral {
     fn to_literal(&self) -> spark::expression::Literal;
 }
@@ -155,6 +175,7 @@ impl ToLiteral for chrono::NaiveDate {
     }
 }
 
+/// Wrap a literal value into a `spark::Expression`
 pub trait ToLiteralExpr {
     fn to_literal_expr(&self) -> spark::Expression;
 }
@@ -176,6 +197,7 @@ impl ToLiteralExpr for Column {
     }
 }
 
+/// Create an Array Spark Type from a Vec
 impl<T> ToLiteralExpr for Vec<T>
 where
     T: ToDataType + ToLiteral,
@@ -203,6 +225,7 @@ where
     }
 }
 
+/// Create an Array Spark Type from a Slice
 impl<const N: usize, T> ToLiteralExpr for [T; N]
 where
     T: ToDataType + ToLiteral,

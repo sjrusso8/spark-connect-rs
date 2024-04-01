@@ -1,3 +1,5 @@
+//! Rust Types to Spark Types
+
 use crate::impl_to_data_type;
 use crate::spark;
 

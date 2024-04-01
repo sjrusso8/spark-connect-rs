@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .read()
         .format("csv")
         .option("header", "true")
-        .load([path]);
+        .load([path])?;
 
     df.show(Some(10), None, None).await?;
 

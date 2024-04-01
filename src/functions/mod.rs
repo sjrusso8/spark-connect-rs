@@ -601,7 +601,7 @@ mod tests {
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(path);
+            .load(path)?;
 
         let res = df.select(input_file_name()).head(None).await?;
 

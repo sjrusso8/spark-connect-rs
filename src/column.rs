@@ -1,27 +1,4 @@
-//! A column in a DataFrame
-//!
-//!
-//! # Examples
-//! A column instance can be created by
-//!
-//! ```rust
-//! use spark_connect_rs::{SparkSession, SparkSessionBuilder};
-//!
-//! let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
-//!         .build()
-//!         .await?;
-//!
-//! // As a &str representing an unresolved column in the dataframe
-//! spark.range(None, 1, 1, Some(1)).select("id");
-//!
-//! // By using the `col` function
-//! spark.range(None, 1, 1, Some(1)).select(col("id"));
-//!
-//! // By using the `lit` function to return a literal value
-//! spark.range(None, 1, 1, Some(1)).select(lit(4.0).alias("num_col"));
-//!
-//!```
-
+//! [Column] represents a column in a DataFrame that holds a [spark::Expression]
 use std::convert::From;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Rem, Sub};
 
@@ -31,21 +8,48 @@ use crate::expressions::{ToExpr, ToLiteralExpr};
 use crate::functions::lit;
 use crate::utils::invoke_func;
 
-/// A Column is composed of a `expressions` which is used as input into
-/// a Plan object
+/// # Column
+///
+/// A column holds a specific [spark::Expression] which will be resolved once an action is called.
+/// The columns are resolved by the Spark Connect server of the remote session.
+///
+/// A column instance can be created by in a similar way as to the Spark API. A column with created
+/// with `col("*")` or `col("name.*")` is created as an unresolved star attribute which will select
+/// all columns or references in the specified column.
+///
+/// ```rust
+/// use spark_connect_rs::{SparkSession, SparkSessionBuilder};
+///
+/// let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
+///         .build()
+///         .await?;
+///
+/// // As a &str representing an unresolved column in the dataframe
+/// spark.range(None, 1, 1, Some(1)).select("id");
+///
+/// // By using the `col` function
+/// spark.range(None, 1, 1, Some(1)).select(col("id"));
+///
+/// // By using the `lit` function to return a literal value
+/// spark.range(None, 1, 1, Some(1)).select(lit(4.0).alias("num_col"));
+///
+/// ```
 #[derive(Clone, Debug)]
 pub struct Column {
-    /// An expression is an unresolved value to be leveraged in a Spark Plan
+    /// a [spark::Expression] containing any unresolved value to be leveraged in a [spark::Plan]
     pub expression: spark::Expression,
 }
 
 impl From<spark::Expression> for Column {
+    /// Used for creating columns from a [spark::Expression]
     fn from(expression: spark::Expression) -> Self {
         Self { expression }
     }
 }
 
 impl From<&str> for Column {
+    /// `&str` values containing a `*` will be created as an unresolved star expression
+    /// Otherwise, the value is created as an unresolved attribute
     fn from(value: &str) -> Self {
         let expression = match value {
             "*" => spark::Expression {
@@ -81,7 +85,7 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let cols = vec![
+    /// let cols = [
     ///     col("name").alias("new_name"),
     ///     col("age").alias("new_age")
     /// ];
@@ -111,9 +115,9 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let mut df: DataFrame = df.sort(col("id").asc());
+    /// let df: DataFrame = df.sort(col("id").asc());
     ///
-    /// let mut df: DataFrame = df.sort(asc(col("id")));
+    /// let df: DataFrame = df.sort(asc(col("id")));
     /// ```
     pub fn asc(self) -> Column {
         self.asc_nulls_first()
@@ -151,9 +155,9 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let mut df: DataFrame = df.sort(col("id").desc());
+    /// let df: DataFrame = df.sort(col("id").desc());
     ///
-    /// let mut df: DataFrame = df.sort(desc(col("id")));
+    /// let df: DataFrame = df.sort(desc(col("id")));
     /// ```
     pub fn desc(self) -> Column {
         self.desc_nulls_first()
@@ -195,12 +199,10 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let mut df = df.select(vec![
+    /// let df = df.select([
     ///       col("age").cast("int"),
     ///       col("name").cast("string")
     ///     ])
-    ///     .collect()
-    ///     .await?;
     /// ```
     pub fn cast(self, to_type: &str) -> Column {
         let type_str = spark::expression::cast::CastToType::TypeStr(to_type.to_string());
@@ -226,17 +228,7 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
-    /// let mut df = spark
-    ///     .read()
-    ///     .format("csv")
-    ///     .option("header", "True")
-    ///     .option("delimiter", ";")
-    ///     .load(paths);
-    ///
-    /// let row = df
-    ///     .filter(col("name").isin(vec!["Jorge", "Bob"]))
-    ///     .select("name");
+    /// df.filter(col("name").isin(["Jorge", "Bob"]));
     /// ```
     pub fn isin<T: ToLiteralExpr>(self, cols: Vec<T>) -> Column {
         let mut values = cols
@@ -257,17 +249,7 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
-    /// let mut df = spark
-    ///     .read()
-    ///     .format("csv")
-    ///     .option("header", "True")
-    ///     .option("delimiter", ";")
-    ///     .load(paths);
-    ///
-    /// let row = df
-    ///     .filter(col("name").contains("ge"))
-    ///     .select("name");
+    /// df.filter(col("name").contains("ge"));
     /// ```
     pub fn contains<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);

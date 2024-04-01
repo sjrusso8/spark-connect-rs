@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format("csv")
         .option("header", "True")
         .option("delimiter", ";")
-        .load(path);
+        .load(path)?;
 
     df.select([
         F::col("name"),

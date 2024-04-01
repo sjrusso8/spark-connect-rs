@@ -9,6 +9,7 @@ use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
+use crate::streaming::DataStreamReader;
 
 use arrow::record_batch::RecordBatch;
 
@@ -57,6 +58,16 @@ impl SparkSession {
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
     pub fn read(self) -> DataFrameReader {
         DataFrameReader::new(self)
+    }
+
+    /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
+    #[allow(non_snake_case)]
+    pub fn readStream(self) -> DataStreamReader {
+        DataStreamReader::new(self)
+    }
+
+    pub fn table(self, name: &str) -> Result<DataFrame, SparkError> {
+        DataFrameReader::new(self).table(name, None)
     }
 
     /// Interface through which the user may create, drop, alter or query underlying databases,

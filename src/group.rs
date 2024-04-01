@@ -1,3 +1,5 @@
+//! A DataFrame created with an aggregate statement
+
 use crate::dataframe::DataFrame;
 use crate::expressions::ToVecExpr;
 use crate::plan::LogicalPlanBuilder;
@@ -8,14 +10,13 @@ use crate::utils::invoke_func;
 use crate::spark;
 use crate::spark::aggregate::GroupType;
 
-#[allow(dead_code)]
+#[derive(Clone, Debug)]
 pub struct GroupedData {
     df: DataFrame,
     group_type: GroupType,
     grouping_cols: Vec<spark::Expression>,
 }
 
-#[allow(dead_code)]
 impl GroupedData {
     pub fn new(
         df: DataFrame,
@@ -97,7 +98,7 @@ mod tests {
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(path);
+            .load(path)?;
 
         let res = df.groupBy::<Column>(None).count().collect().await?;
 

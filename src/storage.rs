@@ -1,3 +1,5 @@
+//! Enum for handling Spark Storage representations
+
 use crate::spark;
 
 #[derive(Clone, Copy, Debug)]

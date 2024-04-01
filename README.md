@@ -114,7 +114,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 
 | DataFrame                     | API     | Comment                                                    |
 |-------------------------------|---------|------------------------------------------------------------|
-| agg                           | ![open] | groupby and aggregrate functions are currently in progress |
+| agg                           | ![done] |                                                            |
 | alias                         | ![done] |                                                            |
 | approxQuantile                | ![open] |                                                            |
 | cache                         | ![done] |                                                            |
@@ -124,7 +124,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | collect                       | ![done] |                                                            |
 | columns                       | ![done] |                                                            |
 | corr                          | ![done] |                                                            |
-| count                         | ![open] | groupby and aggregrate functions are currently in progress |
+| count                         | ![done] |                                                            |
 | cov                           | ![done] |                                                            |
 | createGlobalTempView          | ![done] |                                                            |
 | createOrReplaceGlobalTempView | ![done] |                                                            |
@@ -149,7 +149,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | foreach                       | ![open] |                                                            |
 | foreachPartition              | ![open] |                                                            |
 | freqItems                     | ![done] |                                                            |
-| groupBy                       | ![open] | groupby and aggregrate functions are currently in progress |
+| groupBy                       | ![done] |                                                            |
 | head                          | ![done] |                                                            |
 | hint                          | ![done] |                                                            |
 | inputFiles                    | ![done] |                                                            |
@@ -157,7 +157,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | intersectAll                  | ![done] |                                                            |
 | isEmpty                       | ![done] |                                                            |
 | isLocal                       | ![open] |                                                            |
-| isStreaming                   | ![open] | streaming is currently in progress                         |
+| isStreaming                   | ![done] |                                                            |
 | join                          | ![done] |                                                            |
 | limit                         | ![done] |                                                            |
 | localCheckpoint               | ![open] |                                                            |
@@ -175,7 +175,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | repartition                   | ![done] |                                                            |
 | repartitionByRange            | ![open] |                                                            |
 | replace                       | ![open] |                                                            |
-| rollup                        | ![open] |                                                            |
+| rollup                        | ![done] |                                                            |
 | sameSemantics                 | ![done] |                                                            |
 | sample                        | ![done] |                                                            |
 | sampleBy                      | ![open] |                                                            |
@@ -212,7 +212,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | withMetadata                  | ![open] |                                                            |
 | withWatermark                 | ![open] |                                                            |
 | write                         | ![done] |                                                            |
-| writeStream                   | ![open] | streaming is currently in progress                         |
+| writeStream                   | ![done] |                                                            |
 | writeTo                       | ![open] |                                                            |
 
 ### DataFrameWriter

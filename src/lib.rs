@@ -4,7 +4,38 @@
 //! not be used in any production setting**. This is currently a "proof of concept" to identify the methods
 //! of interacting with Spark cluster from rust.
 //!
-//! # Usage
+//! # Quickstart
+//!
+//! Create a Spark Session and create a [DataFrame] from a [arrow::array::RecordBatch].
+//!
+//! ```rust
+//! use spark_connect_rs::{SparkSession, SparkSessionBuilder};
+//! use spark_connect_rs::functions::{col, lit}
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!
+//!     let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs")
+//!         .build()
+//!         .await?;
+//!
+//!     let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+//!     let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
+//!
+//!     let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?
+//!
+//!     let df = spark.createDataFrame(&data).await?
+//!
+//!     // 2 records total
+//!     let records = df.select("*")
+//!         .withColumn("age_plus", col("age") + lit(4))
+//!         .filter(col("name").contains("o"))
+//!         .count()
+//!         .await?;
+//!
+//!     Ok(())
+//! };
+//!```
 //!
 //! Create a Spark Session and create a DataFrame from a SQL statement:
 //!
@@ -18,15 +49,16 @@
 //!         .build()
 //!         .await?;
 //!
-//!     let mut df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`").await?;
+//!     let df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`").await?;
 //!
+//!     // Show the first 5 records
 //!     df.filter("salary > 3000").show(Some(5), None, None).await?;
 //!
 //!     Ok(())
 //! };
 //!```
 //!
-//! Create a Spark Session, create a DataFrame from a CSV file, apply function transformations, and write the results:
+//! Create a Spark Session, read a CSV file into a DataFrame, apply function transformations, and write the results:
 //!
 //! ```rust
 //! use spark_connect_rs::{SparkSession, SparkSessionBuilder};
@@ -40,18 +72,18 @@
 //!         .build()
 //!         .await?;
 //!
-//!     let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
+//!     let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
 //!
-//!     let mut df = spark
+//!     let df = spark
 //!         .read()
 //!         .format("csv")
 //!         .option("header", "True")
 //!         .option("delimiter", ";")
-//!         .load(paths);
+//!         .load(paths)?;
 //!
-//!     let mut df = df
+//!     let df = df
 //!         .filter("age > 30")
-//!         .select(vec![
+//!         .select([
 //!             F::col("name"),
 //!             F::col("age").cast("int")
 //!         ]);
@@ -66,6 +98,17 @@
 //! };
 //!```
 //!
+//! ## Databricks Connection
+//!
+//! Spark Connect is enabled for Databricks Runtime 13.3 LTS and above, and requires the feature
+//! flag `feature = "tls"`. The connection string for the remote session must contain the following
+//! values in the string;
+//!
+//! ```rust
+//! "sc://<workspace id>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>"
+//! ```
+//!
+//!
 
 /// Spark Connect gRPC protobuf translated using [tonic]
 pub mod spark {
@@ -77,15 +120,16 @@ pub mod plan;
 pub mod readwriter;
 pub mod session;
 
-mod catalog;
+pub mod catalog;
 mod client;
 pub mod column;
-mod errors;
-mod expressions;
+pub mod errors;
+pub mod expressions;
 pub mod functions;
-mod group;
+pub mod group;
 pub mod storage;
-mod types;
+pub mod streaming;
+pub mod types;
 mod utils;
 
 pub use arrow;

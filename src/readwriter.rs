@@ -65,7 +65,7 @@ impl DataFrameReader {
     /// // returns a DataFrame from a csv file with a header from a the specific path
     /// let mut df = spark.read().format("csv").option("header", "true").load(path);
     /// ```
-    pub fn load<'a, I>(self, paths: I) -> DataFrame
+    pub fn load<'a, I>(self, paths: I) -> Result<DataFrame, SparkError>
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -90,7 +90,7 @@ impl DataFrameReader {
 
         let logical_plan = LogicalPlanBuilder::new(relation);
 
-        DataFrame::new(self.spark_session, logical_plan)
+        Ok(DataFrame::new(self.spark_session, logical_plan))
     }
 
     /// Returns the specific table as a [DataFrame]
@@ -99,7 +99,11 @@ impl DataFrameReader {
     /// * `table_name`: &str of the table name
     /// * `options`: (optional Hashmap) contains additional read options for a table
     ///
-    pub fn table(self, table_name: &str, options: Option<HashMap<String, String>>) -> DataFrame {
+    pub fn table(
+        self,
+        table_name: &str,
+        options: Option<HashMap<String, String>>,
+    ) -> Result<DataFrame, SparkError> {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
             is_streaming: false,
             read_type: Some(spark::read::ReadType::NamedTable(spark::read::NamedTable {
@@ -118,7 +122,7 @@ impl DataFrameReader {
 
         let logical_plan = LogicalPlanBuilder::new(relation);
 
-        DataFrame::new(self.spark_session, logical_plan)
+        Ok(DataFrame::new(self.spark_session, logical_plan))
     }
 }
 
@@ -329,7 +333,7 @@ mod tests {
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(path);
+            .load(path)?;
 
         let rows = df.collect().await?;
 
@@ -359,7 +363,7 @@ mod tests {
             .read()
             .format("csv")
             .option("header", "true")
-            .load([path]);
+            .load([path])?;
 
         let records = df.select(vec![col("range_id")]).collect().await?;
 
@@ -381,7 +385,7 @@ mod tests {
             .saveAsTable("test_table")
             .await?;
 
-        let df = spark.clone().read().table("test_table", None);
+        let df = spark.clone().read().table("test_table", None)?;
 
         let records = df.select(vec![col("range_id")]).collect().await?;
 

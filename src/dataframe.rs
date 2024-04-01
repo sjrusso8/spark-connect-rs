@@ -1,4 +1,4 @@
-//! DataFrame with Reader/Writer repesentation
+//! DataFrame representation for Spark Connection
 
 use crate::column::Column;
 use crate::errors::SparkError;
@@ -9,6 +9,7 @@ pub use crate::readwriter::{DataFrameReader, DataFrameWriter};
 use crate::session::SparkSession;
 use crate::spark;
 use crate::storage;
+pub use crate::streaming::{DataStreamReader, DataStreamWriter, OutputMode, StreamingQuery};
 pub use spark::aggregate::GroupType;
 pub use spark::analyze_plan_request::explain::ExplainMode;
 pub use spark::join::JoinType;
@@ -21,9 +22,47 @@ use arrow::datatypes::{DataType, Float64Type};
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 
-/// DataFrame is composed of a `spark_session` connecot ting to a remote
-/// Spark Connect enabled cluster, and a `logical_plan` which represents
-/// the `Plan` to be submitted to the cluster when an action is called
+/// DataFrame is composed of a [SparkSession] referencing a
+/// Spark Connect enabled cluster, and a [LogicalPlanBuilder] which represents
+/// the unresolved [spark::Plan] to be submitted to the cluster when an action is called.
+///
+/// The [LogicalPlanBuilder] is a series of unresolved logical plans, and every additional
+/// transformation takes the prior [spark::Plan] and builds onto it. The final unresolved logical
+/// plan is submitted to the spark connect server.
+///
+/// ## createDataFrame & range
+///
+/// A `DataFrame` can be created with an [arrow::array::RecordBatch], or with `spark.range(...)`
+///
+/// ```rust
+/// let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+/// let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
+///
+/// let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?
+///
+/// let df = spark.createDataFrame(&data).await?
+/// ```
+///
+/// ## sql
+///
+/// A `DataFrame` is created from a `spark.sql()` statement
+///
+/// ```rust
+/// let df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`").await?;
+/// ```
+///
+/// ## read & readStream
+///
+/// A `DataFrame` is also created from a `spark.read()` and `spark.readStream()` statement.
+///
+/// ```rust
+/// let df = spark
+///     .read()
+///     .format("csv")
+///     .option("header", "True")
+///     .option("delimiter", ";")
+///     .load(paths)?;
+/// ````
 #[derive(Clone, Debug)]
 pub struct DataFrame {
     /// Global [SparkSession] connecting to the remote cluster
@@ -53,38 +92,14 @@ impl DataFrame {
         Ok(())
     }
 
-    /// Returns a new [DataFrame] with an alias set.
-    pub fn alias(self, alias: &str) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.alias(alias))
-    }
-
-    #[allow(non_snake_case)]
-    pub fn groupBy<T: ToVecExpr>(self, cols: Option<T>) -> GroupedData {
-        let grouping_cols = match cols {
-            Some(cols) => cols.to_vec_expr(),
-            None => vec![],
-        };
-        GroupedData::new(self, GroupType::Groupby, grouping_cols)
-    }
-
-    pub async fn count(self) -> Result<i64, SparkError> {
-        let res = self.groupBy::<Column>(None).count().collect().await?;
-        let col = res.column(0);
-
-        let data: &arrow::array::Int64Array = match col.data_type() {
-            arrow::datatypes::DataType::Int64 => col.as_any().downcast_ref().unwrap(),
-            _ => unimplemented!("only Utf8 data types are currently handled currently."),
-        };
-
-        Ok(data.value(0))
-    }
-
+    /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.groupBy().agg()`)
     pub fn agg<T: ToVecExpr>(self, exprs: T) -> DataFrame {
         self.groupBy::<Column>(None).agg(exprs)
     }
 
-    pub fn cube<T: ToVecExpr>(self, cols: T) -> GroupedData {
-        GroupedData::new(self, GroupType::Cube, cols.to_vec_expr())
+    /// Returns a new [DataFrame] with an alias set.
+    pub fn alias(self, alias: &str) -> DataFrame {
+        DataFrame::new(self.spark_session, self.logical_plan.alias(alias))
     }
 
     /// Persists the [DataFrame] with the default [storage::StorageLevel::MemoryAndDiskDeser] (MEMORY_AND_DISK_DESER).
@@ -96,6 +111,19 @@ impl DataFrame {
     /// Returns a new [DataFrame] that has exactly `num_partitions` partitions.
     pub fn coalesce(self, num_partitions: u32) -> DataFrame {
         self.repartition(num_partitions, Some(false))
+    }
+
+    /// Returns the number of rows in this [DataFrame]
+    pub async fn count(self) -> Result<i64, SparkError> {
+        let res = self.groupBy::<Column>(None).count().collect().await?;
+        let col = res.column(0);
+
+        let data: &arrow::array::Int64Array = match col.data_type() {
+            arrow::datatypes::DataType::Int64 => col.as_any().downcast_ref().unwrap(),
+            _ => unimplemented!("only Utf8 data types are currently handled currently."),
+        };
+
+        Ok(data.value(0))
     }
 
     /// Selects column based on the column name specified as a regex and returns it as [Column].
@@ -183,6 +211,7 @@ impl DataFrame {
         Ok(data.value(0))
     }
 
+    /// Creates a local temporary view with this DataFrame.
     #[allow(non_snake_case)]
     pub async fn createTempView(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, false, false).await
@@ -198,6 +227,7 @@ impl DataFrame {
         self.create_view_cmd(name, true, true).await
     }
 
+    /// Creates or replaces a local temporary view with this DataFrame
     #[allow(non_snake_case)]
     pub async fn createOrReplaceTempView(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, false, true).await
@@ -238,6 +268,11 @@ impl DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan.crosstab(col1, col2))
     }
 
+    /// Create a multi-dimensional cube for the current DataFrame using the specified columns, so we can run aggregations on them.
+    pub fn cube<T: ToVecExpr>(self, cols: T) -> GroupedData {
+        GroupedData::new(self, GroupType::Cube, cols.to_vec_expr())
+    }
+
     // Computes basic statistics for numeric and string columns. This includes count, mean, stddev, min, and max.
     // If no columns are given, this function computes statistics for all numerical or string columns.
     pub fn describe<'a, I>(self, cols: Option<I>) -> DataFrame
@@ -268,11 +303,13 @@ impl DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan.drop_duplicates(cols))
     }
 
+    /// Return a new DataFrame with duplicate rows removed, optionally only considering certain columns.
     #[allow(non_snake_case)]
     pub fn dropDuplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
         self.drop_duplicates(cols)
     }
 
+    /// Returns a new DataFrame omitting rows with null values.
     pub fn dropna(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
         DataFrame::new(
             self.spark_session,
@@ -304,6 +341,7 @@ impl DataFrame {
         Ok(dtypes)
     }
 
+    /// Return a new DataFrame containing rows in this DataFrame but not in another DataFrame while preserving duplicates.
     #[allow(non_snake_case)]
     pub fn exceptAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
@@ -362,10 +400,12 @@ impl DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan.filter(condition))
     }
 
+    /// Returns the first row as a RecordBatch.
     pub async fn first(self) -> Result<RecordBatch, SparkError> {
         self.head(None).await
     }
 
+    /// Finding frequent items for columns, possibly with false positives.
     #[allow(non_snake_case)]
     pub fn freqItems<'a, I>(self, cols: I, support: Option<f64>) -> DataFrame
     where
@@ -377,14 +417,27 @@ impl DataFrame {
         )
     }
 
+    /// Groups the DataFrame using the specified columns, and returns a [GroupedData] object
+    #[allow(non_snake_case)]
+    pub fn groupBy<T: ToVecExpr>(self, cols: Option<T>) -> GroupedData {
+        let grouping_cols = match cols {
+            Some(cols) => cols.to_vec_expr(),
+            None => vec![],
+        };
+        GroupedData::new(self, GroupType::Groupby, grouping_cols)
+    }
+
+    /// Returns the first n rows.
     pub async fn head(self, n: Option<i32>) -> Result<RecordBatch, SparkError> {
         self.limit(n.unwrap_or(1)).collect().await
     }
 
+    /// Specifies some hint on the current DataFrame.
     pub fn hint<T: ToVecExpr>(self, name: &str, parameters: Option<T>) -> DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan.hint(name, parameters))
     }
 
+    /// Returns a best-effort snapshot of the files that compose this DataFrame
     #[allow(non_snake_case)]
     pub async fn inputFiles(self) -> Result<Vec<String>, SparkError> {
         let input_files = spark::analyze_plan_request::Analyze::InputFiles(
@@ -393,16 +446,14 @@ impl DataFrame {
             },
         );
 
-        let files = self
-            .spark_session
+        self.spark_session
             .client()
             .analyze(input_files)
             .await?
-            .input_files()?;
-
-        Ok(files)
+            .input_files()
     }
 
+    /// Return a new DataFrame containing rows only in both this DataFrame and another DataFrame.
     pub fn intersect(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
         DataFrame::new(
@@ -420,6 +471,7 @@ impl DataFrame {
         )
     }
 
+    /// Checks if the DataFrame is empty and returns a boolean value.
     #[allow(non_snake_case)]
     pub async fn isEmpty(self) -> Result<bool, SparkError> {
         let val = &self.select("*").limit(1).collect().await?;
@@ -427,17 +479,32 @@ impl DataFrame {
         Ok(val.num_rows() == 0)
     }
 
+    /// Returns True if this DataFrame contains one or more sources that continuously return data as it arrives.
+    #[allow(non_snake_case)]
+    pub async fn isStreaming(self) -> Result<bool, SparkError> {
+        let is_streaming = spark::analyze_plan_request::Analyze::IsStreaming(
+            spark::analyze_plan_request::IsStreaming {
+                plan: Some(LogicalPlanBuilder::plan_root(self.logical_plan)),
+            },
+        );
+
+        self.spark_session
+            .client()
+            .analyze(is_streaming)
+            .await?
+            .is_streaming()
+    }
+
     /// Joins with another DataFrame, using the given join expression.
     ///
     /// # Example:
     /// ```rust
-    ///
-    /// use spark_connect_rs::functionas::*
+    /// use spark_connect_rs::functions::col;
     /// use spark_connect_rs::dataframe::JoinType;
     ///
     /// async {
     ///     // join two dataframes where `id` == `name`
-    ///     let condition = Some(col("id").eq("name"));
+    ///     let condition = Some(col("id").eq(col("name")));
     ///     let df = df.join(df2, condition, JoinType::Inner);
     /// }
     /// ```
@@ -491,6 +558,7 @@ impl DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan)
     }
 
+    /// Prints out the schema in the tree format to a specific level number.
     #[allow(non_snake_case)]
     pub async fn printSchema(self, level: Option<i32>) -> Result<String, SparkError> {
         let tree_string = spark::analyze_plan_request::Analyze::TreeString(
@@ -523,10 +591,13 @@ impl DataFrame {
         )
     }
 
+    /// Create a multi-dimensional rollup for the current DataFrame using the specified columns,
+    /// and returns a [GroupedData] object
     pub fn rollup<T: ToVecExpr>(self, cols: T) -> GroupedData {
         GroupedData::new(self, GroupType::Rollup, cols.to_vec_expr())
     }
 
+    /// Returns True when the logical query plans inside both DataFrames are equal and therefore return the same results.
     #[allow(non_snake_case)]
     pub async fn sameSemantics(self, other: DataFrame) -> Result<bool, SparkError> {
         let target_plan = Some(LogicalPlanBuilder::plan_root(self.logical_plan));
@@ -810,6 +881,13 @@ impl DataFrame {
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
     pub fn write(self) -> DataFrameWriter {
         DataFrameWriter::new(self)
+    }
+
+    /// Interface for [DataStreamWriter] to save the content of the streaming DataFrame out
+    /// into external storage.
+    #[allow(non_snake_case)]
+    pub fn writeStream(self) -> DataStreamWriter {
+        DataStreamWriter::new(self)
     }
 }
 
@@ -1425,7 +1503,7 @@ mod tests {
             .format("csv")
             .option("header", "True")
             .option("delimiter", ";")
-            .load(path);
+            .load(path)?;
 
         let res = df.inputFiles().await?;
 

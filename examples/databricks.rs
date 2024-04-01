@@ -19,8 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .range(None, 10, 1, Some(1))
         .selectExpr(vec!["id * 4"])
         .show(Some(10), None, None)
-        .await
-        .unwrap();
+        .await?;
 
     // +-------------+
     // | show_string |
