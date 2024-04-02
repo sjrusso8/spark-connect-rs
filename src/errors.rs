@@ -55,6 +55,12 @@ impl From<tonic::Status> for SparkError {
     }
 }
 
+impl From<serde_json::Error> for SparkError {
+    fn from(value: serde_json::Error) -> Self {
+        SparkError::AnalysisException(value.to_string())
+    }
+}
+
 impl<W: Write> From<std::io::IntoInnerError<W>> for SparkError {
     fn from(error: std::io::IntoInnerError<W>) -> Self {
         SparkError::IoError(error.to_string(), error.into())

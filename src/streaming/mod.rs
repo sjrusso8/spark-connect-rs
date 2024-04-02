@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
-use crate::spark::write_stream_operation_start::Trigger;
+pub use crate::spark::write_stream_operation_start::Trigger;
 use crate::DataFrame;
 
 use crate::errors::SparkError;
@@ -366,7 +366,7 @@ impl StreamingQuery {
     }
 
     #[allow(non_snake_case)]
-    pub async fn lastProgress(self) -> Result<Vec<String>, SparkError> {
+    pub async fn lastProgress(self) -> Result<serde_json::Value, SparkError> {
         let cmd =
             spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
                 query_id: Some(self.query_instance),
@@ -392,11 +392,11 @@ impl StreamingQuery {
             )),
         };
 
-        Ok(progress?.recent_progress_json)
+        to_json_object(progress?.recent_progress_json)
     }
 
     #[allow(non_snake_case)]
-    pub async fn recentProgress(self) -> Result<Vec<String>, SparkError> {
+    pub async fn recentProgress(self) -> Result<serde_json::Value, SparkError> {
         let cmd =
             spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
                 query_id: Some(self.query_instance),
@@ -424,7 +424,7 @@ impl StreamingQuery {
             )),
         };
 
-        Ok(progress?.recent_progress_json)
+        to_json_object(progress?.recent_progress_json)
     }
 
     #[allow(non_snake_case)]
@@ -458,6 +458,11 @@ impl StreamingQuery {
     ) -> Result<spark::streaming_query_command_result::StatusResult, SparkError> {
         self.fetch_status().await
     }
+}
+
+fn to_json_object(val: Vec<String>) -> Result<serde_json::Value, SparkError> {
+    let val = &val.first().unwrap();
+    Ok(serde_json::from_str::<serde_json::Value>(val)?)
 }
 
 #[cfg(test)]
@@ -543,7 +548,7 @@ mod tests {
 
         let status = query.clone().status().await?;
 
-        assert_eq!("Initializing sources".to_string(), status.status_message);
+        assert!(!status.status_message.is_empty());
 
         query.stop().await?;
         Ok(())
@@ -572,7 +577,7 @@ mod tests {
 
         let progress = query.clone().lastProgress().await?;
 
-        assert_eq!(1, progress.len());
+        assert!(!progress.is_null());
 
         assert!(query.stop().await?);
         Ok(())

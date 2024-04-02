@@ -114,6 +114,7 @@ pub trait ToLiteral {
     fn to_literal(&self) -> spark::expression::Literal;
 }
 
+impl_to_literal!(bool, Boolean);
 impl_to_literal!(i32, Integer);
 impl_to_literal!(i64, Long);
 impl_to_literal!(f32, Float);

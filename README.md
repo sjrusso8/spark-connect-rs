@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build()
             .await?;
 
-    let mut df = spark
+    let df = spark
         .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
         .await?;
 
@@ -71,14 +71,12 @@ cargo build && cargo test
 
 ## Features
 
-The following section outlines some of the larger functionality that
-is not yet working with this Spark Connect implementation.
+The following section outlines some of the larger functionality that are not yet working with this Spark Connect implementation.
 
 - ![done] TLS authentication & Databricks compatability
-- ![open] streaming implementation
-- ![open] groupBy, aggregation, and window functions
-- ![open] better error handling
-- ![open] converting RecordBatch output into a polars DataFrame
+- ![open] StreamingQueryManager
+- ![open] Window and Pivot functions
+- ![open] UDFs or any type of functionality that takes a closure (foreach, foreachBatch, etc.)
 
 ### SparkSession
 
@@ -89,13 +87,13 @@ is not yet working with this Spark Connect implementation.
 | active             | ![open] |                                               |
 | appName            | ![open] |                                               |
 | catalog            | ![open] | Partial. Only Get/List traits are implemented |
-| createDataFrame    | ![open] |                                               |
+| createDataFrame    | ![done] | Partial. Only works for `RecordBatch`         |
 | range              | ![done] |                                               |
 | read               | ![done] |                                               |
-| readStream         | ![open] | streaming is currently in progress            |
+| readStream         | ![done] | Creates a `DataStreamReader` object           |
 | sql                | ![done] |                                               |
 | stop               | ![open] |                                               |
-| streams            | ![open] | streaming is currently in progress            |
+| streams            | ![open] | Stream Manager is not yet implemented         |
 | table              | ![open] |                                               |
 | version            | ![open] |                                               |
 | addArtifact(s)     | ![open] |                                               |
@@ -110,7 +108,7 @@ is not yet working with this Spark Connect implementation.
 
 ### DataFrame
 
-Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/dataframe.html) type object and its implemented traits
+Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/dataframe.html) type object and its implemented traits.
 
 | DataFrame                     | API     | Comment                                                    |
 |-------------------------------|---------|------------------------------------------------------------|
@@ -233,6 +231,42 @@ required jars
 | saveAsTable     | ![done] |                                                                              |
 | insertInto      | ![done] |                                                                              |
 
+### DataStreamWriter
+
+Start a streaming job and return a `StreamingQuery` object to handle the stream operations.
+
+| DataStreamWriter | API     | Comment                                                 |
+|-----------------|---------|----------------------------------------------------------|
+| format          | ![done] |                                                          |
+| foreach         | ![open] |                                                          |
+| foreachBatch    | ![open] |                                                          |
+| option          | ![done] |                                                          |
+| options         | ![done] |                                                          |
+| outputMode      | ![done] | Uses an Enum for `OutputMode`                            |
+| partitionBy     | ![done] |                                                          |
+| queryName       | ![done] |                                                          |
+| trigger         | ![done] | Uses an Enum for `TriggerMode`                           |
+| start           | ![done] |                                                          |
+| toTable         | ![done] |                                                          |
+
+### StreamingQuery
+
+A handle to a query that is executing continuously in the background as new data arrives.
+
+| StreamingQuery      | API     | Comment |
+|---------------------|---------|---------|
+| awaitTermination    | ![done] |         |
+| exception           | ![open] |         |
+| explain             | ![open] |         |
+| processAllAvailable | ![open] |         |
+| stop                | ![done] |         |
+| id                  | ![done] |         |
+| isActive            | ![done] |         |
+| lastProgress        | ![done] |         |
+| name                | ![done] |         |
+| recentProgress      | ![done] |         |
+| runId               | ![done] |         |
+| status              | ![done] |         |
 
 ### Column
 
@@ -554,6 +588,42 @@ Only a few of the functions are covered by unit tests.
 | year                        | ![done] |         |
 | years                       | ![done] |         |
 | zip_with                    | ![open] |         |
+
+
+### Schema
+
+Spark schema objects have not yet been translated into rust objects.
+
+
+### Literal Types
+
+Create Spark literal types from these rust types. E.g. `lit(1_i64)` would be a `LongType()` in the schema.
+
+An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayType(Short)` since all the values of the slice can be translated into literal type.
+
+| Spark Literal Type | Rust Type           | Status  |
+|--------------------|---------------------|---------|
+| Null               |                     | ![open] |
+| Binary             |                     | ![open] |
+| Boolean            | `bool`              | ![done] |
+| Byte               |                     | ![open] |
+| Short              | `i16`               | ![done] |
+| Integer            | `i32`               | ![done] |
+| Long               | `i64`               | ![done] |
+| Float              | `f32`               | ![done] |
+| Double             | `f64`               | ![done] |
+| Decimal            |                     | ![open] |
+| String             | `&str` / `String`   | ![done] |
+| Date               | `chrono::NaiveDate` | ![done] |
+| Timestamp          |                     | ![open] |
+| TimestampNtz       | `chrono::TimeZone`  | ![done] |
+| CalendarInterval   |                     | ![open] |
+| YearMonthInterval  |                     | ![open] |
+| DayTimeInterval    |                     | ![open] |
+| Array              | `slice` / `Vec`     | ![done] |
+| Map                |                     | ![open] |
+| Struct             |                     | ![open] |
+
 
 [open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg
 [done]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/ApprovedChanges.svg
