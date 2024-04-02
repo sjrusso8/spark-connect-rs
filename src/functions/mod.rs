@@ -27,6 +27,75 @@ pub fn lit<T: ToLiteralExpr>(col: T) -> Column {
     Column::from(col.to_literal_expr())
 }
 
+pub fn approx_count_distinct<T: ToExpr + ToLiteralExpr>(col: T, rsd: Option<f32>) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    match rsd {
+        Some(rsd) => invoke_func("approx_count_distinct", vec![lit(col), lit(rsd)]),
+        None => invoke_func("approx_count_distinct", vec![col]),
+    }
+}
+
+pub fn array_append<T: ToExpr + ToLiteralExpr>(col: T, value: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_append", vec![lit(col), lit(value)])
+}
+
+pub fn array_insert<T: ToExpr + ToLiteralExpr>(col: T, pos: T, value: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_insert", vec![lit(col), lit(pos), lit(value)])
+}
+
+pub fn array_join<T: ToExpr + ToLiteralExpr>(
+    col: T,
+    delimiter: &str,
+    null_replacement: Option<&str>,
+) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    match null_replacement {
+        Some(replacement) => invoke_func(
+            "array_join",
+            vec![lit(col), lit(delimiter), lit(replacement)],
+        ),
+        None => invoke_func("array_join", vec![lit(col), lit(delimiter)]),
+    }
+}
+
+pub fn array_position<T: ToExpr + ToLiteralExpr>(col: T, value: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_position", vec![lit(col), lit(value)])
+}
+
+pub fn array_remove<T: ToExpr + ToLiteralExpr>(col: T, element: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_remove", vec![lit(col), lit(element)])
+}
+
+pub fn array_repeat<T: ToExpr + ToLiteralExpr>(col: T, count: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_repeat", vec![lit(col), lit(count)])
+}
+
+pub fn array_overlap<T: ToExpr + ToLiteralExpr>(a1: T, a2: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_overlap", vec![lit(a1), lit(a2)])
+}
+
 #[allow(dead_code)]
 #[allow(unused_variables)]
 fn broadcast(df: DataFrame) {
@@ -72,6 +141,28 @@ where
         Some(arg2) => invoke_func("log", vec![arg1, arg2]),
         None => ln(arg1),
     }
+}
+
+pub fn mean<T: ToExpr>(col: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    avg(col)
+}
+
+pub fn ntile(n: i32) -> Column {
+    invoke_func("ntitle", lit(n))
+}
+
+pub fn struct_col<T: expressions::ToVecExpr>(cols: T) -> Column {
+    invoke_func("struct", cols)
+}
+
+pub fn negate<T: expressions::ToExpr>(col: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("not", vec![col])
 }
 
 pub fn pow<T: ToExpr>(col1: T, col2: T) -> Column
@@ -191,7 +282,9 @@ generate_functions!(
     rank,
     percent_rank,
     dense_rank,
-    cume_dist
+    cume_dist,
+    current_timestamp,
+    localtimestamp
 );
 
 // functions that require a single col argument
@@ -210,7 +303,6 @@ generate_functions!(
     log10,
     log1p,
     log2,
-    negate,
     negative,
     day,
     dayofmonth,
@@ -280,7 +372,44 @@ generate_functions!(
     explode,
     array_compact,
     array_distinct,
-    array_size
+    array_size,
+    acos,
+    acosh,
+    asin,
+    asinh,
+    atan,
+    atanh,
+    avg,
+    cbrt,
+    collect_set,
+    collect_list,
+    csc,
+    degrees,
+    expm1,
+    grouping,
+    hex,
+    kurtosis,
+    max,
+    median,
+    min,
+    product,
+    radians,
+    rint,
+    sec,
+    signum,
+    sin,
+    sinh,
+    skewness,
+    stddev,
+    stddev_pop,
+    stddev_samp,
+    sum,
+    tan,
+    tanh,
+    unhex,
+    var_pop,
+    var_samp,
+    variance
 );
 
 // functions that require exactly two col arguments
@@ -294,7 +423,10 @@ generate_functions!(
     array_union,
     array_intersect,
     nanvl,
-    power
+    power,
+    atan2,
+    covar_pop,
+    covar_samp
 );
 
 // functions that require one or more col arguments
@@ -312,35 +444,32 @@ generate_functions!(
     arrays_zip,
     concat,
     create_map,
-    array
+    array,
+    group_id
 );
 
 #[cfg(test)]
 mod tests {
 
-    // use arrow::{
-    //     array::Int64Array,
-    //     datatypes::{DataType, Field, Schema},
-    //     record_batch::RecordBatch,
-    // };
-
-    // TODO Update the tests to validate against an arrow dataframe
     use super::*;
 
     use std::sync::Arc;
 
     use arrow::{
-        array::{Float64Array, Int32Array, Int64Array, StringArray},
+        array::{
+            ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray, StructArray,
+        },
         datatypes::{DataType, Field, Schema},
         record_batch::RecordBatch,
     };
 
+    use crate::errors::SparkError;
     use crate::{SparkSession, SparkSessionBuilder};
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
-        let connection = "sc://127.0.0.1:15002/;user_id=rust_func";
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_func;session_id=78de1054-ff56-4665-a3a2-e337c6ca525e";
 
         SparkSessionBuilder::remote(connection)
             .build()
@@ -349,215 +478,354 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_func_lit() {
+    async fn test_func_lit() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df = spark
+        let df = spark
+            .clone()
             .range(None, 1, 1, Some(1))
-            .select(vec![lit(5).alias("height"), col("id")]);
+            .select([lit(5).alias("height"), col("id")]);
 
-        let row = df.collect().await.unwrap();
+        let row = df.collect().await?;
+
+        let height: ArrayRef = Arc::new(Int32Array::from(vec![5]));
+        let id: ArrayRef = Arc::new(Int64Array::from(vec![0]));
+
+        let expected = RecordBatch::try_from_iter(vec![("height", height), ("id", id)])?;
+
+        assert_eq!(expected.clone(), row);
+
+        let df = spark
+            .clone()
+            .range(None, 1, 1, Some(1))
+            .select(lit([1, 2, 3]));
+
+        let row = df.collect().await?;
+
+        assert_eq!(1, row.num_rows());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_asc() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df_col_asc = spark
+            .clone()
+            .range(Some(1), 3, 1, Some(1))
+            .sort([col("id").asc()]);
+
+        let df_func_asc = spark.range(Some(1), 3, 1, Some(1)).sort([asc(col("id"))]);
+
+        let rows_col_asc = df_col_asc.collect().await?;
+        let rows_func_asc = df_func_asc.collect().await?;
+
+        let id: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
+
+        let expected = RecordBatch::try_from_iter(vec![("id", id)])?;
+
+        assert_eq!(&expected, &rows_col_asc);
+        assert_eq!(&expected, &rows_func_asc);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_desc() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df_col_asc = spark
+            .clone()
+            .range(Some(1), 3, 1, Some(1))
+            .sort([col("id").desc()]);
+
+        let df_func_asc = spark.range(Some(1), 3, 1, Some(1)).sort([desc(col("id"))]);
+
+        let rows_col_desc = df_col_asc.collect().await?;
+        let rows_func_desc = df_func_asc.collect().await?;
+
+        let id: ArrayRef = Arc::new(Int64Array::from(vec![2, 1]));
+
+        let expected = RecordBatch::try_from_iter(vec![("id", id)])?;
+
+        assert_eq!(&expected, &rows_col_desc);
+        assert_eq!(&expected, &rows_func_desc);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_coalesce() -> Result<(), SparkError> {
+        let spark = setup().await;
 
         let schema = Schema::new(vec![
-            Field::new("height", DataType::Int32, false),
-            Field::new("id", DataType::Int64, false),
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Int64, true),
         ]);
 
-        let height_val = Int32Array::from(vec![5]);
-        let id_val = Int64Array::from(vec![0]);
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None, None]));
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![None, Some(1), None]));
 
-        let expected_batch = RecordBatch::try_new(
-            Arc::new(schema),
-            vec![Arc::new(height_val), Arc::new(id_val)],
-        )
-        .unwrap();
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone(), b.clone()])?;
 
-        assert_eq!(expected_batch, row);
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df
+            .withColumn("coalesce", coalesce(["a", "b"]))
+            .collect()
+            .await?;
+
+        println!("{:?}", res);
+
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Int64, true),
+            Field::new("coalesce", DataType::Int64, true),
+        ]);
+
+        let c: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), Some(1), None]));
+
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a, b, c])?;
+
+        assert_eq!(data, res);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_asc() {
+    async fn test_func_input_file() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df_col_asc = spark
-            .clone()
-            .range(Some(1), 3, 1, Some(1))
-            .sort(vec![col("id").asc()]);
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
-        let mut df_func_asc = spark
-            .range(Some(1), 3, 1, Some(1))
-            .sort(vec![asc(col("id"))]);
+        let df = spark
+            .read()
+            .format("csv")
+            .option("header", "True")
+            .option("delimiter", ";")
+            .load(path)?;
 
-        let rows_col_asc = df_col_asc.collect().await.unwrap();
-        let rows_func_asc = df_func_asc.collect().await.unwrap();
+        let res = df.select(input_file_name()).head(None).await?;
 
-        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+        let a: ArrayRef = Arc::new(StringArray::from(vec![
+            "file:///opt/spark/examples/src/main/resources/people.csv",
+        ]));
 
-        let id_val = Int64Array::from(vec![1, 2]);
+        let expected = RecordBatch::try_from_iter(vec![("input_file_name()", a)])?;
 
-        let expected_batch =
-            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_val)]).unwrap();
+        assert_eq!(res, expected);
 
-        assert_eq!(expected_batch.clone(), rows_col_asc);
-        assert_eq!(expected_batch, rows_func_asc);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_desc() {
+    async fn test_func_isnull() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df_col_asc = spark
-            .clone()
-            .range(Some(1), 3, 1, Some(1))
-            .sort(vec![col("id").desc()]);
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
 
-        let mut df_func_asc = spark
-            .range(Some(1), 3, 1, Some(1))
-            .sort(vec![desc(col("id"))]);
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
 
-        let rows_col_asc = df_col_asc.collect().await.unwrap();
-        let rows_func_asc = df_func_asc.collect().await.unwrap();
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone()])?;
 
-        let schema = Schema::new(vec![Field::new("id", DataType::Int64, false)]);
+        let df = spark.createDataFrame(&data)?;
 
-        let id_val = Int64Array::from(vec![2, 1]);
+        let res = df
+            .select([col("a"), isnull("a").alias("r1")])
+            .collect()
+            .await?;
 
-        let expected_batch =
-            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_val)]).unwrap();
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("r1", DataType::Boolean, false),
+        ]);
 
-        assert_eq!(expected_batch.clone(), rows_col_asc);
-        assert_eq!(expected_batch, rows_func_asc);
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
+        let r1: ArrayRef = Arc::new(BooleanArray::from(vec![false, true]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![a.clone(), r1])?;
+
+        assert_eq!(res, expected);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_sqrt() {
+    async fn test_func_named_struct() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df = spark.range(None, 1, 1, Some(1)).select(sqrt(lit(4)));
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![1]));
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![2]));
+        let c: ArrayRef = Arc::new(Int64Array::from(vec![3]));
 
-        let row = df.collect().await.unwrap();
+        let data = RecordBatch::try_from_iter(vec![("a", a.clone()), ("b", b), ("c", c.clone())])?;
+
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df
+            .select(named_struct([lit("x"), col("a"), lit("y"), col("c")]).alias("struct"))
+            .collect()
+            .await?;
+
+        let struct_array: ArrayRef = Arc::new(StructArray::from(vec![
+            (Arc::new(Field::new("x", DataType::Int64, false)), a),
+            (Arc::new(Field::new("y", DataType::Int64, false)), c),
+        ]));
+
+        let expected = RecordBatch::try_from_iter(vec![("struct", struct_array)])?;
+        println!("{:?}", &res);
+
+        assert_eq!(res, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_sqrt() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark.range(None, 1, 1, Some(1)).select(sqrt(lit(4)));
+
+        let row = df.collect().await?;
 
         let schema = Schema::new(vec![Field::new("SQRT(4)", DataType::Float64, true)]);
 
         let val = Float64Array::from(vec![2.0]);
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)])?;
 
-        assert_eq!(expected_batch, row);
+        assert_eq!(expected, row);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_add() {
+    async fn test_func_add() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df = spark
-            .range(Some(1), 3, 1, Some(1))
-            .select((lit(4) + col("id")).alias("add"));
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![2, 3, 4]));
 
-        let row = df.collect().await.unwrap();
+        let data = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let schema = Schema::new(vec![Field::new("add", DataType::Int64, false)]);
+        let df = spark.createDataFrame(&data)?;
 
-        let val = Int64Array::from(vec![5, 6]);
+        let res = df
+            .select((col("a") + lit(4)).alias("add"))
+            .collect()
+            .await?;
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![6, 7, 8]));
 
-        assert_eq!(expected_batch, row);
+        let expected = RecordBatch::try_from_iter(vec![("add", a)])?;
+
+        assert_eq!(res, expected);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_substract() {
+    async fn test_func_substract() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df = spark
-            .range(Some(1), 3, 1, Some(1))
-            .select((lit(4) - col("id")).alias("add"));
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![4, 5, 6]));
 
-        let row = df.collect().await.unwrap();
+        let data = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let schema = Schema::new(vec![Field::new("add", DataType::Int64, false)]);
+        let df = spark.createDataFrame(&data)?;
 
-        let val = Int64Array::from(vec![3, 2]);
+        let res = df
+            .select((col("a") - lit(4)).alias("sub"))
+            .collect()
+            .await?;
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![0, 1, 2]));
 
-        assert_eq!(expected_batch, row);
+        let expected = RecordBatch::try_from_iter(vec![("sub", a)])?;
+
+        assert_eq!(res, expected);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_multiple() {
+    async fn test_func_multiple() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let mut df = spark
-            .range(Some(1), 3, 1, Some(1))
-            .select((lit(4) * col("id")).alias("add"));
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3]));
 
-        let row = df.collect().await.unwrap();
+        let data = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let schema = Schema::new(vec![Field::new("add", DataType::Int64, false)]);
+        let df = spark.createDataFrame(&data)?;
 
-        let val = Int64Array::from(vec![4, 8]);
+        let res = df
+            .select((col("a") * lit(4)).alias("multi"))
+            .collect()
+            .await?;
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![4, 8, 12]));
 
-        assert_eq!(expected_batch, row);
+        let expected = RecordBatch::try_from_iter(vec![("multi", a)])?;
+
+        assert_eq!(res, expected);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_col_contains() {
+    async fn test_func_col_contains() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
 
-        let mut df = spark
-            .read()
-            .format("csv")
-            .option("header", "True")
-            .option("delimiter", ";")
-            .load(path);
+        let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
 
-        let row = df
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df
             .filter(col("name").contains("e"))
             .select("name")
             .collect()
-            .await
-            .unwrap();
+            .await?;
 
-        let schema = Schema::new(vec![Field::new("name", DataType::Utf8, true)]);
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice"]));
 
-        let val = StringArray::from(vec!["Jorge"]);
+        let expected = RecordBatch::try_from_iter(vec![("name", name)])?;
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
-
-        assert_eq!(expected_batch, row);
+        assert_eq!(expected, res);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_func_col_isin() {
+    async fn test_func_col_isin() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
 
-        let mut df = spark
-            .read()
-            .format("csv")
-            .option("header", "True")
-            .option("delimiter", ";")
-            .load(path);
+        let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
 
-        let row = df
-            .filter(col("name").isin(vec!["Jorge", "Bob"]))
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df
+            .clone()
+            .filter(col("name").isin(vec!["Tom", "Bob"]))
             .select("name")
             .collect()
-            .await
-            .unwrap();
+            .await?;
 
-        let schema = Schema::new(vec![Field::new("name", DataType::Utf8, true)]);
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Bob"]));
 
-        let val = StringArray::from(vec!["Jorge", "Bob"]);
+        let expected = RecordBatch::try_from_iter(vec![("name", name)])?;
 
-        let expected_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(val)]).unwrap();
+        assert_eq!(expected, res);
 
-        assert_eq!(expected_batch, row);
+        // negate isin
+        let res = df
+            .filter(negate(col("name").isin(vec!["Tom", "Bob"])))
+            .select("name")
+            .collect()
+            .await?;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice"]));
+
+        let expected = RecordBatch::try_from_iter(vec![("name", name)])?;
+
+        assert_eq!(expected, res);
+
+        Ok(())
     }
 }

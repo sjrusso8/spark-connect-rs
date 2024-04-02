@@ -2,6 +2,7 @@
 
 use arrow::array::RecordBatch;
 
+use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
@@ -18,35 +19,35 @@ impl Catalog {
 
     /// Returns the current default catalog in this session
     #[allow(non_snake_case)]
-    pub async fn currentCatalog(&mut self) -> String {
+    pub async fn currentCatalog(self) -> Result<String, SparkError> {
         let cat_type = Some(spark::catalog::CatType::CurrentCatalog(
             spark::CurrentCatalog {},
         ));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_first_value(plan).await
+        self.spark_session.client().to_first_value(plan).await
     }
 
     /// Returns the current default database in this session
     #[allow(non_snake_case)]
-    pub async fn currentDatabase(&mut self) -> String {
+    pub async fn currentDatabase(self) -> Result<String, SparkError> {
         let cat_type = Some(spark::catalog::CatType::CurrentDatabase(
             spark::CurrentDatabase {},
         ));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_first_value(plan).await
+        self.spark_session.client().to_first_value(plan).await
     }
 
     /// Returns a list of catalogs in this session
     #[allow(non_snake_case)]
-    pub async fn listCatalogs(&mut self, pattern: Option<&str>) -> RecordBatch {
+    pub async fn listCatalogs(self, pattern: Option<&str>) -> Result<RecordBatch, SparkError> {
         let pattern = pattern.map(|val| val.to_owned());
 
         let cat_type = Some(spark::catalog::CatType::ListCatalogs(spark::ListCatalogs {
@@ -55,14 +56,14 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await
     }
 
     /// Returns a list of databases in this session
     #[allow(non_snake_case)]
-    pub async fn listDatabases(&mut self, pattern: Option<&str>) -> RecordBatch {
+    pub async fn listDatabases(self, pattern: Option<&str>) -> Result<RecordBatch, SparkError> {
         let pattern = pattern.map(|val| val.to_owned());
 
         let cat_type = Some(spark::catalog::CatType::ListDatabases(
@@ -71,14 +72,18 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await
     }
 
     /// Returns a list of tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listTables(&mut self, dbName: Option<&str>, pattern: Option<&str>) -> RecordBatch {
+    pub async fn listTables(
+        self,
+        dbName: Option<&str>,
+        pattern: Option<&str>,
+    ) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::ListTables(spark::ListTables {
             db_name: dbName.map(|db| db.to_owned()),
             pattern: pattern.map(|val| val.to_owned()),
@@ -86,14 +91,18 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await
     }
 
     /// Returns a list of columns for the given tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listColumns(&mut self, tableName: &str, dbName: Option<&str>) -> RecordBatch {
+    pub async fn listColumns(
+        self,
+        tableName: &str,
+        dbName: Option<&str>,
+    ) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::ListColumns(spark::ListColumns {
             table_name: tableName.to_owned(),
             db_name: dbName.map(|val| val.to_owned()),
@@ -101,9 +110,9 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::from(rel_type).clone().build_plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
 
-        self.spark_session.client.to_arrow(plan).await.unwrap()
+        self.spark_session.client().to_arrow(plan).await
     }
 }
 
@@ -112,12 +121,13 @@ mod tests {
 
     use super::*;
 
+    use crate::errors::SparkError;
     use crate::SparkSessionBuilder;
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
-        let connection = "sc://127.0.0.1:15002/;user_id=rust_test";
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_catalog;session_id=f93c9562-cb73-473c-add4-c73a236e50dc";
 
         SparkSessionBuilder::remote(connection)
             .build()
@@ -126,35 +136,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_current_catalog() {
+    async fn test_current_catalog() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let value = spark.catalog().currentCatalog().await;
+        let value = spark.catalog().currentCatalog().await?;
 
-        assert_eq!(value, "spark_catalog".to_string())
+        assert_eq!(value, "spark_catalog".to_string());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_current_database() {
+    async fn test_current_database() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let value = spark.catalog().currentDatabase().await;
+        let value = spark.catalog().currentDatabase().await?;
 
         assert_eq!(value, "default".to_string());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_list_catalogs() {
+    async fn test_list_catalogs() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let value = spark.catalog().listCatalogs(None).await;
+        let value = spark.catalog().listCatalogs(None).await?;
 
         assert_eq!(2, value.num_columns());
         assert_eq!(1, value.num_rows());
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_list_databases() {
+    async fn test_list_databases() -> Result<(), SparkError> {
         let spark = setup().await;
 
         spark
@@ -163,14 +177,16 @@ mod tests {
             .await
             .unwrap();
 
-        let value = spark.catalog().listDatabases(None).await;
+        let value = spark.catalog().listDatabases(None).await?;
 
         assert_eq!(4, value.num_columns());
         assert_eq!(2, value.num_rows());
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_list_databases_pattern() {
+    async fn test_list_databases_pattern() -> Result<(), SparkError> {
         let spark = setup().await;
 
         spark
@@ -179,9 +195,11 @@ mod tests {
             .await
             .unwrap();
 
-        let value = spark.catalog().listDatabases(Some("*rust")).await;
+        let value = spark.catalog().listDatabases(Some("*rust")).await?;
 
         assert_eq!(4, value.num_columns());
         assert_eq!(1, value.num_rows());
+
+        Ok(())
     }
 }

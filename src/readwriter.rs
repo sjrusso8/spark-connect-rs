@@ -65,16 +65,16 @@ impl DataFrameReader {
     /// // returns a DataFrame from a csv file with a header from a the specific path
     /// let mut df = spark.read().format("csv").option("header", "true").load(path);
     /// ```
-    pub fn load<'a, I>(&mut self, paths: I) -> DataFrame
+    pub fn load<'a, I>(self, paths: I) -> Result<DataFrame, SparkError>
     where
         I: IntoIterator<Item = &'a str>,
     {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
             is_streaming: false,
             read_type: Some(spark::read::ReadType::DataSource(spark::read::DataSource {
-                format: self.format.clone(),
+                format: self.format,
                 schema: None,
-                options: self.read_options.clone(),
+                options: self.read_options,
                 paths: paths.into_iter().map(|p| p.to_string()).collect(),
                 predicates: vec![],
             })),
@@ -90,7 +90,7 @@ impl DataFrameReader {
 
         let logical_plan = LogicalPlanBuilder::new(relation);
 
-        DataFrame::new(self.spark_session.clone(), logical_plan)
+        Ok(DataFrame::new(self.spark_session, logical_plan))
     }
 
     /// Returns the specific table as a [DataFrame]
@@ -100,15 +100,15 @@ impl DataFrameReader {
     /// * `options`: (optional Hashmap) contains additional read options for a table
     ///
     pub fn table(
-        &mut self,
+        self,
         table_name: &str,
         options: Option<HashMap<String, String>>,
-    ) -> DataFrame {
+    ) -> Result<DataFrame, SparkError> {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
             is_streaming: false,
             read_type: Some(spark::read::ReadType::NamedTable(spark::read::NamedTable {
                 unparsed_identifier: table_name.to_string(),
-                options: options.unwrap_or(self.read_options.clone()),
+                options: options.unwrap_or(self.read_options),
             })),
         }));
 
@@ -122,7 +122,7 @@ impl DataFrameReader {
 
         let logical_plan = LogicalPlanBuilder::new(relation);
 
-        DataFrame::new(self.spark_session.clone(), logical_plan)
+        Ok(DataFrame::new(self.spark_session, logical_plan))
     }
 }
 
@@ -236,38 +236,36 @@ impl DataFrameWriter {
     /// Save the contents of the [DataFrame] to a data source.
     ///
     /// The data source is specified by the `format` and a set of `options`.
-    pub async fn save(&mut self, path: &str) -> Result<(), SparkError> {
+    pub async fn save(self, path: &str) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
-            input: Some(self.dataframe.logical_plan.relation.clone()),
-            source: self.format.clone(),
+            input: Some(self.dataframe.logical_plan.clone().relation()),
+            source: self.format,
             mode: self.mode.into(),
-            sort_column_names: self.sort_by.clone(),
-            partitioning_columns: self.partition_by.clone(),
-            bucket_by: self.bucket_by.clone(),
-            options: self.write_options.clone(),
+            sort_column_names: self.sort_by,
+            partitioning_columns: self.partition_by,
+            bucket_by: self.bucket_by,
+            options: self.write_options,
             save_type: Some(spark::write_operation::SaveType::Path(path.to_string())),
         });
 
-        let plan = LogicalPlanBuilder::build_plan_cmd(write_command);
+        let plan = LogicalPlanBuilder::plan_cmd(write_command);
 
         self.dataframe
             .spark_session
-            .client
+            .client()
             .execute_command(plan)
-            .await?;
-
-        Ok(())
+            .await
     }
 
-    async fn save_table(&mut self, table_name: &str, save_method: i32) -> Result<(), SparkError> {
+    async fn save_table(self, table_name: &str, save_method: i32) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
-            input: Some(self.dataframe.logical_plan.relation.clone()),
-            source: self.format.clone(),
+            input: Some(self.dataframe.logical_plan.relation()),
+            source: self.format,
             mode: self.mode.into(),
-            sort_column_names: self.sort_by.clone(),
-            partitioning_columns: self.partition_by.clone(),
-            bucket_by: self.bucket_by.clone(),
-            options: self.write_options.clone(),
+            sort_column_names: self.sort_by,
+            partitioning_columns: self.partition_by,
+            bucket_by: self.bucket_by,
+            options: self.write_options,
             save_type: Some(spark::write_operation::SaveType::Table(
                 spark::write_operation::SaveTable {
                     table_name: table_name.to_string(),
@@ -276,20 +274,18 @@ impl DataFrameWriter {
             )),
         });
 
-        let plan = LogicalPlanBuilder::build_plan_cmd(write_command);
+        let plan = LogicalPlanBuilder::plan_cmd(write_command);
 
         self.dataframe
             .spark_session
-            .client
+            .client()
             .execute_command(plan)
-            .await?;
-
-        Ok(())
+            .await
     }
 
     /// Saves the context of the [DataFrame] as the specified table.
     #[allow(non_snake_case)]
-    pub async fn saveAsTable(&mut self, table_name: &str) -> Result<(), SparkError> {
+    pub async fn saveAsTable(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 1).await
     }
 
@@ -301,7 +297,100 @@ impl DataFrameWriter {
     /// Unlike `saveAsTable()`, this method ignores the column names and just uses
     /// position-based resolution
     #[allow(non_snake_case)]
-    pub async fn insertInto(&mut self, table_name: &str) -> Result<(), SparkError> {
+    pub async fn insertInto(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use crate::errors::SparkError;
+    use crate::functions::*;
+    use crate::SparkSessionBuilder;
+
+    async fn setup() -> SparkSession {
+        println!("SparkSession Setup");
+
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_write;session_id=32c39012-896c-42fa-b487-969ee50e253b";
+
+        SparkSessionBuilder::remote(connection)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
+
+        let df = spark
+            .read()
+            .format("csv")
+            .option("header", "True")
+            .option("delimiter", ";")
+            .load(path)?;
+
+        let rows = df.collect().await?;
+
+        assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        let path = "/opt/spark/examples/src/main/rust/employees/";
+
+        df.write()
+            .format("csv")
+            .option("header", "true")
+            .save(path)
+            .await?;
+
+        let df = spark
+            .clone()
+            .read()
+            .format("csv")
+            .option("header", "true")
+            .load([path])?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_table() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .saveAsTable("test_table")
+            .await?;
+
+        let df = spark.clone().read().table("test_table", None)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+
+        Ok(())
     }
 }

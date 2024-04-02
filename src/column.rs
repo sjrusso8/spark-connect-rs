@@ -1,51 +1,55 @@
-//! A column in a DataFrame
-//!
-//!
-//! # Examples
-//! A column instance can be created by
-//!
-//! ```rust
-//! use spark_connect_rs::{SparkSession, SparkSessionBuilder};
-//!
-//! let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
-//!         .build()
-//!         .await?;
-//!
-//! // As a &str representing an unresolved column in the dataframe
-//! spark.range(None, 1, 1, Some(1)).select("id");
-//!
-//! // By using the `col` function
-//! spark.range(None, 1, 1, Some(1)).select(col("id"));
-//!
-//! // By using the `lit` function to return a literal value
-//! spark.range(None, 1, 1, Some(1)).select(lit(4.0).alias("num_col"));
-//!
-//!```
-
+//! [Column] represents a column in a DataFrame that holds a [spark::Expression]
 use std::convert::From;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Rem, Sub};
 
 use crate::spark;
 
-use crate::expressions::ToLiteralExpr;
+use crate::expressions::{ToExpr, ToLiteralExpr};
 use crate::functions::lit;
 use crate::utils::invoke_func;
 
-/// A Column is composed of a `expressions` which is used as input into
-/// a Plan object
+/// # Column
+///
+/// A column holds a specific [spark::Expression] which will be resolved once an action is called.
+/// The columns are resolved by the Spark Connect server of the remote session.
+///
+/// A column instance can be created by in a similar way as to the Spark API. A column with created
+/// with `col("*")` or `col("name.*")` is created as an unresolved star attribute which will select
+/// all columns or references in the specified column.
+///
+/// ```rust
+/// use spark_connect_rs::{SparkSession, SparkSessionBuilder};
+///
+/// let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs".to_string())
+///         .build()
+///         .await?;
+///
+/// // As a &str representing an unresolved column in the dataframe
+/// spark.range(None, 1, 1, Some(1)).select("id");
+///
+/// // By using the `col` function
+/// spark.range(None, 1, 1, Some(1)).select(col("id"));
+///
+/// // By using the `lit` function to return a literal value
+/// spark.range(None, 1, 1, Some(1)).select(lit(4.0).alias("num_col"));
+///
+/// ```
 #[derive(Clone, Debug)]
 pub struct Column {
-    /// An expression is an unresolved value to be leveraged in a Spark Plan
+    /// a [spark::Expression] containing any unresolved value to be leveraged in a [spark::Plan]
     pub expression: spark::Expression,
 }
 
 impl From<spark::Expression> for Column {
+    /// Used for creating columns from a [spark::Expression]
     fn from(expression: spark::Expression) -> Self {
         Self { expression }
     }
 }
 
 impl From<&str> for Column {
+    /// `&str` values containing a `*` will be created as an unresolved star expression
+    /// Otherwise, the value is created as an unresolved attribute
     fn from(value: &str) -> Self {
         let expression = match value {
             "*" => spark::Expression {
@@ -81,16 +85,16 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let cols = vec![
+    /// let cols = [
     ///     col("name").alias("new_name"),
     ///     col("age").alias("new_age")
     /// ];
     ///
     /// df.select(cols);
     /// ```
-    pub fn alias(&mut self, value: &str) -> Column {
+    pub fn alias(self, value: &str) -> Column {
         let alias = spark::expression::Alias {
-            expr: Some(Box::new(self.expression.clone())),
+            expr: Some(Box::new(self.expression)),
             name: vec![value.to_string()],
             metadata: None,
         };
@@ -103,7 +107,7 @@ impl Column {
     }
 
     /// An alias for the function `alias`
-    pub fn name(&mut self, value: &str) -> Column {
+    pub fn name(self, value: &str) -> Column {
         self.alias(value)
     }
 
@@ -111,17 +115,17 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let mut df: DataFrame = df.sort(col("id").asc());
+    /// let df: DataFrame = df.sort(col("id").asc());
     ///
-    /// let mut df: DataFrame = df.sort(asc(col("id")));
+    /// let df: DataFrame = df.sort(asc(col("id")));
     /// ```
-    pub fn asc(&mut self) -> Column {
+    pub fn asc(self) -> Column {
         self.asc_nulls_first()
     }
 
-    pub fn asc_nulls_first(&mut self) -> Column {
+    pub fn asc_nulls_first(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 1,
             null_ordering: 1,
         };
@@ -133,9 +137,9 @@ impl Column {
         Column::from(expression)
     }
 
-    pub fn asc_nulls_last(&mut self) -> Column {
+    pub fn asc_nulls_last(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 1,
             null_ordering: 2,
         };
@@ -151,17 +155,17 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let mut df: DataFrame = df.sort(col("id").desc());
+    /// let df: DataFrame = df.sort(col("id").desc());
     ///
-    /// let mut df: DataFrame = df.sort(desc(col("id")));
+    /// let df: DataFrame = df.sort(desc(col("id")));
     /// ```
-    pub fn desc(&mut self) -> Column {
+    pub fn desc(self) -> Column {
         self.desc_nulls_first()
     }
 
-    pub fn desc_nulls_first(&mut self) -> Column {
+    pub fn desc_nulls_first(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 2,
             null_ordering: 1,
         };
@@ -173,9 +177,9 @@ impl Column {
         Column::from(expression)
     }
 
-    pub fn desc_nulls_last(&mut self) -> Column {
+    pub fn desc_nulls_last(self) -> Column {
         let asc = spark::expression::SortOrder {
-            child: Some(Box::new(self.expression.clone())),
+            child: Some(Box::new(self.expression)),
             direction: 2,
             null_ordering: 2,
         };
@@ -195,18 +199,16 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let mut df = df.select(vec![
+    /// let df = df.select([
     ///       col("age").cast("int"),
     ///       col("name").cast("string")
     ///     ])
-    ///     .collect()
-    ///     .await?;
     /// ```
-    pub fn cast(&mut self, to_type: &str) -> Column {
+    pub fn cast(self, to_type: &str) -> Column {
         let type_str = spark::expression::cast::CastToType::TypeStr(to_type.to_string());
 
         let cast = spark::expression::Cast {
-            expr: Some(Box::new(self.expression.clone())),
+            expr: Some(Box::new(self.expression)),
             cast_to_type: Some(type_str),
         };
 
@@ -226,25 +228,15 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
-    /// let mut df = spark
-    ///     .read()
-    ///     .format("csv")
-    ///     .option("header", "True")
-    ///     .option("delimiter", ";")
-    ///     .load(paths);
-    ///
-    /// let row = df
-    ///     .filter(col("name").isin(vec!["Jorge", "Bob"]))
-    ///     .select("name");
+    /// df.filter(col("name").isin(["Jorge", "Bob"]));
     /// ```
-    pub fn isin<T: ToLiteralExpr>(&self, cols: Vec<T>) -> Column {
+    pub fn isin<T: ToLiteralExpr>(self, cols: Vec<T>) -> Column {
         let mut values = cols
             .iter()
             .map(|col| Column::from(col.to_literal_expr()))
             .collect::<Vec<Column>>();
 
-        values.insert(0, self.clone());
+        values.insert(0, self);
 
         invoke_func("in", values)
     }
@@ -257,82 +249,80 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let paths = vec!["/opt/spark/examples/src/main/resources/people.csv".to_string()];
-    /// let mut df = spark
-    ///     .read()
-    ///     .format("csv")
-    ///     .option("header", "True")
-    ///     .option("delimiter", ";")
-    ///     .load(paths);
-    ///
-    /// let row = df
-    ///     .filter(col("name").contains("ge"))
-    ///     .select("name");
+    /// df.filter(col("name").contains("ge"));
     /// ```
-    pub fn contains<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn contains<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("contains", vec![self.clone(), value])
+        invoke_func("contains", vec![self, value])
     }
 
     /// A filter expression that evaluates if the column startswith a string literal
-    pub fn startswith<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn startswith<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("startswith", vec![self.clone(), value])
+        invoke_func("startswith", vec![self, value])
     }
 
     /// A filter expression that evaluates if the column endswith a string literal
-    pub fn endswith<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn endswith<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("endswith", vec![self.clone(), value])
+        invoke_func("endswith", vec![self, value])
     }
 
     /// A SQL LIKE filter expression that evaluates the column based on a case sensitive match
-    pub fn like<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn like<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("like", vec![self.clone(), value])
+        invoke_func("like", vec![self, value])
     }
 
     /// A SQL ILIKE filter expression that evaluates the column based on a case insensitive match
-    pub fn ilike<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn ilike<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("ilike", vec![self.clone(), value])
+        invoke_func("ilike", vec![self, value])
     }
 
     /// A SQL RLIKE filter expression that evaluates the column based on a regex match
-    pub fn rlike<T: ToLiteralExpr>(&self, other: T) -> Column {
+    pub fn rlike<T: ToLiteralExpr>(self, other: T) -> Column {
         let value = lit(other);
 
-        invoke_func("rlike", vec![self.clone(), value])
+        invoke_func("rlike", vec![self, value])
     }
 
     /// Equality comparion. Cannot overload the '==' and return something other
     /// than a bool
-    pub fn eq<T: ToLiteralExpr>(&self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("==", vec![self.clone(), value])
+    pub fn eq<T: ToExpr>(self, other: T) -> Column {
+        invoke_func("==", vec![self.to_expr(), other.to_expr()])
     }
 
+    /// Logical AND comparion. Cannot overload the '&&' and return something other
+    /// than a bool
+    pub fn and<T: ToExpr>(self, other: T) -> Column {
+        invoke_func("and", vec![self.to_expr(), other.to_expr()])
+    }
+
+    /// Logical OR comparion.
+    pub fn or<T: ToExpr>(self, other: T) -> Column {
+        invoke_func("or", vec![self.to_expr(), other.to_expr()])
+    }
     /// A filter expression that evaluates to true is the expression is null
     #[allow(non_snake_case)]
-    pub fn isNull(&self) -> Column {
-        invoke_func("isnull", self.clone())
+    pub fn isNull(self) -> Column {
+        invoke_func("isnull", self)
     }
 
     /// A filter expression that evaluates to true is the expression is NOT null
     #[allow(non_snake_case)]
-    pub fn isNotNull(&self) -> Column {
-        invoke_func("isnotnull", self.clone())
+    pub fn isNotNull(self) -> Column {
+        invoke_func("isnotnull", self)
     }
 
     #[allow(non_snake_case)]
-    pub fn isNaN(&self) -> Column {
-        invoke_func("isNaN", self.clone())
+    pub fn isNaN(self) -> Column {
+        invoke_func("isNaN", self)
     }
 }
 

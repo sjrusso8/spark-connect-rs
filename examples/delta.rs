@@ -12,7 +12,7 @@ use spark_connect_rs::dataframe::SaveMode;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut spark: SparkSession = SparkSessionBuilder::default().build().await?;
+    let spark: SparkSession = SparkSessionBuilder::default().build().await?;
 
     let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
 
@@ -23,21 +23,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .option("header", "True")
         .option("delimiter", ";")
         .option("inferSchema", "True")
-        .load(paths);
+        .load(paths)?;
 
     df.write()
         .format("delta")
         .mode(SaveMode::Overwrite)
         .saveAsTable("default.people_delta")
-        .await
-        .unwrap();
+        .await?;
 
     spark
         .sql("DESCRIBE HISTORY default.people_delta")
         .await?
         .show(Some(1), None, Some(true))
-        .await
-        .unwrap();
+        .await?;
 
     // print results
     // +-------------------------------------------------------------------------------------------------------+

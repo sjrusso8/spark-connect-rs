@@ -1,6 +1,6 @@
 [package]
 name = "spark-connect-rs"
-version = "0.0.1-beta.2"
+version = "0.0.1-beta.3"
 edition = "2021"
 license = "Apache-2.0"
 description = "Apache Spark Connect Client for Rust"
@@ -19,26 +19,31 @@ include = [
 
 [dependencies]
 tonic = { version ="0.11.0"}
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
 tokio-rustls = "0.26.0"
 
 arrow = { version = "51.0.0", features = ["prettyprint"] }
 arrow-ipc = "51.0.0"
 
+serde_json = "1.0.115"
+
+parking_lot = "0.12.1"
+
 prost = "0.12.0"
 prost-types = "0.12.0"
 
 rand = "0.8.5"
-uuid = { version = "1.4.1", features = ["v4"] }
-url = "2.2"
+uuid = { version = "1.8.0", features = ["v4"] }
+url = "2.5"
 
+chrono = "0.4.35"
 
 [build-dependencies]
 tonic-build = "0.11.0"
 
 [lib]
-
 doctest = false
+
 [features]
 tls = ["tonic/tls", "tonic/tls-roots"]
 
@@ -53,6 +58,9 @@ name = "writer"
 
 [[example]]
 name = "delta"
+
+[[example]]
+name = "readstream"
 
 [[example]]
 name = "databricks"

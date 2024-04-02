@@ -1,4 +1,4 @@
-//! Defines `SparkError` for representing failures in various Spark operations.
+//! Defines a [SparkError] for representing failures in various Spark operations.
 //! Most of these are wrappers for tonic or arrow error messages
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Write;
@@ -7,7 +7,7 @@ use std::error::Error;
 
 use arrow::error::ArrowError;
 
-/// Many different operations in the `Spark` crate return this error type.
+/// Different `Spark` types
 #[derive(Debug)]
 pub enum SparkError {
     /// Returned when functionality is not yet available.
@@ -52,6 +52,12 @@ impl From<ArrowError> for SparkError {
 impl From<tonic::Status> for SparkError {
     fn from(status: tonic::Status) -> Self {
         SparkError::AnalysisException(status.message().to_string())
+    }
+}
+
+impl From<serde_json::Error> for SparkError {
+    fn from(value: serde_json::Error) -> Self {
+        SparkError::AnalysisException(value.to_string())
     }
 }
 
