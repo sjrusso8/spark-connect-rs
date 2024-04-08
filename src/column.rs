@@ -1,6 +1,6 @@
 //! [Column] represents a column in a DataFrame that holds a [spark::Expression]
 use std::convert::From;
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Rem, Sub};
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub};
 
 use crate::spark;
 
@@ -395,5 +395,13 @@ impl BitXor for Column {
 
     fn bitxor(self, other: Self) -> Self {
         invoke_func("^", vec![self, other])
+    }
+}
+
+impl Not for Column {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        invoke_func("not", vec![self])
     }
 }
