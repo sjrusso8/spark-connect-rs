@@ -162,7 +162,7 @@ pub fn negate<T: expressions::ToExpr>(col: T) -> Column
 where
     Vec<T>: expressions::ToVecExpr,
 {
-    invoke_func("not", vec![col])
+    invoke_func("negative", vec![col])
 }
 
 pub fn pow<T: ToExpr>(col1: T, col2: T) -> Column
@@ -813,9 +813,9 @@ mod tests {
 
         assert_eq!(expected, res);
 
-        // negate isin
+        // Logical NOT for column ISIN
         let res = df
-            .filter(negate(col("name").isin(vec!["Tom", "Bob"])))
+            .filter(!col("name").isin(vec!["Tom", "Bob"]))
             .select("name")
             .collect()
             .await?;
@@ -826,6 +826,69 @@ mod tests {
 
         assert_eq!(expected, res);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_col_expr() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+
+        let data = RecordBatch::try_from_iter(vec![("name", name.clone())])?;
+
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df
+            .select([col("name"), expr("length(name)")])
+            .collect()
+            .await?;
+
+        let length: ArrayRef = Arc::new(Int32Array::from(vec![5, 3]));
+
+        let expected = RecordBatch::try_from_iter(vec![("name", name), ("length(name)", length)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_greatest() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![1]));
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![4]));
+        let c: ArrayRef = Arc::new(Int64Array::from(vec![4]));
+
+        let data = RecordBatch::try_from_iter(vec![("a", a), ("b", b.clone()), ("c", c)])?;
+
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df.select(greatest(["a", "b", "c"])).collect().await?;
+
+        let expected = RecordBatch::try_from_iter(vec![("greatest(a, b, c)", b)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_least() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![1]));
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![4]));
+        let c: ArrayRef = Arc::new(Int64Array::from(vec![4]));
+
+        let data = RecordBatch::try_from_iter(vec![("a", a.clone()), ("b", b), ("c", c)])?;
+
+        let df = spark.createDataFrame(&data)?;
+
+        let res = df.select(least(["a", "b", "c"])).collect().await?;
+
+        let expected = RecordBatch::try_from_iter(vec![("least(a, b, c)", a)])?;
+
+        assert_eq!(expected, res);
         Ok(())
     }
 }
