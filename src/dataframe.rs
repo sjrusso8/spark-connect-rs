@@ -270,7 +270,7 @@ impl DataFrame {
 
     /// Create a multi-dimensional cube for the current DataFrame using the specified columns, so we can run aggregations on them.
     pub fn cube<T: ToVecExpr>(self, cols: T) -> GroupedData {
-        GroupedData::new(self, GroupType::Cube, cols.to_vec_expr())
+        GroupedData::new(self, GroupType::Cube, cols.to_vec_expr(), None, None)
     }
 
     // Computes basic statistics for numeric and string columns. This includes count, mean, stddev, min, and max.
@@ -424,7 +424,7 @@ impl DataFrame {
             Some(cols) => cols.to_vec_expr(),
             None => vec![],
         };
-        GroupedData::new(self, GroupType::Groupby, grouping_cols)
+        GroupedData::new(self, GroupType::Groupby, grouping_cols, None, None)
     }
 
     /// Returns the first n rows.
@@ -528,6 +528,21 @@ impl DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan.limit(limit))
     }
 
+    /// Alias for [DataFrame::unpivot]
+    pub fn melt<I, K>(
+        self,
+        ids: I,
+        values: Option<K>,
+        variable_column_name: &str,
+        value_column_name: &str,
+    ) -> DataFrame
+    where
+        I: ToVecExpr,
+        K: ToVecExpr,
+    {
+        self.unpivot(ids, values, variable_column_name, value_column_name)
+    }
+
     /// Returns a new [DataFrame] by skiping the first n rows
     pub fn offset(self, num: i32) -> DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan.offset(num))
@@ -594,7 +609,7 @@ impl DataFrame {
     /// Create a multi-dimensional rollup for the current DataFrame using the specified columns,
     /// and returns a [GroupedData] object
     pub fn rollup<T: ToVecExpr>(self, cols: T) -> GroupedData {
-        GroupedData::new(self, GroupType::Rollup, cols.to_vec_expr())
+        GroupedData::new(self, GroupType::Rollup, cols.to_vec_expr(), None, None)
     }
 
     /// Returns True when the logical query plans inside both DataFrames are equal and therefore return the same results.
@@ -846,6 +861,29 @@ impl DataFrame {
         DataFrame::new(self.spark_session, self.logical_plan)
     }
 
+    /// Unpivot a DataFrame from wide format to long format, optionally leaving identifier columns set.
+    /// This is the reverse to groupBy(…).pivot(…).agg(…), except for the aggregation, which cannot be reversed.
+    pub fn unpivot<I, K>(
+        self,
+        ids: I,
+        values: Option<K>,
+        variable_column_name: &str,
+        value_column_name: &str,
+    ) -> DataFrame
+    where
+        I: ToVecExpr,
+        K: ToVecExpr,
+    {
+        let ids = ids.to_vec_expr();
+        let values = values.map(|val| val.to_vec_expr());
+
+        let logical_plan =
+            self.logical_plan
+                .unpivot(ids, values, variable_column_name, value_column_name);
+
+        DataFrame::new(self.spark_session, logical_plan)
+    }
+
     #[allow(non_snake_case)]
     pub fn withColumn(self, colName: &str, col: Column) -> DataFrame {
         DataFrame::new(
@@ -895,7 +933,7 @@ impl DataFrame {
 mod tests {
 
     use arrow::{
-        array::{ArrayRef, Float64Array, Int64Array, StringArray},
+        array::{ArrayRef, Float32Array, Float64Array, Int64Array, StringArray},
         datatypes::{DataType, Field, Schema},
         record_batch::RecordBatch,
     };
@@ -1727,6 +1765,7 @@ mod tests {
         assert_eq!(2, val.num_columns());
         Ok(())
     }
+
     #[tokio::test]
     async fn test_df_select_expr() -> Result<(), SparkError> {
         let spark = setup().await;
@@ -1806,6 +1845,33 @@ mod tests {
         let expected_batch = RecordBatch::try_from_iter(vec![("id", a)])?;
 
         assert_eq!(expected_batch, rows);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_df_unpivot() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let ids: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
+        let ints: ArrayRef = Arc::new(Int64Array::from(vec![11, 12]));
+        let floats: ArrayRef = Arc::new(Float32Array::from(vec![1.1, 1.2]));
+
+        let data = RecordBatch::try_from_iter(vec![("id", ids), ("int", ints), ("float", floats)])?;
+
+        let df = spark.createDataFrame(&data)?;
+
+        let df = df.unpivot("id", Some(["int", "float"]), "var", "val");
+
+        let res = df.collect().await?;
+
+        let ids: ArrayRef = Arc::new(Int64Array::from(vec![1, 1, 2, 2]));
+        let var: ArrayRef = Arc::new(StringArray::from(vec!["int", "float", "int", "float"]));
+        let val: ArrayRef = Arc::new(Float32Array::from(vec![11.0, 1.1, 12.0, 1.2]));
+
+        let expected = RecordBatch::try_from_iter(vec![("id", ids), ("var", var), ("val", val)])?;
+
+        assert_eq!(expected, res);
+
         Ok(())
     }
 }

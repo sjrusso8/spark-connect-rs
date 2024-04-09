@@ -118,18 +118,48 @@ impl LogicalPlanBuilder {
         group_type: GroupType,
         grouping_cols: Vec<spark::Expression>,
         agg_expression: T,
+        pivot_col: Option<Column>,
+        pivot_vals: Option<Vec<spark::expression::Literal>>,
     ) -> LogicalPlanBuilder {
+        let pivot = match group_type {
+            GroupType::Pivot => Some(spark::aggregate::Pivot {
+                col: pivot_col.map(|col| col.expression),
+                values: pivot_vals.unwrap_or_default(),
+            }),
+            _ => None,
+        };
+
         let agg = spark::Aggregate {
             input: input.relation_input(),
             group_type: group_type.into(),
             grouping_expressions: grouping_cols,
             aggregate_expressions: agg_expression.to_vec_expr(),
-            pivot: None,
+            pivot,
         };
 
         let agg_rel = RelType::Aggregate(Box::new(agg));
 
         LogicalPlanBuilder::from(agg_rel)
+    }
+
+    pub fn unpivot(
+        self,
+        ids: Vec<spark::Expression>,
+        values: Option<Vec<spark::Expression>>,
+        variable_column_name: &str,
+        value_column_name: &str,
+    ) -> LogicalPlanBuilder {
+        let unpivot_values = values.map(|val| spark::unpivot::Values { values: val });
+
+        let unpivot = spark::Unpivot {
+            input: self.relation_input(),
+            ids,
+            values: unpivot_values,
+            variable_column_name: variable_column_name.to_string(),
+            value_column_name: value_column_name.to_string(),
+        };
+
+        LogicalPlanBuilder::from(RelType::Unpivot(Box::new(unpivot)))
     }
 
     pub fn local_relation(batch: &RecordBatch) -> Result<LogicalPlanBuilder, SparkError> {

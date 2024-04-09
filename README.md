@@ -75,7 +75,7 @@ The following section outlines some of the larger functionality that are not yet
 
 - ![done] TLS authentication & Databricks compatability
 - ![open] StreamingQueryManager
-- ![open] Window and Pivot functions
+- ![open] Window and ~~Pivot~~ functions
 - ![open] UDFs or any type of functionality that takes a closure (foreach, foreachBatch, etc.)
 
 ### SparkSession
@@ -161,7 +161,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | localCheckpoint               | ![open] |                                                            |
 | mapInPandas                   | ![open] | TBD on this exact implementation                           |
 | mapInArrow                    | ![open] | TBD on this exact implementation                           |
-| melt                          | ![open] | groupby and aggregrate functions are currently in progress |
+| melt                          | ![done] |                                                            |
 | na                            | ![open] |                                                            |
 | observe                       | ![open] |                                                            |
 | offset                        | ![done] |                                                            |
