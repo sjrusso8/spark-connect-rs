@@ -22,12 +22,12 @@ tonic = { version ="0.11.0"}
 tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
 tokio-rustls = "0.26.0"
 
-arrow = { version = "51.0.0", features = ["prettyprint"] }
-arrow-ipc = "51.0.0"
+arrow = { version = "50.0.0", features = ["prettyprint"] }
+arrow-ipc = "50.0.0"
 
 serde_json = "1.0.115"
 
-parking_lot = "0.12.1"
+parking_lot = { version="0.12.1" , features = ["send_guard"]}
 
 prost = "0.12.0"
 prost-types = "0.12.0"

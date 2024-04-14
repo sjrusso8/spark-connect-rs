@@ -79,6 +79,9 @@ impl Display for SparkError {
     }
 }
 
+unsafe impl Send for SparkError {}
+unsafe impl Sync for SparkError {}
+
 impl Error for SparkError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         if let Self::ExternalError(e) = self {

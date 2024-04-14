@@ -127,15 +127,13 @@ impl ChannelBuilder {
                 channel_builder.use_ssl = true
             }
         };
-
         channel_builder.headers = Some(metadata_builder(&headers));
-
         Ok(channel_builder)
     }
 
     async fn create_client(&self) -> Result<SparkSession, Error> {
         let endpoint = format!("https://{}:{}", self.host, self.port);
-
+        println!("endpoint {:?}",endpoint.as_str());
         let channel = Endpoint::from_shared(endpoint)?.connect().await?;
 
         let service_client = SparkConnectServiceClient::with_interceptor(
@@ -302,6 +300,8 @@ impl ResponseHandler {
 }
 
 impl AnalyzeHandler {
+
+
     fn new() -> Self {
         Self {
             schema: None,
@@ -317,6 +317,7 @@ impl AnalyzeHandler {
             get_storage_level: None,
         }
     }
+
 }
 
 #[derive(Clone, Debug)]
@@ -326,6 +327,9 @@ pub struct SparkConnectClient<T> {
     pub handler: ResponseHandler,
     pub analyzer: AnalyzeHandler,
 }
+
+unsafe impl <T> Send for SparkConnectClient<T> {}
+unsafe impl <T> Sync for SparkConnectClient<T> {}
 
 impl<T> SparkConnectClient<T>
 where
@@ -413,7 +417,6 @@ where
 
         self.handle_analyze(resp)
     }
-
     fn handle_response(&mut self, resp: spark::ExecutePlanResponse) -> Result<(), SparkError> {
         self.validate_session(&resp.session_id)?;
 
