@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use spark_connect_rs;
 
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
@@ -7,10 +9,12 @@ use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 // Displaying the results as "show(...)"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession =
-        SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs")
+    let spark: Arc<SparkSession> =
+        Arc::new(
+            SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs")
             .build()
-            .await?;
+            .await?
+        );
 
     let df = spark
         .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")

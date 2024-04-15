@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use spark_connect_rs;
 
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
@@ -11,7 +13,7 @@ use spark_connect_rs::dataframe::SaveMode;
 // then reading the csv file back
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::default().build().await?;
+    let spark: Arc<SparkSession> = Arc::new(SparkSessionBuilder::default().build().await?);
 
     let df = spark
         .clone()
