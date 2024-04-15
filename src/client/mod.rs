@@ -299,8 +299,6 @@ impl ResponseHandler {
 }
 
 impl AnalyzeHandler {
-
-
     fn new() -> Self {
         Self {
             schema: None,
@@ -316,7 +314,6 @@ impl AnalyzeHandler {
             get_storage_level: None,
         }
     }
-
 }
 
 #[derive(Clone, Debug)]
@@ -326,9 +323,6 @@ pub struct SparkConnectClient<T> {
     pub handler: ResponseHandler,
     pub analyzer: AnalyzeHandler,
 }
-
-unsafe impl <T> Send for SparkConnectClient<T> {}
-unsafe impl <T> Sync for SparkConnectClient<T> {}
 
 impl<T> SparkConnectClient<T>
 where

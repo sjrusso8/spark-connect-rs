@@ -9,7 +9,7 @@ use spark_connect_rs::functions as F;
 // printing the results as "show(...)"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark:Arc<SparkSession> = Arc::new(SparkSessionBuilder::default().build().await?);
+    let spark: Arc<SparkSession> = Arc::new(SparkSessionBuilder::default().build().await?);
 
     let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 

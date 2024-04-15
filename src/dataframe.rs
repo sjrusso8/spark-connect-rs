@@ -662,12 +662,9 @@ impl DataFrame {
             });
         let session = self.spark_session.clone();
         let mut client = session.client();
-        let data_type = client
-            .analyze(schema)
-            .await?;
+        let data_type = client.analyze(schema).await?;
         let schema = data_type.schema()?;
         Ok(schema.clone())
-
     }
 
     /// Projects a set of expressions and returns a new [DataFrame]
