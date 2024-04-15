@@ -1,5 +1,7 @@
 //! DataFrame representation for Spark Connection
 
+use std::sync::Arc;
+
 use crate::column::Column;
 use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
@@ -66,7 +68,7 @@ use arrow::util::pretty;
 #[derive(Clone, Debug)]
 pub struct DataFrame {
     /// Global [SparkSession] connecting to the remote cluster
-    pub spark_session: SparkSession,
+    pub spark_session: Arc<SparkSession>,
 
     /// Logical Plan representing the unresolved Relation
     /// which will be submitted to the remote cluster
@@ -75,7 +77,7 @@ pub struct DataFrame {
 
 impl DataFrame {
     /// create default DataFrame based on a spark session and initial logical plan
-    pub fn new(spark_session: SparkSession, logical_plan: LogicalPlanBuilder) -> DataFrame {
+    pub fn new(spark_session: Arc<SparkSession>, logical_plan: LogicalPlanBuilder) -> DataFrame {
         DataFrame {
             spark_session,
             logical_plan,
@@ -658,15 +660,11 @@ impl DataFrame {
             spark::analyze_plan_request::Analyze::Schema(spark::analyze_plan_request::Schema {
                 plan: Some(plan),
             });
-
-        let data_type = self
-            .spark_session
-            .client()
-            .analyze(schema)
-            .await?
-            .schema()?;
-
-        Ok(data_type)
+        let session = self.spark_session.clone();
+        let mut client = session.client();
+        let data_type = client.analyze(schema).await?;
+        let schema = data_type.schema()?;
+        Ok(schema.clone())
     }
 
     /// Projects a set of expressions and returns a new [DataFrame]
@@ -757,7 +755,7 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn sparkSession(self) -> SparkSession {
+    pub fn sparkSession(self) -> Arc<SparkSession> {
         self.spark_session
     }
 

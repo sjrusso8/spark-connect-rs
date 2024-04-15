@@ -6,13 +6,15 @@
 // The remote spark session must have the spark package `io.delta:delta-spark_2.12:{DELTA_VERSION}` enabled.
 // Where the `DELTA_VERSION` is the specified Delta Lake version.
 
+use std::sync::Arc;
+
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 use spark_connect_rs::dataframe::SaveMode;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::default().build().await?;
+    let spark: Arc<SparkSession> = Arc::new(SparkSessionBuilder::default().build().await?);
 
     let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
 

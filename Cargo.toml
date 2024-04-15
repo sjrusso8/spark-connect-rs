@@ -27,7 +27,7 @@ arrow-ipc = "51.0.0"
 
 serde_json = "1.0.115"
 
-parking_lot = "0.12.1"
+parking_lot = { version="0.12.1" , features = ["send_guard"]}
 
 prost = "0.12.0"
 prost-types = "0.12.0"
