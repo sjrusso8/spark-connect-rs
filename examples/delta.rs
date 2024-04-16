@@ -12,7 +12,9 @@ use spark_connect_rs::dataframe::SaveMode;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::default().build().await?;
+    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
+        .build()
+        .await?;
 
     let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
 
