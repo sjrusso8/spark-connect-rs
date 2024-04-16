@@ -9,7 +9,7 @@ use std::{thread, time};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spark: SparkSession =
-        SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs")
+        SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=stream_example")
             .build()
             .await?;
 

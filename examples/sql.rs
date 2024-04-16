@@ -1,38 +1,43 @@
-use spark_connect_rs;
+// This example demonstrates creating a Spark DataFrame from a SQL command
+// and saving the results as a parquet and reading the new parquet file
 
+use spark_connect_rs::dataframe::SaveMode;
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
-// This example demonstrates creating a Spark DataFrame from a SQL command
-// and leveraging &str input for `filter` and `select` to change the dataframe
-// Displaying the results as "show(...)"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession =
-        SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=example_rs")
-            .build()
-            .await?;
+    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
+        .build()
+        .await?;
 
     let df = spark
-        .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
+        .clone()
+        .sql("select 'apple' as word, 123 as count")
         .await?;
 
-    df.filter("salary >= 3500")
-        .select("*")
-        .show(Some(5), None, None)
+    df.write()
+        .mode(SaveMode::Overwrite)
+        .format("parquet")
+        .save("file:///tmp/spark-connect-write-example-output.parquet")
         .await?;
 
-    // +-----------------+
-    // | show_string     |
-    // +-----------------+
-    // | +------+------+ |
-    // | |name  |salary| |
-    // | +------+------+ |
-    // | |Andy  |4500  | |
-    // | |Justin|3500  | |
-    // | |Berta |4000  | |
-    // | +------+------+ |
-    // |                 |
-    // +-----------------+
+    let df = spark
+        .read()
+        .format("parquet")
+        .load(["file:///tmp/spark-connect-write-example-output.parquet"])?;
+
+    df.show(Some(100), None, None).await?;
+
+    // +---------------+
+    // | show_string   |
+    // +---------------+
+    // | +-----+-----+ |
+    // | |word |count| |
+    // | +-----+-----+ |
+    // | |apple|123  | |
+    // | +-----+-----+ |
+    // |               |
+    // +---------------+
 
     Ok(())
 }
