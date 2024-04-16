@@ -17,11 +17,11 @@ The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://
 
 This section explains how run Spark Connect Rust locally starting from 0.
 
-Step 1: Install rust via rustup: https://www.rust-lang.org/tools/install
+**Step 1**: Install rust via rustup: https://www.rust-lang.org/tools/install
 
-Step 2: Ensure you have a [cmake](https://cmake.org/download/) and [protobuf](https://grpc.io/docs/protoc-installation/) install on your machine
+**Step 2**: Ensure you have a [cmake](https://cmake.org/download/) and [protobuf](https://grpc.io/docs/protoc-installation/) installed on your machine
 
-Step 3: Run the following commands to clone the repo
+**Step 3**: Run the following commands to clone the repo
 
 ```bash
 git clone https://github.com/sjrusso8/spark-connect-rs.git
@@ -30,9 +30,9 @@ git submodule update --init --recursive
 cargo build
 ```
 
-Step 4: Setup the Spark Driver on localhost either by downloading spark or docker compose.
+**Step 4**: Setup the Spark Driver on localhost either by downloading spark or with [docker](https://docs.docker.com/engine/install/).
 
-With spark download:
+With local spark:
 
 1. [Download Spark distribution](https://spark.apache.org/downloads.html) (3.4.0+), unzip the package.
 
@@ -42,7 +42,7 @@ With spark download:
 sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.12:3.4.0
 ```
 
-With docker compose:
+With docker:
 
 1. Start the Spark Connect server by leveraging the created `docker-compose.yml` in this repo. This will start a Spark Connect Server running on port 15002
 
@@ -50,7 +50,7 @@ With docker compose:
 docker compose up --build -d
 ```
 
-Step 5: Run an example from the repo under `/examples`
+**Step 5**: Run an example from the repo under `/examples`
 
 ```bash
 cargo run --example sql
