@@ -56,6 +56,34 @@ impl SparkSession {
         DataFrame::new(self, LogicalPlanBuilder::from(range_relation))
     }
 
+    pub fn setCatalog(self: Arc<Self>, catalog: &str) -> DataFrame {
+        let catalog_relation = spark::relation::RelType::Catalog(spark::Catalog {
+            cat_type: Some(spark::catalog::CatType::SetCurrentCatalog(
+                spark::SetCurrentCatalog {
+                    catalog_name: catalog.to_string(),
+                },
+            )),
+        });
+
+        let logical_plan = LogicalPlanBuilder::from(catalog_relation);
+
+        DataFrame::new(self, logical_plan)
+    }
+
+    pub fn setDatabase(self: Arc<Self>, database: &str) -> DataFrame {
+        let catalog_relation = spark::relation::RelType::Catalog(spark::Catalog {
+            cat_type: Some(spark::catalog::CatType::SetCurrentDatabase(
+                spark::SetCurrentDatabase {
+                    db_name: database.to_string(),
+                },
+            )),
+        });
+
+        let logical_plan = LogicalPlanBuilder::from(catalog_relation);
+
+        DataFrame::new(self, logical_plan)
+    }
+
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
     pub fn read(self: Arc<Self>) -> DataFrameReader {
         DataFrameReader::new(self)
