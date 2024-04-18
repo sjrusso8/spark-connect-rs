@@ -1,10 +1,11 @@
+// This example demonstrates creating a Spark DataFrame from a CSV with read options
+// and then adding transformations for 'select' & 'sort'
+// printing the results as "show(...)"
+
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 use spark_connect_rs::functions as F;
 
-// This example demonstrates creating a Spark DataFrame from a CSV with read options
-// and then adding transformations for 'select' & 'sort'
-// printing the results as "show(...)"
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spark: SparkSession = SparkSessionBuilder::default().build().await?;

@@ -11,69 +11,56 @@ Currently, the Spark Connect client for Rust is **highly experimental** and **sh
 not be used in any production setting**. This is currently a "proof of concept" to identify the methods
 of interacting with Spark cluster from rust.
 
-## Quick Start
-
 The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://spark.apache.org/docs/latest/spark-connect-overview.html), and provide *similar* DataFrame API interactions.
+
+## Getting Started
+
+This section explains how run Spark Connect Rust locally starting from 0.
+
+**Step 1**: Install rust via rustup: https://www.rust-lang.org/tools/install
+
+**Step 2**: Ensure you have a [cmake](https://cmake.org/download/) and [protobuf](https://grpc.io/docs/protoc-installation/) installed on your machine
+
+**Step 3**: Run the following commands to clone the repo
+
+```bash
+git clone https://github.com/sjrusso8/spark-connect-rs.git
+git submodule update --init --recursive
+
+cargo build
+```
+
+**Step 4**: Setup the Spark Driver on localhost either by downloading spark or with [docker](https://docs.docker.com/engine/install/).
+
+With local spark:
+
+1. [Download Spark distribution](https://spark.apache.org/downloads.html) (3.4.0+), unzip the package.
+
+2. Start the Spark Connect server with the following command (make sure to use a package version that matches your Spark distribution):
+
+```
+sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.12:3.4.0
+```
+
+With docker:
+
+1. Start the Spark Connect server by leveraging the created `docker-compose.yml` in this repo. This will start a Spark Connect Server running on port 15002
 
 ```bash
 docker compose up --build -d
 ```
 
-```rust
-use spark_connect_rs;
+**Step 5**: Run an example from the repo under `/examples`
 
-use spark_connect_rs::{SparkSession, SparkSessionBuilder};
-
-use spark_connect_rs::functions as F;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
-            .build()
-            .await?;
-
-    let df = spark
-        .sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`")
-        .await?;
-
-    df.filter("salary >= 3500")
-        .select(F::col("name"))
-        .show(Some(5), None, None)
-        .await?;
-
-    // +-------------+
-    // | show_string |
-    // +-------------+
-    // | +------+    |
-    // | |name  |    |
-    // | +------+    |
-    // | |Andy  |    |
-    // | |Justin|    |
-    // | |Berta |    |
-    // | +------+    |
-    // |             |
-    // +-------------+
-
-    Ok(())
-}
-```
-
-## Getting Started
-
-```
-git clone https://github.com/sjrusso8/spark-connect-rs.git
-git submodule update --init --recursive
-
-docker compose up --build -d
-
-cargo build && cargo test
+```bash
+cargo run --example sql
 ```
 
 ## Features
 
 The following section outlines some of the larger functionality that are not yet working with this Spark Connect implementation.
 
-- ![done] TLS authentication & Databricks compatability
+- ![done] TLS authentication & Databricks compatability via the feature flag `feature = 'tls'`
 - ![open] StreamingQueryManager
 - ![open] Window and ~~Pivot~~ functions
 - ![open] UDFs or any type of functionality that takes a closure (foreach, foreachBatch, etc.)
