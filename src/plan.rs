@@ -7,6 +7,7 @@ use crate::column::Column;
 use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::spark;
+use crate::utils::sort_order;
 
 use arrow::array::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
@@ -15,7 +16,6 @@ use spark::Relation;
 use spark::RelationCommon;
 
 use spark::aggregate::GroupType;
-use spark::expression::ExprType;
 use spark::set_operation::SetOpType;
 
 /// Implements a struct to hold the current [Relation]
@@ -564,22 +564,7 @@ impl LogicalPlanBuilder {
     where
         I: IntoIterator<Item = Column>,
     {
-        let order = cols
-            .into_iter()
-            .map(|col| {
-                if let ExprType::SortOrder(ord) = col
-                    .expression
-                    .expr_type
-                    .expect("provided column set is not sortable")
-                {
-                    *ord
-                } else {
-                    // TODO don't make this a panic but actually raise an error
-                    panic!("not sortable")
-                }
-            })
-            .collect();
-
+        let order = sort_order(cols);
         let sort_type = RelType::Sort(Box::new(spark::Sort {
             order,
             input: self.relation_input(),
