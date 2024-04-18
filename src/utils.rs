@@ -16,6 +16,22 @@ pub fn invoke_func<T: ToVecExpr>(name: &str, args: T) -> Column {
     })
 }
 
+pub fn sort_order<I>(cols: I) -> Vec<spark::expression::SortOrder>
+where
+    I: IntoIterator<Item = Column>,
+{
+    cols.into_iter()
+        .map(|col| match col.clone().expression.expr_type.unwrap() {
+            spark::expression::ExprType::SortOrder(ord) => *ord,
+            _ => spark::expression::SortOrder {
+                child: Some(Box::new(col.expression)),
+                direction: 1,
+                null_ordering: 1,
+            },
+        })
+        .collect()
+}
+
 #[macro_export]
 macro_rules! generate_functions {
     (no_args: $($func_name:ident),*) => {

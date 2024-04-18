@@ -7,6 +7,7 @@ use crate::spark;
 use crate::expressions::{ToExpr, ToLiteralExpr};
 use crate::functions::lit;
 use crate::utils::invoke_func;
+use crate::window::WindowSpec;
 
 /// # Column
 ///
@@ -323,6 +324,21 @@ impl Column {
     #[allow(non_snake_case)]
     pub fn isNaN(self) -> Column {
         invoke_func("isNaN", self)
+    }
+
+    pub fn over(self, window: WindowSpec) -> Column {
+        let window_expr = spark::expression::Window {
+            window_function: Some(Box::new(self.expression)),
+            partition_spec: window.partition_spec,
+            order_spec: window.order_spec,
+            frame_spec: window.frame,
+        };
+
+        let expression = spark::Expression {
+            expr_type: Some(spark::expression::ExprType::Window(Box::new(window_expr))),
+        };
+
+        Column::from(expression)
     }
 }
 
