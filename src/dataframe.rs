@@ -1831,20 +1831,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dataframe_sort() -> Result<(), SparkError> {
+    async fn test_df_sort() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df = spark
-            .range(None, 100, 1, Some(1))
-            .sort(vec![col("id").desc()]);
+        let df = spark.range(None, 100, 1, Some(1));
 
-        let rows = df.limit(1).collect().await?;
+        let rows = df
+            .clone()
+            .sort([col("id").desc()])
+            .limit(1)
+            .collect()
+            .await?;
 
         let a: ArrayRef = Arc::new(Int64Array::from(vec![99]));
 
         let expected_batch = RecordBatch::try_from_iter(vec![("id", a)])?;
 
         assert_eq!(expected_batch, rows);
+
+        let rows = df.sort([col("id")]).limit(1).collect().await?;
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![0]));
+
+        let expected_batch = RecordBatch::try_from_iter(vec![("id", a)])?;
+
+        assert_eq!(expected_batch, rows);
+
         Ok(())
     }
 

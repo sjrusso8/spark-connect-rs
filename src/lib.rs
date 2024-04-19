@@ -131,6 +131,7 @@ pub mod storage;
 pub mod streaming;
 pub mod types;
 mod utils;
+pub mod window;
 
 pub use arrow;
 pub use dataframe::{DataFrame, DataFrameReader, DataFrameWriter};
