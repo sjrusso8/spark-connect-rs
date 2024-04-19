@@ -62,7 +62,6 @@ The following section outlines some of the larger functionality that are not yet
 
 - ![done] TLS authentication & Databricks compatability via the feature flag `feature = 'tls'`
 - ![open] StreamingQueryManager
-- ![open] Window and ~~Pivot~~ functions
 - ![open] UDFs or any type of functionality that takes a closure (foreach, foreachBatch, etc.)
 
 ### SparkSession
@@ -282,6 +281,7 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | like             | ![done] |                                                                              |
 | name             | ![done] |                                                                              |
 | otherwise        | ![open] |                                                                              |
+| over             | ![done] | Refer to **Window** for creating window specifications                       |
 | rlike            | ![done] |                                                                              |
 | startswith       | ![done] |                                                                              |
 | substr           | ![open] |                                                                              |
@@ -610,6 +610,25 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | Array              | `slice` / `Vec`     | ![done] |
 | Map                |                     | ![open] |
 | Struct             |                     | ![open] |
+
+
+### Window & WindowSpec
+
+For ease of use it's recommended to use `Window` to create the `WindowSpec`.
+
+| Window                  | API     | Comment |
+|-------------------------|---------|---------|
+| currentRow              | ![done] |         |
+| orderBy                 | ![done] |         |
+| partitionBy             | ![done] |         |
+| rangeBetween            | ![done] |         |
+| rowsBetween             | ![done] |         |
+| unboundedFollowing      | ![done] |         |
+| unboundedPreceding      | ![done] |         |
+| WindowSpec.orderBy      | ![done] |         |
+| WindowSpec.partitionBy  | ![done] |         |
+| WindowSpec.rangeBetween | ![done] |         |
+| WindowSpec.rowsBetween  | ![done] |         |
 
 
 [open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg

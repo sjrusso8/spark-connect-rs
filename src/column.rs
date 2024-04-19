@@ -326,12 +326,28 @@ impl Column {
         invoke_func("isNaN", self)
     }
 
+    /// Defines a windowing column
+    /// # Arguments:
+    ///
+    /// * `window`: a [WindowSpec]
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let window = Window::new()
+    ///     .partitionBy(col("name"))
+    ///     .orderBy([col("age")])
+    ///     .rangeBetween(Window::unboundedPreceding(), Window::currentRow());
+    ///
+    /// let df = df.withColumn("rank", rank().over(window.clone()))
+    ///     .withColumn("min", min("age").over(window));
+    /// ```
     pub fn over(self, window: WindowSpec) -> Column {
         let window_expr = spark::expression::Window {
             window_function: Some(Box::new(self.expression)),
             partition_spec: window.partition_spec,
             order_spec: window.order_spec,
-            frame_spec: window.frame,
+            frame_spec: window.frame_spec,
         };
 
         let expression = spark::Expression {
