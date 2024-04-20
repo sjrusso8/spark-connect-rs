@@ -528,6 +528,31 @@ mod tests {
         assert_eq!(&expected, &rows_func_asc);
         Ok(())
     }
+    #[tokio::test]
+    async fn test_func_foreach() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df_col_asc = spark
+            .clone()
+            .range(Some(1), 4, 1, Some(1))
+            .sort([col("id").desc()]);
+
+        let mut result = Vec::new();
+        let capture_result = |row: &RecordBatch| {
+            result.push(row.clone());
+        };
+
+        df_col_asc.foreach(capture_result).await?;
+
+        assert_eq!(result.len(), 3);
+
+        assert_eq!(result[0].column(0).as_any().downcast_ref::<Int64Array>().unwrap().value(0), 3);
+        assert_eq!(result[1].column(0).as_any().downcast_ref::<Int64Array>().unwrap().value(0), 2);
+        assert_eq!(result[2].column(0).as_any().downcast_ref::<Int64Array>().unwrap().value(0), 1);
+
+        Ok(())
+    }
+
 
     #[tokio::test]
     async fn test_func_desc() -> Result<(), SparkError> {
