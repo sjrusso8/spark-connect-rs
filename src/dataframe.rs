@@ -210,6 +210,17 @@ impl DataFrame {
 
         Ok(data.value(0))
     }
+    pub async fn foreach<F>(self, mut f: F) -> Result<(), SparkError>
+        where
+            F: FnMut(&RecordBatch) -> (),
+    {
+        let rows = self.collect().await?;
+        for i in 0..rows.num_rows() {
+            let row = rows.slice(i, 1);
+            f(&row);
+        }
+        Ok(())
+    }
 
     /// Creates a local temporary view with this DataFrame.
     #[allow(non_snake_case)]
