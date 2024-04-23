@@ -161,8 +161,6 @@ impl Catalog {
             pattern: pattern.map(|val| val.to_owned()),
         }));
 
-        println!("{:?}", cat_type);
-
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
         let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
