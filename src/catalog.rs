@@ -132,17 +132,36 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    #[allow(non_snake_case)]
+    pub async fn databaseExists(self, dbName: &str) -> Result<bool, SparkError> {
+        let cat_type = Some(spark::catalog::CatType::DatabaseExists(
+            spark::DatabaseExists {
+                db_name: dbName.to_string(),
+            },
+        ));
+
+        let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
+
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+
+        let record = self.spark_session.client().to_arrow(plan).await?;
+
+        Catalog::arrow_to_bool(record)
+    }
+
     /// Returns a list of tables/views in the specific database
     #[allow(non_snake_case)]
     pub async fn listTables(
         self,
-        dbName: Option<&str>,
         pattern: Option<&str>,
+        dbName: Option<&str>,
     ) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::ListTables(spark::ListTables {
             db_name: dbName.map(|db| db.to_owned()),
             pattern: pattern.map(|val| val.to_owned()),
         }));
+
+        println!("{:?}", cat_type);
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
@@ -308,7 +327,7 @@ impl Catalog {
     }
 
     #[allow(non_snake_case)]
-    pub async fn cachedTable(
+    pub async fn cacheTable(
         self,
         tableName: &str,
         storageLevel: Option<StorageLevel>,
@@ -404,7 +423,7 @@ mod tests {
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
-        let connection = "sc://127.0.0.1:15002/;user_id=rust_catalog;session_id=f93c9562-cb73-473c-add4-c73a236e50dc";
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_catalog";
 
         SparkSessionBuilder::remote(connection)
             .build()
@@ -421,6 +440,31 @@ mod tests {
         assert_eq!(value, "spark_catalog".to_string());
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_set_current_catalog() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark.catalog().setCurrentCatalog("spark_catalog").await?;
+
+        assert!(true);
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn test_set_current_catalog_panic() -> () {
+        let spark = setup().await;
+
+        spark
+            .catalog()
+            .setCurrentCatalog("not_a_real_catalog")
+            .await
+            .unwrap();
+
+        ()
+    }
+
     #[tokio::test]
     async fn test_list_catalogs() -> Result<(), SparkError> {
         let spark = setup().await;
@@ -444,6 +488,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_set_current_database() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark
+            .clone()
+            .sql("CREATE SCHEMA IF NOT EXISTS spark_rust_db")
+            .await?;
+
+        spark.catalog().setCurrentDatabase("spark_rust_db").await?;
+
+        assert!(true);
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn test_set_current_database_panic() -> () {
+        let spark = setup().await;
+
+        spark
+            .catalog()
+            .setCurrentCatalog("not_a_real_db")
+            .await
+            .unwrap();
+
+        ()
+    }
+    #[tokio::test]
     async fn test_list_databases() -> Result<(), SparkError> {
         let spark = setup().await;
 
@@ -453,10 +525,15 @@ mod tests {
             .await
             .unwrap();
 
-        let value = spark.catalog().listDatabases(None).await?;
+        let res = spark.clone().catalog().listDatabases(None).await?;
 
-        assert_eq!(4, value.num_columns());
-        assert_eq!(2, value.num_rows());
+        assert_eq!(4, res.num_columns());
+        assert_eq!(2, res.num_rows());
+
+        let res = spark.catalog().listDatabases(Some("*rust")).await?;
+
+        assert_eq!(4, res.num_columns());
+        assert_eq!(1, res.num_rows());
 
         Ok(())
     }
@@ -470,11 +547,23 @@ mod tests {
             .sql("CREATE SCHEMA IF NOT EXISTS spark_rust")
             .await?;
 
-        let values = spark.catalog().getDatabase("spark_rust").await?;
+        let res = spark.catalog().getDatabase("spark_rust").await?;
 
-        println!("{:?}", values);
+        assert_eq!(res.num_rows(), 1);
+        Ok(())
+    }
 
-        assert_eq!(1, 1);
+    #[tokio::test]
+    async fn test_database_exists() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let res = spark.clone().catalog().databaseExists("default").await?;
+
+        assert!(res);
+
+        let res = spark.clone().catalog().databaseExists("not_real").await?;
+
+        assert!(!res);
         Ok(())
     }
 
@@ -489,20 +578,87 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_databases_pattern() -> Result<(), SparkError> {
+    async fn test_list_columns() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark.clone().sql("DROP TABLE IF EXISTS tmp_table").await?;
+
+        spark
+            .clone()
+            .sql("CREATE TABLE tmp_table (name STRING, age INT) using parquet")
+            .await?;
+
+        let res = spark
+            .clone()
+            .catalog()
+            .listColumns("tmp_table", None)
+            .await?;
+
+        assert_eq!(res.num_rows(), 2);
+
+        spark.clone().sql("DROP TABLE IF EXISTS tmp_table").await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_drop_view() -> Result<(), SparkError> {
         let spark = setup().await;
 
         spark
             .clone()
-            .sql("CREATE SCHEMA IF NOT EXISTS spark_rust")
-            .await
-            .unwrap();
+            .range(None, 2, 1, Some(1))
+            .createOrReplaceGlobalTempView("tmp_view")
+            .await?;
 
-        let value = spark.catalog().listDatabases(Some("*rust")).await?;
+        let res = spark
+            .clone()
+            .catalog()
+            .dropGlobalTempView("tmp_view")
+            .await?;
 
-        assert_eq!(4, value.num_columns());
-        assert_eq!(1, value.num_rows());
+        assert!(res);
 
+        spark
+            .clone()
+            .range(None, 2, 1, Some(1))
+            .createOrReplaceTempView("tmp_view")
+            .await?;
+
+        let res = spark.catalog().dropTempView("tmp_view").await?;
+
+        assert!(res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cache_table() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark.clone().sql("DROP TABLE IF EXISTS tmp_table").await?;
+
+        spark
+            .clone()
+            .sql("CREATE TABLE tmp_table (name STRING, age INT) using parquet")
+            .await?;
+
+        spark
+            .clone()
+            .catalog()
+            .cacheTable("tmp_table", None)
+            .await?;
+
+        let res = spark.clone().catalog().isCached("tmp_table").await?;
+
+        assert!(res);
+
+        spark.clone().catalog().uncacheTable("tmp_table").await?;
+
+        let res = spark.clone().catalog().isCached("tmp_table").await?;
+
+        assert!(!res);
+
+        spark.sql("DROP TABLE IF EXISTS tmp_table").await?;
         Ok(())
     }
 }
