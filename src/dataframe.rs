@@ -376,12 +376,8 @@ impl DataFrame {
                 explain_mode: explain_mode.into(),
             });
 
-        let explain = self
-            .spark_session
-            .client()
-            .analyze(analyze)
-            .await?
-            .explain()?;
+        let mut client = self.spark_session.client();
+        let explain = client.analyze(analyze).await?.explain()?;
 
         println!("{}", explain);
 
@@ -446,11 +442,9 @@ impl DataFrame {
             },
         );
 
-        self.spark_session
-            .client()
-            .analyze(input_files)
-            .await?
-            .input_files()
+        let mut client = self.spark_session.client();
+
+        client.analyze(input_files).await?.input_files()
     }
 
     /// Return a new DataFrame containing rows only in both this DataFrame and another DataFrame.
@@ -488,11 +482,9 @@ impl DataFrame {
             },
         );
 
-        self.spark_session
-            .client()
-            .analyze(is_streaming)
-            .await?
-            .is_streaming()
+        let mut client = self.spark_session.client();
+
+        client.analyze(is_streaming).await?.is_streaming()
     }
 
     /// Joins with another DataFrame, using the given join expression.
@@ -563,12 +555,9 @@ impl DataFrame {
                 storage_level: Some(storage_level.into()),
             });
 
-        self.spark_session
-            .clone()
-            .client()
-            .analyze(analyze)
-            .await
-            .unwrap();
+        let mut client = self.spark_session.clone().client();
+
+        client.analyze(analyze).await.unwrap();
 
         DataFrame::new(self.spark_session, self.logical_plan)
     }
@@ -582,14 +571,10 @@ impl DataFrame {
                 level,
             },
         );
-        let tree = self
-            .spark_session
-            .client()
-            .analyze(tree_string)
-            .await?
-            .tree_string()?;
 
-        Ok(tree)
+        let mut client = self.spark_session.client();
+
+        client.analyze(tree_string).await?.tree_string()
     }
 
     /// Returns a new [DataFrame] partitioned by the given partition number and shuffle option
@@ -624,14 +609,10 @@ impl DataFrame {
                 other_plan,
             },
         );
-        let same_semantics = self
-            .spark_session
-            .client()
-            .analyze(same_semantics)
-            .await?
-            .same_semantics()?;
 
-        Ok(same_semantics)
+        let mut client = self.spark_session.client();
+
+        client.analyze(same_semantics).await?.same_semantics()
     }
 
     /// Returns a sampled subset of this [DataFrame]
@@ -659,14 +640,9 @@ impl DataFrame {
                 plan: Some(plan),
             });
 
-        let data_type = self
-            .spark_session
-            .client()
-            .analyze(schema)
-            .await?
-            .schema()?;
+        let mut client = self.spark_session.client();
 
-        Ok(data_type)
+        client.analyze(schema).await?.schema()
     }
 
     /// Projects a set of expressions and returns a new [DataFrame]
@@ -711,14 +687,9 @@ impl DataFrame {
             spark::analyze_plan_request::SemanticHash { plan: Some(plan) },
         );
 
-        let semantic_hash = self
-            .spark_session
-            .client()
-            .analyze(semantic_hash)
-            .await?
-            .semantic_hash()?;
+        let mut client = self.spark_session.client();
 
-        Ok(semantic_hash)
+        client.analyze(semantic_hash).await?.semantic_hash()
     }
 
     /// Prints the first `n` rows to the console
@@ -769,14 +740,10 @@ impl DataFrame {
             },
         );
 
-        let storage = self
-            .spark_session
-            .client()
-            .analyze(storage_level)
-            .await?
-            .get_storage_level()?;
+        let mut client = self.spark_session.client();
+        let storage = client.analyze(storage_level).await?.get_storage_level();
 
-        Ok(storage.into())
+        Ok(storage?.into())
     }
 
     pub fn subtract(self, other: DataFrame) -> DataFrame {
@@ -851,12 +818,9 @@ impl DataFrame {
             },
         );
 
-        self.spark_session
-            .clone()
-            .client()
-            .analyze(unpersist)
-            .await
-            .unwrap();
+        let mut client = self.spark_session.clone().client();
+
+        client.analyze(unpersist).await.unwrap();
 
         DataFrame::new(self.spark_session, self.logical_plan)
     }

@@ -14,7 +14,7 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
 
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 
 use tonic::codegen::{Body, Bytes, StdError};
 use tonic::metadata::{
@@ -146,7 +146,7 @@ impl ChannelBuilder {
             },
         );
 
-        let client = Arc::new(Mutex::new(service_client));
+        let client = Arc::new(RwLock::new(service_client));
 
         let spark_connnect_client = SparkConnectClient {
             stub: client.clone(),
@@ -321,7 +321,7 @@ impl AnalyzeHandler {
 
 #[derive(Clone, Debug)]
 pub struct SparkConnectClient<T> {
-    stub: Arc<Mutex<SparkConnectServiceClient<T>>>,
+    stub: Arc<RwLock<SparkConnectServiceClient<T>>>,
     builder: ChannelBuilder,
     pub handler: ResponseHandler,
     pub analyzer: AnalyzeHandler,
@@ -372,7 +372,7 @@ where
         &mut self,
         req: spark::ExecutePlanRequest,
     ) -> Result<(), SparkError> {
-        let mut client = self.stub.lock();
+        let mut client = self.stub.write();
 
         let mut resp = client.execute_plan(req).await?.into_inner();
 
@@ -402,7 +402,7 @@ where
 
         req.analyze = Some(analyze);
 
-        let mut client = self.stub.lock();
+        let mut client = self.stub.write();
 
         // clear out any prior responses
         self.analyzer = AnalyzeHandler::new();

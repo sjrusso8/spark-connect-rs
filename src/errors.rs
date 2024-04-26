@@ -16,6 +16,7 @@ pub enum SparkError {
     AnalysisException(String),
     IoError(String, std::io::Error),
     ArrowError(ArrowError),
+    InvalidConnectionUrl(String),
 }
 
 impl SparkError {
@@ -75,6 +76,7 @@ impl Display for SparkError {
             SparkError::IoError(desc, _) => write!(f, "Io error: {desc}"),
             SparkError::ArrowError(desc) => write!(f, "Apache Arrow error: {desc}"),
             SparkError::NotYetImplemented(source) => write!(f, "Not yet implemented: {source}"),
+            SparkError::InvalidConnectionUrl(val) => write!(f, "Invalid URL error: {val}"),
         }
     }
 }

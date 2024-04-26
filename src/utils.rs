@@ -1,7 +1,7 @@
 use crate::spark;
 
 use crate::column::Column;
-use crate::expressions::ToVecExpr;
+use crate::expressions::{ToExpr, ToVecExpr};
 
 pub fn invoke_func<T: ToVecExpr>(name: &str, args: T) -> Column {
     Column::from(spark::Expression {
@@ -16,15 +16,16 @@ pub fn invoke_func<T: ToVecExpr>(name: &str, args: T) -> Column {
     })
 }
 
-pub fn sort_order<I>(cols: I) -> Vec<spark::expression::SortOrder>
+pub fn sort_order<I, T>(cols: I) -> Vec<spark::expression::SortOrder>
 where
-    I: IntoIterator<Item = Column>,
+    T: ToExpr,
+    I: IntoIterator<Item = T>,
 {
     cols.into_iter()
-        .map(|col| match col.clone().expression.expr_type.unwrap() {
+        .map(|col| match col.to_expr().expr_type.unwrap() {
             spark::expression::ExprType::SortOrder(ord) => *ord,
             _ => spark::expression::SortOrder {
-                child: Some(Box::new(col.expression)),
+                child: Some(Box::new(col.to_expr())),
                 direction: 1,
                 null_ordering: 1,
             },
