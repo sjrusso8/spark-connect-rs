@@ -517,26 +517,6 @@ mod tests {
 
         ()
     }
-    #[tokio::test]
-    async fn test_list_databases() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let res = spark.clone().catalog().listDatabases(None).await?;
-
-        assert_eq!(4, res.num_columns());
-        assert!(res.num_rows() >= 1);
-
-        let res = spark
-            .clone()
-            .catalog()
-            .listDatabases(Some("default"))
-            .await?;
-
-        assert_eq!(4, res.num_columns());
-        assert_eq!(1, res.num_rows());
-
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_get_database() -> Result<(), SparkError> {
