@@ -1,8 +1,6 @@
 //! Utility structs for defining a window over a DataFrame
 
-use crate::column::Column;
-use crate::expressions::ToVecExpr;
-use crate::functions::lit;
+use crate::expressions::{ToExpr, ToLiteralExpr, ToVecExpr};
 use crate::utils::sort_order;
 
 use crate::spark;
@@ -37,9 +35,10 @@ impl WindowSpec {
     }
 
     #[allow(non_snake_case)]
-    pub fn orderBy<I>(self, cols: I) -> WindowSpec
+    pub fn orderBy<I, T>(self, cols: I) -> WindowSpec
     where
-        I: IntoIterator<Item = Column>,
+        T: ToExpr,
+        I: IntoIterator<Item = T>,
     {
         let order_spec = sort_order(cols);
 
@@ -80,10 +79,10 @@ impl WindowSpec {
                 // !TODO - I don't like casting this to i32
                 // however, the window boundary is expecting an INT and not a BIGINT
                 // i64 is a BIGINT (i.e. Long)
-                let value = lit(value as i32).expression;
+                let expr = (value as i32).to_literal_expr();
 
                 let boundary = Some(window::window_frame::frame_boundary::Boundary::Value(
-                    Box::new(value),
+                    Box::new(expr),
                 ));
 
                 Some(Box::new(window::window_frame::FrameBoundary { boundary }))
@@ -150,9 +149,10 @@ impl Window {
 
     /// Creates a [WindowSpec] with the ordering defined
     #[allow(non_snake_case)]
-    pub fn orderBy<I>(mut self, cols: I) -> WindowSpec
+    pub fn orderBy<I, T>(mut self, cols: I) -> WindowSpec
     where
-        I: IntoIterator<Item = Column>,
+        T: ToExpr,
+        I: IntoIterator<Item = T>,
     {
         self.spec = self.spec.orderBy(cols);
 

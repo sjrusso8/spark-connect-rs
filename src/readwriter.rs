@@ -353,6 +353,7 @@ mod tests {
         let path = "/opt/spark/examples/src/main/rust/employees/";
 
         df.write()
+            .mode(SaveMode::Overwrite)
             .format("csv")
             .option("header", "true")
             .save(path)

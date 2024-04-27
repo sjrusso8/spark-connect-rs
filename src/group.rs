@@ -1,8 +1,7 @@
 //! A DataFrame created with an aggregate statement
 
-use crate::column::Column;
 use crate::dataframe::DataFrame;
-use crate::expressions::{ToLiteral, ToVecExpr};
+use crate::expressions::{ToExpr, ToLiteral, ToVecExpr};
 use crate::plan::LogicalPlanBuilder;
 
 use crate::functions::lit;
@@ -16,7 +15,7 @@ pub struct GroupedData {
     df: DataFrame,
     group_type: GroupType,
     grouping_cols: Vec<spark::Expression>,
-    pivot_col: Option<Column>,
+    pivot_col: Option<spark::Expression>,
     pivot_vals: Option<Vec<spark::expression::Literal>>,
 }
 
@@ -25,7 +24,7 @@ impl GroupedData {
         df: DataFrame,
         group_type: GroupType,
         grouping_cols: Vec<spark::Expression>,
-        pivot_col: Option<Column>,
+        pivot_col: Option<spark::Expression>,
         pivot_vals: Option<Vec<spark::expression::Literal>>,
     ) -> GroupedData {
         Self {
@@ -84,7 +83,7 @@ impl GroupedData {
             self.df,
             GroupType::Pivot,
             self.grouping_cols,
-            Some(Column::from(col)),
+            Some(col.to_expr()),
             pivot_vals,
         )
     }

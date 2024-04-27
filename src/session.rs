@@ -1,20 +1,86 @@
 //! Spark Session containing the remote gRPC client
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::catalog::Catalog;
-pub use crate::client::SparkSessionBuilder;
+use crate::client::ChannelBuilder;
 use crate::client::{MetadataInterceptor, SparkConnectClient};
 use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
 use crate::streaming::DataStreamReader;
+use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use arrow::record_batch::RecordBatch;
 
+use parking_lot::RwLock;
+
 use tonic::service::interceptor::InterceptedService;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, Endpoint};
+
+/// SparkSessionBuilder creates a remote Spark Session a connection string.
+///
+/// The connection string is define based on the requirements from [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
+#[derive(Clone, Debug)]
+pub struct SparkSessionBuilder {
+    pub channel_builder: ChannelBuilder,
+}
+
+/// Default connects a Spark cluster running at `sc://127.0.0.1:15002/`
+impl Default for SparkSessionBuilder {
+    fn default() -> Self {
+        let channel_builder = ChannelBuilder::default();
+
+        Self { channel_builder }
+    }
+}
+
+impl SparkSessionBuilder {
+    fn new(connection: &str) -> Self {
+        let channel_builder = ChannelBuilder::create(connection).unwrap();
+
+        Self { channel_builder }
+    }
+
+    /// Validate a connect string for a remote Spark Session
+    ///
+    /// String must conform to the [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
+    pub fn remote(connection: &str) -> Self {
+        Self::new(connection)
+    }
+
+    async fn create_client(&self) -> Result<SparkSession, SparkError> {
+        let channel = Endpoint::from_shared(self.channel_builder.endpoint())
+            .expect("Failed to create endpoint")
+            .connect()
+            .await
+            .expect("Failed to create channel");
+
+        let service_client = SparkConnectServiceClient::with_interceptor(
+            channel,
+            MetadataInterceptor::new(
+                self.channel_builder.token().to_owned(),
+                self.channel_builder.headers().to_owned(),
+            ),
+        );
+
+        let client = Arc::new(RwLock::new(service_client));
+
+        let spark_connnect_client =
+            SparkConnectClient::new(client.clone(), self.channel_builder.clone());
+
+        Ok(SparkSession::new(spark_connnect_client))
+    }
+
+    /// Attempt to connect to a remote Spark Session
+    ///
+    /// and return a [SparkSession]
+    pub async fn build(self) -> Result<SparkSession, SparkError> {
+        self.create_client().await
+    }
+}
 
 /// The entry point to connecting to a Spark Cluster
 /// using the Spark Connection gRPC protocol.
@@ -113,5 +179,36 @@ impl SparkSession {
     /// Spark Connection gRPC client interface
     pub fn client(self) -> SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>> {
         self.client
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spark_session_builder() {
+        let connection = "sc://myhost.com:443/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
+
+        let ssbuilder = SparkSessionBuilder::remote(connection);
+
+        assert_eq!(
+            "https://myhost.com:443".to_string(),
+            ssbuilder.channel_builder.endpoint()
+        );
+        assert_eq!(
+            "Bearer ABCDEFG".to_string(),
+            ssbuilder.channel_builder.token().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_spark_session_create() {
+        let connection =
+            "sc://localhost:15002/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
+
+        let spark = SparkSessionBuilder::remote(connection).build().await;
+
+        assert!(spark.is_ok());
     }
 }

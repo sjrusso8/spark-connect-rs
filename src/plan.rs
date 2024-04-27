@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::column::Column;
 use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::spark;
@@ -118,12 +117,12 @@ impl LogicalPlanBuilder {
         group_type: GroupType,
         grouping_cols: Vec<spark::Expression>,
         agg_expression: T,
-        pivot_col: Option<Column>,
+        pivot_col: Option<spark::Expression>,
         pivot_vals: Option<Vec<spark::expression::Literal>>,
     ) -> LogicalPlanBuilder {
         let pivot = match group_type {
             GroupType::Pivot => Some(spark::aggregate::Pivot {
-                col: pivot_col.map(|col| col.expression),
+                col: pivot_col,
                 values: pivot_vals.unwrap_or_default(),
             }),
             _ => None,
@@ -560,9 +559,10 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(rel_type)
     }
 
-    pub fn sort<I>(self, cols: I) -> LogicalPlanBuilder
+    pub fn sort<I, T>(self, cols: I) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = Column>,
+        T: ToExpr,
+        I: IntoIterator<Item = T>,
     {
         let order = sort_order(cols);
         let sort_type = RelType::Sort(Box::new(spark::Sort {
@@ -575,7 +575,7 @@ impl LogicalPlanBuilder {
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumn(self, colName: &str, col: Column) -> LogicalPlanBuilder {
+    pub fn withColumn<T: ToExpr>(self, colName: &str, col: T) -> LogicalPlanBuilder {
         let aliases: Vec<spark::expression::Alias> = vec![spark::expression::Alias {
             expr: Some(Box::new(col.to_expr())),
             name: vec![colName.to_string()],
@@ -591,10 +591,11 @@ impl LogicalPlanBuilder {
     }
 
     #[allow(non_snake_case)]
-    pub fn withColumns<I, K>(self, colMap: I) -> LogicalPlanBuilder
+    pub fn withColumns<I, K, T>(self, colMap: I) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = (K, Column)>,
+        T: ToExpr,
         K: ToString,
+        I: IntoIterator<Item = (K, T)>,
     {
         let aliases: Vec<spark::expression::Alias> = colMap
             .into_iter()
