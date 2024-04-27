@@ -133,7 +133,6 @@ pub mod types;
 mod utils;
 pub mod window;
 
-pub use arrow;
 pub use dataframe::{DataFrame, DataFrameReader, DataFrameWriter};
 pub use session::{SparkSession, SparkSessionBuilder};
 
