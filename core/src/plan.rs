@@ -6,7 +6,6 @@ use std::sync::Mutex;
 use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::spark;
-use crate::utils::sort_order;
 
 use arrow::array::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
@@ -633,6 +632,23 @@ impl LogicalPlanBuilder {
 
         LogicalPlanBuilder::from(rename_expr)
     }
+}
+
+pub fn sort_order<I, T>(cols: I) -> Vec<spark::expression::SortOrder>
+where
+    T: ToExpr,
+    I: IntoIterator<Item = T>,
+{
+    cols.into_iter()
+        .map(|col| match col.to_expr().expr_type.unwrap() {
+            spark::expression::ExprType::SortOrder(ord) => *ord,
+            _ => spark::expression::SortOrder {
+                child: Some(Box::new(col.to_expr())),
+                direction: 1,
+                null_ordering: 1,
+            },
+        })
+        .collect()
 }
 
 fn serialize(batch: &RecordBatch) -> Result<Vec<u8>, SparkError> {

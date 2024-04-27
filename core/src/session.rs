@@ -4,21 +4,26 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::catalog::Catalog;
-use crate::client::ChannelBuilder;
-use crate::client::{MetadataInterceptor, SparkConnectClient};
 use crate::dataframe::{DataFrame, DataFrameReader};
-use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
 use crate::streaming::DataStreamReader;
+
+use crate::client::{ChannelBuilder, MetadataInterceptor, SparkConnectClient};
+use crate::errors::SparkError;
 use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use arrow::record_batch::RecordBatch;
 
 use parking_lot::RwLock;
 
-use tonic::service::interceptor::InterceptedService;
+#[cfg(not(feature = "wasm"))]
 use tonic::transport::{Channel, Endpoint};
+
+#[cfg(feature = "wasm")]
+use tonic_web_wasm_client::Client;
+
+use tonic::service::interceptor::InterceptedService;
 
 /// SparkSessionBuilder creates a remote Spark Session a connection string.
 ///
@@ -51,6 +56,7 @@ impl SparkSessionBuilder {
         Self::new(connection)
     }
 
+    #[cfg(not(feature = "wasm"))]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
         let channel = Endpoint::from_shared(self.channel_builder.endpoint())
             .expect("Failed to create endpoint")
@@ -60,6 +66,26 @@ impl SparkSessionBuilder {
 
         let service_client = SparkConnectServiceClient::with_interceptor(
             channel,
+            MetadataInterceptor::new(
+                self.channel_builder.token().to_owned(),
+                self.channel_builder.headers().to_owned(),
+            ),
+        );
+
+        let client = Arc::new(RwLock::new(service_client));
+
+        let spark_connnect_client =
+            SparkConnectClient::new(client.clone(), self.channel_builder.clone());
+
+        Ok(SparkSession::new(spark_connnect_client))
+    }
+
+    #[cfg(feature = "wasm")]
+    async fn create_client(&self) -> Result<SparkSession, SparkError> {
+        let inner = Client::new(self.channel_builder.endpoint());
+
+        let service_client = SparkConnectServiceClient::with_interceptor(
+            inner,
             MetadataInterceptor::new(
                 self.channel_builder.token().to_owned(),
                 self.channel_builder.headers().to_owned(),
@@ -86,14 +112,29 @@ impl SparkSessionBuilder {
 /// using the Spark Connection gRPC protocol.
 #[derive(Clone, Debug)]
 pub struct SparkSession {
+    #[cfg(not(feature = "wasm"))]
     client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+
+    #[cfg(feature = "wasm")]
+    client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
 
     session_id: String,
 }
 
 impl SparkSession {
+    #[cfg(not(feature = "wasm"))]
     pub fn new(
         client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+    ) -> Self {
+        Self {
+            session_id: client.session_id(),
+            client,
+        }
+    }
+
+    #[cfg(feature = "wasm")]
+    pub fn new(
+        client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
     ) -> Self {
         Self {
             session_id: client.session_id(),
@@ -177,7 +218,13 @@ impl SparkSession {
     }
 
     /// Spark Connection gRPC client interface
+    #[cfg(not(feature = "wasm"))]
     pub fn client(self) -> SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>> {
+        self.client
+    }
+
+    #[cfg(feature = "wasm")]
+    pub fn client(self) -> SparkConnectClient<InterceptedService<Client, MetadataInterceptor>> {
         self.client
     }
 }

@@ -21,8 +21,6 @@ use crate::spark;
 use crate::column::Column;
 use crate::types::ToDataType;
 
-use crate::impl_to_literal;
-
 const MICROSECONDS: i32 = 1000000;
 
 /// Translate string values into a `spark::Expression`
@@ -112,6 +110,18 @@ impl ToFilterExpr for &str {
 /// Translate a rust value into a literal type
 pub trait ToLiteral {
     fn to_literal(&self) -> spark::expression::Literal;
+}
+
+macro_rules! impl_to_literal {
+    ($type:ty, $inner_type:ident) => {
+        impl ToLiteral for $type {
+            fn to_literal(&self) -> spark::expression::Literal {
+                spark::expression::Literal {
+                    literal_type: Some(spark::expression::literal::LiteralType::$inner_type(*self)),
+                }
+            }
+        }
+    };
 }
 
 impl_to_literal!(bool, Boolean);

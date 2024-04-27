@@ -5,8 +5,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub};
 use crate::spark;
 
 use crate::expressions::{ToExpr, ToLiteralExpr};
-use crate::functions::lit;
-use crate::utils::invoke_func;
+use crate::functions::invoke_func;
 use crate::window::WindowSpec;
 
 /// # Column
@@ -253,44 +252,32 @@ impl Column {
     /// df.filter(col("name").contains("ge"));
     /// ```
     pub fn contains<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("contains", vec![self, value])
+        invoke_func("contains", vec![self.to_expr(), other.to_literal_expr()])
     }
 
     /// A filter expression that evaluates if the column startswith a string literal
     pub fn startswith<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("startswith", vec![self, value])
+        invoke_func("startswith", vec![self.to_expr(), other.to_literal_expr()])
     }
 
     /// A filter expression that evaluates if the column endswith a string literal
     pub fn endswith<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("endswith", vec![self, value])
+        invoke_func("endswith", vec![self.to_expr(), other.to_literal_expr()])
     }
 
     /// A SQL LIKE filter expression that evaluates the column based on a case sensitive match
     pub fn like<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("like", vec![self, value])
+        invoke_func("like", vec![self.to_expr(), other.to_literal_expr()])
     }
 
     /// A SQL ILIKE filter expression that evaluates the column based on a case insensitive match
     pub fn ilike<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("ilike", vec![self, value])
+        invoke_func("ilike", vec![self.to_expr(), other.to_literal_expr()])
     }
 
     /// A SQL RLIKE filter expression that evaluates the column based on a regex match
     pub fn rlike<T: ToLiteralExpr>(self, other: T) -> Column {
-        let value = lit(other);
-
-        invoke_func("rlike", vec![self, value])
+        invoke_func("rlike", vec![self.to_expr(), other.to_literal_expr()])
     }
 
     /// Equality comparion. Cannot overload the '==' and return something other

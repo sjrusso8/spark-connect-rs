@@ -1,12 +1,26 @@
 //! Rust Types to Spark Types
 
-use crate::impl_to_data_type;
 use crate::spark;
 
 pub trait ToDataType {
     fn to_proto_type(&self) -> spark::DataType;
 }
 
+macro_rules! impl_to_data_type {
+    ($type:ty, $inner_type:ident) => {
+        impl ToDataType for $type {
+            fn to_proto_type(&self) -> spark::DataType {
+                spark::DataType {
+                    kind: Some(spark::data_type::Kind::$inner_type(
+                        spark::data_type::$inner_type {
+                            type_variation_reference: 0,
+                        },
+                    )),
+                }
+            }
+        }
+    };
+}
 // Call the macro with the input pairs
 impl_to_data_type!(bool, Boolean);
 impl_to_data_type!(i16, Short);

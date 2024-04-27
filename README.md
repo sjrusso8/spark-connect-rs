@@ -13,6 +13,16 @@ of interacting with Spark cluster from rust.
 
 The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://spark.apache.org/docs/latest/spark-connect-overview.html), and provide *similar* DataFrame API interactions.
 
+## Project Layout
+
+```
+├── core       <- core implementation in Rust
+│   └─ spark   <- git submodule for apache/spark
+├── rust       <- shim for 'spark-connect-rs' from core
+```
+
+Future state would be to have additional bindings for other languages along side the top level `rust` folder.
+
 ## Getting Started
 
 This section explains how run Spark Connect Rust locally starting from 0.

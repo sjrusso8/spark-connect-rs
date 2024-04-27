@@ -1,7 +1,7 @@
 //! Utility structs for defining a window over a DataFrame
 
 use crate::expressions::{ToExpr, ToLiteralExpr, ToVecExpr};
-use crate::utils::sort_order;
+use crate::plan::sort_order;
 
 use crate::spark;
 use crate::spark::expression::window;
