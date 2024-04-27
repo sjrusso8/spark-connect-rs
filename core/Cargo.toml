@@ -1,0 +1,63 @@
+[package]
+name = "spark-connect-core"
+version = "0.0.0"
+authors.workspace = true
+keywords.workspace = true
+readme.workspace = true
+edition.workspace = true
+homepage.workspace = true
+description.workspace = true
+license.workspace = true
+documentation.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tonic = { workspace = true, default-features = false, optional = true }
+tonic-web-wasm-client = { workspace = true, optional = true }
+
+tokio = { workspace = true, optional = true }
+
+arrow = { workspace = true }
+arrow-ipc = { workspace = true }
+
+serde_json = { workspace = true }
+
+parking_lot = { workspace = true }
+
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+rand = { workspace = true }
+uuid = { workspace = true }
+url =  { workspace = true }
+
+chrono = { workspace = true }
+
+getrandom = { workspace = true, optional = true }
+
+[build-dependencies]
+tonic-build = "0.11.0"
+
+[lib]
+doctest = false
+
+[features]
+default = [
+  "tokio",
+  "tonic/codegen",
+  "tonic/prost",
+  "tonic/transport",
+]
+
+tls = [
+  "tonic/tls",
+  "tonic/tls-roots"
+]
+
+wasm = [
+ "tonic-web-wasm-client",
+ "tonic/codegen",
+ "tonic/prost",
+ "getrandom/js",
+]

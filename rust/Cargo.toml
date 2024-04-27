@@ -1,0 +1,46 @@
+[package]
+name = "spark-connect-rs"
+version = "0.0.1-beta.3"
+authors.workspace = true
+keywords.workspace = true
+readme.workspace = true
+edition.workspace = true
+homepage.workspace = true
+description.workspace = true
+license.workspace = true
+documentation.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+include = [
+    "examples/**/*",
+]
+
+[dependencies]
+tokio = { workspace = true }
+
+spark-connect-core = { version = "0.0.0", path = "../core" }
+
+[features]
+tls = ["spark-connect-core/tls"]
+
+[lib]
+doctest = false
+
+[[example]]
+name = "reader"
+
+[[example]]
+name = "sql"
+
+[[example]]
+name = "writer"
+
+[[example]]
+name = "delta"
+
+[[example]]
+name = "readstream"
+
+[[example]]
+name = "databricks"
+required-features = ["tls"]

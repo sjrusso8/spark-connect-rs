@@ -10,10 +10,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_paths.push(entry.to_str().unwrap().to_string());
     }
 
+    #[cfg(feature = "wasm")]
+    let transport = false;
+    #[cfg(not(feature = "wasm"))]
+    let transport = true;
+
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .build_server(false)
         .build_client(true)
+        .build_transport(transport)
         .compile(
             file_paths.as_ref(),
             &["./spark/connector/connect/common/src/main/protobuf"],

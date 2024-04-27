@@ -4,8 +4,7 @@ use crate::dataframe::DataFrame;
 use crate::expressions::{ToExpr, ToLiteral, ToVecExpr};
 use crate::plan::LogicalPlanBuilder;
 
-use crate::functions::lit;
-use crate::utils::invoke_func;
+use crate::functions::{invoke_func, lit};
 
 use crate::spark;
 use crate::spark::aggregate::GroupType;

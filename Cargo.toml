@@ -1,67 +1,39 @@
-[package]
-name = "spark-connect-rs"
-version = "0.0.1-beta.3"
-edition = "2021"
-license = "Apache-2.0"
-description = "Apache Spark Connect Client for Rust"
+[workspace]
+members = ["core", "rust"]
+resolver = "2"
+
+[workspace.package]
+authors = ["Steve Russo <64294847+sjrusso8@users.noreply.github.com>"]
 keywords = ["spark", "spark_connect"]
-documentation = "https://docs.rs/spark-connect-rs"
 readme = "README.md"
+edition = "2021"
 homepage = "https://github.com/sjrusso8/spark-connect-rs"
+description = "Apache Spark Connect Client for Rust"
+license = "Apache-2.0"
+documentation = "https://docs.rs/spark-connect-rs"
 repository = "https://github.com/sjrusso8/spark-connect-rs"
-include = [
-    "build.rs",
-    "docker-compose.yml",
-    "examples/**/*",
-    "src/**/*",
-    "spark/connector/connect/common/src/main/protobuf/spark/**/*",
-]
+rust-version = "1.76"
 
-[dependencies]
-tonic = { version ="0.11.0"}
-tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
-tokio-rustls = "0.26.0"
+[workspace.dependencies]
+tonic = { version ="0.11", default-features = false }
+tonic-web-wasm-client = { version = "0.5" }
 
-arrow = { version = "51.0.0", features = ["prettyprint"] }
-arrow-ipc = "51.0.0"
+tokio = { version = "1.37", default-features = false, features = ["macros", "rt-multi-thread"] }
 
-serde_json = "1.0.115"
+arrow = { version = "51", features = ["prettyprint"] }
+arrow-ipc = { version = "51" }
 
-parking_lot = { version = "0.12.1", features = ["send_guard"]}
+serde_json = { version = "1" }
 
-prost = "0.12.0"
-prost-types = "0.12.0"
+parking_lot = { version = "0.12", features = ["send_guard"]}
 
-rand = "0.8.5"
-uuid = { version = "1.8.0", features = ["v4"] }
-url = "2.5"
+prost = { version = "0.12" }
+prost-types = { version = "0.12" }
 
-chrono = "0.4.35"
+rand = { version = "0.8" }
+uuid = { version = "1.8", features = ["v4"] }
+url = { version = "2.5" }
 
-[build-dependencies]
-tonic-build = "0.11.0"
+chrono = { version = "0.4" }
 
-[lib]
-doctest = false
-
-[features]
-tls = ["tonic/tls", "tonic/tls-roots"]
-
-[[example]]
-name = "reader"
-
-[[example]]
-name = "sql"
-
-[[example]]
-name = "writer"
-
-[[example]]
-name = "delta"
-
-[[example]]
-name = "readstream"
-
-[[example]]
-name = "databricks"
-required-features = ["tls"]
+getrandom = { version = "0.2" }
