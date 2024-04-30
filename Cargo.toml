@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "rust"]
+members = ["core", "node", "rust"]
 resolver = "2"
 
 [workspace.package]

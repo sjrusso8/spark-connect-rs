@@ -1,0 +1,20 @@
+[package]
+edition.workspace = true
+name = "spark-connect-node"
+version = "0.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2.16", default-features = false, features = ["napi8", "async"] }
+napi-derive = "2.16"
+
+spark-connect-core = { version = "0.0.0", path = "../core" }
+
+[build-dependencies]
+napi-build = "2.1"
+
+[profile.release]
+lto = true
+strip = "symbols"
