@@ -221,6 +221,7 @@ mod tests {
         datatypes::{DataType, Field, Schema},
         record_batch::RecordBatch,
     };
+
     use std::sync::Arc;
 
     use super::*;

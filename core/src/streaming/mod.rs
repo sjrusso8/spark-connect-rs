@@ -13,7 +13,7 @@ use crate::errors::SparkError;
 /// DataStreamReader represents the entrypoint to create a streaming DataFrame
 #[derive(Clone, Debug)]
 pub struct DataStreamReader {
-    spark_session: SparkSession,
+    spark_session: Box<SparkSession>,
     format: Option<String>,
     schema: Option<String>,
     read_options: HashMap<String, String>,
@@ -22,7 +22,7 @@ pub struct DataStreamReader {
 impl DataStreamReader {
     pub fn new(spark_session: SparkSession) -> Self {
         Self {
-            spark_session,
+            spark_session: Box::new(spark_session),
             format: None,
             schema: None,
             read_options: HashMap::new(),
@@ -87,9 +87,12 @@ impl DataStreamReader {
             rel_type: read_type,
         };
 
-        let logical_plan = LogicalPlanBuilder::new(relation);
+        let plan = LogicalPlanBuilder::new(relation);
 
-        Ok(DataFrame::new(self.spark_session, logical_plan))
+        Ok(DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        })
     }
 }
 
@@ -212,7 +215,7 @@ impl DataStreamWriter {
         sink: Option<spark::write_stream_operation_start::SinkDestination>,
     ) -> Result<StreamingQuery, SparkError> {
         let ops = spark::WriteStreamOperationStart {
-            input: Some(self.dataframe.logical_plan.clone().relation()),
+            input: Some(self.dataframe.plan.clone().relation()),
             format: self.format.unwrap(),
             options: self.write_options,
             partitioning_column_names: self.partition_by,
@@ -228,18 +231,16 @@ impl DataStreamWriter {
 
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
 
-        let res = self
-            .dataframe
-            .spark_session
-            .clone()
-            .client()
+        let mut client = self.dataframe.spark_session.clone().client();
+
+        let operation_start_resp = client
             .execute_command_and_fetch(plan)
             .await?
             .write_stream_operation_start_result;
 
         Ok(StreamingQuery::new(
             self.dataframe.spark_session,
-            res.unwrap(),
+            operation_start_resp.unwrap(),
         ))
     }
 
@@ -270,7 +271,7 @@ impl DataStreamWriter {
 /// This object is used to control and monitor the active stream
 #[derive(Clone, Debug)]
 pub struct StreamingQuery {
-    spark_session: SparkSession,
+    spark_session: Box<SparkSession>,
     query_instance: spark::StreamingQueryInstanceId,
     query_id: String,
     run_id: String,
@@ -279,7 +280,7 @@ pub struct StreamingQuery {
 
 impl StreamingQuery {
     pub fn new(
-        spark_session: SparkSession,
+        spark_session: Box<SparkSession>,
         write_stream: spark::WriteStreamOperationStartResult,
     ) -> Self {
         let query_instance = write_stream.query_id.unwrap();
@@ -318,9 +319,9 @@ impl StreamingQuery {
 
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
 
-        let status = self
-            .spark_session
-            .client()
+        let mut client = self.spark_session.clone().client();
+
+        let status = client
             .execute_command_and_fetch(plan)
             .await?
             .streaming_query_command_result
@@ -347,9 +348,9 @@ impl StreamingQuery {
 
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
 
-        let status = self
-            .spark_session
-            .client()
+        let mut client = self.spark_session.clone().client();
+
+        let status = client
             .execute_command_and_fetch(plan)
             .await?
             .streaming_query_command_result
@@ -375,9 +376,9 @@ impl StreamingQuery {
 
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
 
-        let status = self
-            .spark_session
-            .client()
+        let mut client = self.spark_session.clone().client();
+
+        let status = client
             .execute_command_and_fetch(plan)
             .await?
             .streaming_query_command_result
@@ -407,9 +408,9 @@ impl StreamingQuery {
 
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
 
-        let status = self
-            .spark_session
-            .client()
+        let mut client = self.spark_session.clone().client();
+
+        let status = client
             .execute_command_and_fetch(plan)
             .await?
             .streaming_query_command_result
@@ -443,8 +444,9 @@ impl StreamingQuery {
 
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
 
-        self.spark_session
-            .client()
+        let mut client = self.spark_session.clone().client();
+
+        client
             .execute_command_and_fetch(plan)
             .await?
             .streaming_query_command_result
