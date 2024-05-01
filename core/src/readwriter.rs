@@ -238,7 +238,7 @@ impl DataFrameWriter {
     /// The data source is specified by the `format` and a set of `options`.
     pub async fn save(self, path: &str) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
-            input: Some(self.dataframe.logical_plan.clone().relation()),
+            input: Some(self.dataframe.plan.clone().relation()),
             source: self.format,
             mode: self.mode.into(),
             sort_column_names: self.sort_by,
@@ -259,7 +259,7 @@ impl DataFrameWriter {
 
     async fn save_table(self, table_name: &str, save_method: i32) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
-            input: Some(self.dataframe.logical_plan.relation()),
+            input: Some(self.dataframe.plan.relation()),
             source: self.format,
             mode: self.mode.into(),
             sort_column_names: self.sort_by,

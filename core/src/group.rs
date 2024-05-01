@@ -37,8 +37,8 @@ impl GroupedData {
 
     /// Compute aggregates and returns the result as a [DataFrame]
     pub fn agg<T: ToVecExpr>(self, exprs: T) -> DataFrame {
-        let logical_plan = LogicalPlanBuilder::aggregate(
-            self.df.logical_plan,
+        let plan = LogicalPlanBuilder::aggregate(
+            self.df.plan,
             self.group_type,
             self.grouping_cols,
             exprs,
@@ -46,7 +46,10 @@ impl GroupedData {
             self.pivot_vals,
         );
 
-        DataFrame::new(self.df.spark_session, logical_plan)
+        DataFrame {
+            spark_session: self.df.spark_session,
+            plan,
+        }
     }
 
     /// Computes average values for each numeric columns for each group.

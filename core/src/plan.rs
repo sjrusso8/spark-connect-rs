@@ -634,7 +634,7 @@ impl LogicalPlanBuilder {
     }
 }
 
-pub fn sort_order<I, T>(cols: I) -> Vec<spark::expression::SortOrder>
+pub(crate) fn sort_order<I, T>(cols: I) -> Vec<spark::expression::SortOrder>
 where
     T: ToExpr,
     I: IntoIterator<Item = T>,
@@ -651,7 +651,7 @@ where
         .collect()
 }
 
-fn serialize(batch: &RecordBatch) -> Result<Vec<u8>, SparkError> {
+pub(crate) fn serialize(batch: &RecordBatch) -> Result<Vec<u8>, SparkError> {
     let buffer: Vec<u8> = Vec::new();
     let schema = &batch.schema();
 
