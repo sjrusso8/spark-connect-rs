@@ -13,3 +13,11 @@ services:
     ports:
       - "4040:4040"
       - "15002:15002"
+
+  envoy:
+    image: "envoyproxy/envoy:dev"
+    ports:
+      - "8080:8080"
+      - "9901:9901"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml

@@ -82,7 +82,11 @@ impl SparkSessionBuilder {
 
     #[cfg(feature = "wasm")]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
-        let inner = Client::new(self.channel_builder.endpoint());
+        // Need to switch to http for the test on wasi to work
+        // Unsure if this is always needed for wasm
+        let channel = self.channel_builder.endpoint().replace("https", "http");
+
+        let inner = Client::new(channel);
 
         let service_client = SparkConnectServiceClient::with_interceptor(
             inner,
