@@ -13,6 +13,7 @@ repository.workspace = true
 rust-version.workspace = true
 include = [
     "examples/**/*",
+    "src/**/*"
 ]
 
 [dependencies]
