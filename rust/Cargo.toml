@@ -1,6 +1,6 @@
 [package]
 name = "spark-connect-rs"
-version = "0.0.1-beta.3"
+version = "0.0.1-beta.4"
 authors.workspace = true
 keywords.workspace = true
 readme.workspace = true
@@ -18,7 +18,7 @@ include = [
 [dependencies]
 tokio = { workspace = true }
 
-spark-connect-core = { version = "0.0.0", path = "../core" }
+spark-connect-core = { version = "0.0.1-beta.4", path = "../core" }
 
 [features]
 tls = ["spark-connect-core/tls"]

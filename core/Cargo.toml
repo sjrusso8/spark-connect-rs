@@ -1,6 +1,6 @@
 [package]
 name = "spark-connect-core"
-version = "0.0.0"
+version = "0.0.1-beta.4"
 authors.workspace = true
 keywords.workspace = true
 readme.workspace = true
