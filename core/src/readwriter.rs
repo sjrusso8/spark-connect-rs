@@ -9,6 +9,8 @@ use crate::spark;
 use crate::DataFrame;
 
 use spark::write_operation::SaveMode;
+use spark::write_operation_v2::Mode;
+use spark::Expression;
 
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
@@ -302,6 +304,105 @@ impl DataFrameWriter {
     }
 }
 
+pub struct DataFrameWriterV2 {
+    dataframe: DataFrame,
+    table: String,
+    provider: Option<String>,
+    options: HashMap<String, String>,
+    properties: HashMap<String, String>,
+    partitioning: Vec<Expression>,
+    overwrite_condition: Option<Expression>,
+}
+
+impl DataFrameWriterV2 {
+    pub fn new<T: ToString>(dataframe: DataFrame, table: T) -> Self {
+        Self {
+            dataframe,
+            table: table.to_string(),
+            provider: None,
+            options: HashMap::new(),
+            properties: HashMap::new(),
+            partitioning: vec![],
+            overwrite_condition: None,
+        }
+    }
+
+    pub fn using<P: ToString>(mut self, provider: P) -> Self {
+        self.provider.replace(provider.to_string());
+        self
+    }
+
+    pub fn option<K: ToString, V: ToString>(mut self, key: K, value: V) -> Self {
+        self.options.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn options(mut self, provider: HashMap<String, String>) -> Self {
+        self.options.extend(provider.into_iter());
+        self
+    }
+
+    #[allow(non_snake_case)]
+    pub fn tableProperty<P: ToString, V: ToString>(mut self, property: P, value: V) -> Self {
+        self.properties
+            .insert(property.to_string(), value.to_string());
+        self
+    }
+
+    #[allow(non_snake_case)]
+    pub fn partitionBy(mut self, columns: Vec<Expression>) -> Self {
+        self.partitioning = columns;
+        self
+    }
+
+    pub async fn create(mut self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Create).await
+    }
+
+    pub async fn replace(mut self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Replace).await
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn createOrReplace(mut self) -> Result<(), SparkError> {
+        self.execute_write(Mode::CreateOrReplace).await
+    }
+
+    pub async fn append(mut self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Append).await
+    }
+
+    pub async fn overwrite(mut self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Overwrite).await
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn overwritePartitions(mut self) -> Result<(), SparkError> {
+        self.execute_write(Mode::OverwritePartitions).await
+    }
+
+    async fn execute_write(self, mode: Mode) -> Result<(), SparkError> {
+        let mut builder = spark::WriteOperationV2 {
+            input: Some(self.dataframe.plan.relation()),
+            table_name: self.table,
+            provider: self.provider,
+            partitioning_columns: self.partitioning.unwrap_or_default(),
+            options: self.options,
+            table_properties: self.properties,
+            mode: 0,
+            overwrite_condition: self.overwrite_condition,
+        };
+        builder.set_mode(mode);
+        let cmd = spark::command::CommandType::WriteOperationV2(builder);
+        let plan = LogicalPlanBuilder::plan_cmd(cmd);
+        self.dataframe
+            .spark_session
+            .client()
+            .execute_command(plan)
+            .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -392,6 +493,27 @@ mod tests {
 
         assert_eq!(records.num_rows(), 1000);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframev2_write() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        let table = "employees";
+
+        df.writeTo(table).using("csv").create().await?;
+
+        let df = spark.clone().table(table)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
         Ok(())
     }
 }
