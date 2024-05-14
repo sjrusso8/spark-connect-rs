@@ -21,7 +21,6 @@ spark-connect-core = { version = "0.0.1-beta.4", path = "../core" }
 
 [dev-dependencies]
 tokio = { workspace = true }
-chrono = { workspace = true }
 
 [features]
 tls = ["spark-connect-core/tls"]
@@ -44,8 +43,6 @@ name = "delta"
 [[example]]
 name = "readstream"
 
-[[example]]
-name = "types"
 [[example]]
 name = "databricks"
 required-features = ["tls"]
