@@ -355,29 +355,29 @@ impl DataFrameWriterV2 {
         self
     }
 
-    pub async fn create(mut self) -> Result<(), SparkError> {
+    pub async fn create(self) -> Result<(), SparkError> {
         self.execute_write(Mode::Create).await
     }
 
-    pub async fn replace(mut self) -> Result<(), SparkError> {
+    pub async fn replace(self) -> Result<(), SparkError> {
         self.execute_write(Mode::Replace).await
     }
 
     #[allow(non_snake_case)]
-    pub async fn createOrReplace(mut self) -> Result<(), SparkError> {
+    pub async fn createOrReplace(self) -> Result<(), SparkError> {
         self.execute_write(Mode::CreateOrReplace).await
     }
 
-    pub async fn append(mut self) -> Result<(), SparkError> {
+    pub async fn append(self) -> Result<(), SparkError> {
         self.execute_write(Mode::Append).await
     }
 
-    pub async fn overwrite(mut self) -> Result<(), SparkError> {
+    pub async fn overwrite(self) -> Result<(), SparkError> {
         self.execute_write(Mode::Overwrite).await
     }
 
     #[allow(non_snake_case)]
-    pub async fn overwritePartitions(mut self) -> Result<(), SparkError> {
+    pub async fn overwritePartitions(self) -> Result<(), SparkError> {
         self.execute_write(Mode::OverwritePartitions).await
     }
 
@@ -386,7 +386,7 @@ impl DataFrameWriterV2 {
             input: Some(self.dataframe.plan.relation()),
             table_name: self.table,
             provider: self.provider,
-            partitioning_columns: self.partitioning.unwrap_or_default(),
+            partitioning_columns: self.partitioning,
             options: self.options,
             table_properties: self.properties,
             mode: 0,
