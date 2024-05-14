@@ -11,6 +11,7 @@ use crate::DataFrame;
 use spark::write_operation::SaveMode;
 use spark::write_operation_v2::Mode;
 use spark::Expression;
+use crate::expressions::ToVecExpr;
 
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
@@ -350,8 +351,8 @@ impl DataFrameWriterV2 {
     }
 
     #[allow(non_snake_case)]
-    pub fn partitionBy(mut self, columns: Vec<Expression>) -> Self {
-        self.partitioning = columns;
+    pub fn partitionBy<T: ToVecExpr>(mut self, columns: T) -> Self {
+        self.partitioning = columns.to_vec_expr();
         self
     }
 
