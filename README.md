@@ -618,8 +618,8 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | YearMonthInterval  |                     | ![open] |
 | DayTimeInterval    |                     | ![open] |
 | Array              | `slice` / `Vec`     | ![done] |
-| Map                |                     | ![open] |
-| Struct             |                     | ![open] |
+| Map                | Create with the function `create_map` | ![done] |
+| Struct             | Create with the function `struct_col` or `named_struct` | ![done] |
 
 
 ### Window & WindowSpec

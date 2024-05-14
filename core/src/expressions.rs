@@ -16,10 +16,7 @@
 //! - [ToFilterExpr] is specifically used for filter statements
 //!
 
-use std::collections::HashMap;
-
 use crate::spark;
-use crate::spark::expression::Literal;
 
 use crate::column::Column;
 use crate::types::ToDataType;
@@ -282,41 +279,6 @@ where
             expr_type: Some(spark::expression::ExprType::Literal(
                 spark::expression::Literal {
                     literal_type: Some(spark::expression::literal::LiteralType::Array(array_type)),
-                },
-            )),
-        }
-    }
-}
-
-/// Create a Spark MapType from a hashmap
-impl<K, V> ToLiteralExpr for HashMap<K, V>
-where
-    K: ToDataType + ToLiteral,
-    V: ToDataType + ToLiteral,
-{
-    fn to_literal_expr(&self) -> spark::Expression {
-        let (key_type, value_type) = self
-            .iter()
-            .map(|(k, v)| (Some(k.to_proto_type()), Some(v.to_proto_type())))
-            .next()
-            .unwrap(); // Provide default types if hashmap is empty
-
-        let (keys, values): (Vec<Literal>, Vec<Literal>) = self
-            .iter()
-            .map(|(k, v)| (k.to_literal(), v.to_literal()))
-            .unzip();
-
-        let map_type = spark::expression::literal::Map {
-            key_type,
-            value_type,
-            keys,
-            values,
-        };
-
-        spark::Expression {
-            expr_type: Some(spark::expression::ExprType::Literal(
-                spark::expression::Literal {
-                    literal_type: Some(spark::expression::literal::LiteralType::Map(map_type)),
                 },
             )),
         }
