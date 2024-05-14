@@ -1027,7 +1027,8 @@ impl DataFrame {
         DataFrameWriter::new(self)
     }
 
-    pub fn writeTo<T: ToString>(self, table: T) -> DataFrameWriterV2 {
+    #[allow(non_snake_case)]
+    pub fn writeTo(self, table: &str) -> DataFrameWriterV2 {
         DataFrameWriterV2::new(self, table)
     }
 

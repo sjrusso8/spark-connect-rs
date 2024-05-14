@@ -315,7 +315,7 @@ pub struct DataFrameWriterV2 {
 }
 
 impl DataFrameWriterV2 {
-    pub fn new<T: ToString>(dataframe: DataFrame, table: T) -> Self {
+    pub fn new(dataframe: DataFrame, table: &str) -> Self {
         Self {
             dataframe,
             table: table.to_string(),
@@ -327,23 +327,23 @@ impl DataFrameWriterV2 {
         }
     }
 
-    pub fn using<P: ToString>(mut self, provider: P) -> Self {
+    pub fn using(mut self, provider: &str) -> Self {
         self.provider.replace(provider.to_string());
         self
     }
 
-    pub fn option<K: ToString, V: ToString>(mut self, key: K, value: V) -> Self {
+    pub fn option(mut self, key: &str, value: &str) -> Self {
         self.options.insert(key.to_string(), value.to_string());
         self
     }
 
     pub fn options(mut self, provider: HashMap<String, String>) -> Self {
-        self.options.extend(provider.into_iter());
+        self.options.extend(provider);
         self
     }
 
     #[allow(non_snake_case)]
-    pub fn tableProperty<P: ToString, V: ToString>(mut self, property: P, value: V) -> Self {
+    pub fn tableProperty(mut self, property: &str, value: &str) -> Self {
         self.properties
             .insert(property.to_string(), value.to_string());
         self
