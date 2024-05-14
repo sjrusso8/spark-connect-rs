@@ -8,10 +8,10 @@ use crate::session::SparkSession;
 use crate::spark;
 use crate::DataFrame;
 
+use crate::expressions::ToVecExpr;
 use spark::write_operation::SaveMode;
 use spark::write_operation_v2::Mode;
 use spark::Expression;
-use crate::expressions::ToVecExpr;
 
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
