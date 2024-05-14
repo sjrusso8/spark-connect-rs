@@ -1639,6 +1639,7 @@ dependencies = [
 name = "spark-connect-rs"
 version = "0.0.1-beta.4"
 dependencies = [
+ "chrono",
  "spark-connect-core",
  "tokio",
 ]

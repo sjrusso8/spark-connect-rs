@@ -601,7 +601,7 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | Spark Literal Type | Rust Type           | Status  |
 |--------------------|---------------------|---------|
 | Null               |                     | ![open] |
-| Binary             |                     | ![open] |
+| Binary             | `&[u8]`             | ![done] |
 | Boolean            | `bool`              | ![done] |
 | Byte               |                     | ![open] |
 | Short              | `i16`               | ![done] |
@@ -612,8 +612,8 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | Decimal            |                     | ![open] |
 | String             | `&str` / `String`   | ![done] |
 | Date               | `chrono::NaiveDate` | ![done] |
-| Timestamp          |                     | ![open] |
-| TimestampNtz       | `chrono::TimeZone`  | ![done] |
+| Timestamp          | `chrono::DateTime<Tz>`  | ![done] |
+| TimestampNtz       | `chrono::NaiveDateTime` | ![done] |
 | CalendarInterval   |                     | ![open] |
 | YearMonthInterval  |                     | ![open] |
 | DayTimeInterval    |                     | ![open] |
