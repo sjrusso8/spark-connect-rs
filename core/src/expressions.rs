@@ -21,8 +21,6 @@ use crate::spark;
 use crate::column::Column;
 use crate::types::ToDataType;
 
-const MICROSECONDS: i32 = 1000000;
-
 /// Translate string values into a `spark::Expression`
 pub trait ToExpr {
     fn to_expr(&self) -> spark::Expression;
@@ -130,6 +128,16 @@ impl_to_literal!(i64, Long);
 impl_to_literal!(f32, Float);
 impl_to_literal!(f64, Double);
 
+impl ToLiteral for &[u8] {
+    fn to_literal(&self) -> spark::expression::Literal {
+        spark::expression::Literal {
+            literal_type: Some(spark::expression::literal::LiteralType::Binary(Vec::from(
+                *self,
+            ))),
+        }
+    }
+}
+
 impl ToLiteral for i16 {
     fn to_literal(&self) -> spark::expression::Literal {
         spark::expression::Literal {
@@ -161,7 +169,20 @@ impl ToLiteral for &str {
 impl<Tz: chrono::TimeZone> ToLiteral for chrono::DateTime<Tz> {
     fn to_literal(&self) -> spark::expression::Literal {
         // timestamps for spark have to be the microsends since 1/1/1970
-        let timestamp = self.timestamp() * MICROSECONDS as i64;
+        let timestamp = self.timestamp_micros();
+
+        spark::expression::Literal {
+            literal_type: Some(spark::expression::literal::LiteralType::Timestamp(
+                timestamp,
+            )),
+        }
+    }
+}
+
+impl ToLiteral for chrono::NaiveDateTime {
+    fn to_literal(&self) -> spark::expression::Literal {
+        // timestamps for spark have to be the microsends since 1/1/1970
+        let timestamp = self.and_utc().timestamp_micros();
 
         spark::expression::Literal {
             literal_type: Some(spark::expression::literal::LiteralType::TimestampNtz(
@@ -208,7 +229,7 @@ impl ToLiteralExpr for Column {
     }
 }
 
-/// Create an Array Spark Type from a Vec
+/// Create a Spark ArrayType from a vec
 impl<T> ToLiteralExpr for Vec<T>
 where
     T: ToDataType + ToLiteral,
@@ -236,7 +257,7 @@ where
     }
 }
 
-/// Create an Array Spark Type from a Slice
+/// Create a Spark ArrayType from a slice
 impl<const N: usize, T> ToLiteralExpr for [T; N]
 where
     T: ToDataType + ToLiteral,

@@ -70,7 +70,7 @@ impl From<&str> for Column {
                 expr_type: Some(spark::expression::ExprType::UnresolvedAttribute(
                     spark::expression::UnresolvedAttribute {
                         unparsed_identifier: value.to_string(),
-                        plan_id: Some(1),
+                        plan_id: None,
                     },
                 )),
             },

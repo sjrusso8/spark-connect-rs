@@ -17,9 +17,10 @@ include = [
 ]
 
 [dependencies]
-tokio = { workspace = true }
-
 spark-connect-core = { version = "0.0.1-beta.4", path = "../core" }
+
+[dev-dependencies]
+tokio = { workspace = true }
 
 [features]
 tls = ["spark-connect-core/tls"]

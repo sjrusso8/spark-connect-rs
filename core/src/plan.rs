@@ -1,7 +1,8 @@
 //! Logical Plan representation
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::atomic::AtomicI64;
+use std::sync::atomic::Ordering::SeqCst;
 
 use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
@@ -24,21 +25,11 @@ pub struct LogicalPlanBuilder {
     plan_id: i64,
 }
 
-#[allow(clippy::declare_interior_mutable_const)]
+static NEXT_PLAN_ID: AtomicI64 = AtomicI64::new(1);
+
 impl LogicalPlanBuilder {
-    const NEXT_PLAN_ID: Mutex<i64> = Mutex::new(1);
-
-    #[allow(clippy::clone_on_copy)]
     fn next_plan_id() -> i64 {
-        let binding = LogicalPlanBuilder::NEXT_PLAN_ID;
-
-        let mut next_plan_id = binding.lock().expect("Could not lock plan");
-
-        let plan_id = next_plan_id.clone();
-
-        *next_plan_id += 1;
-
-        plan_id
+        NEXT_PLAN_ID.fetch_add(1, SeqCst)
     }
 
     /// Create a new Logical Plan from an initial [spark::Relation]
