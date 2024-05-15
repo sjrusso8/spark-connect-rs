@@ -282,8 +282,11 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | desc             | ![done] |                                                                              |
 | desc_nulls_first | ![done] |                                                                              |
 | desc_nulls_last  | ![done] |                                                                              |
-| dropFields       | ![open] |                                                                              |
+| dropFields       | ![done] |                                                                              |
 | endswith         | ![done] |                                                                              |
+| eqNullSafe       | ![open] |                                                                              |
+| getField         | ![open] | This is depreciated but will need to be implemented                          |
+| getItem          | ![open] | This is depreciated but will need to be implemented                          |
 | ilike            | ![done] |                                                                              |
 | isNotNull        | ![done] |                                                                              |
 | isNull           | ![done] |                                                                              |
@@ -296,6 +299,7 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | startswith       | ![done] |                                                                              |
 | substr           | ![open] |                                                                              |
 | when             | ![open] |                                                                              |
+| withField        | ![done] |                                                                              |
 | eq `==`          | ![done] | Rust does not like when you try to overload `==` and return something other than a `bool`. Currently implemented column equality like `col('name').eq(col('id'))`. Not the best, but it works for now                                                                           |
 | addition `+`     | ![done] |                                                                              |
 | subtration `-`   | ![done] |                                                                              |

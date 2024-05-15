@@ -720,7 +720,6 @@ mod tests {
         ]));
 
         let expected = RecordBatch::try_from_iter(vec![("struct", struct_array)])?;
-        println!("{:?}", &res);
 
         assert_eq!(res, expected);
         Ok(())
@@ -936,6 +935,68 @@ mod tests {
         let res = df.select(least(["a", "b", "c"])).collect().await?;
 
         let expected = RecordBatch::try_from_iter(vec![("least(a, b, c)", a)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_col_drop_fields() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark.range(None, 1, 1, None).select(
+            named_struct([
+                lit("a"),
+                lit(1),
+                lit("b"),
+                lit(2),
+                lit("c"),
+                lit(3),
+                lit("d"),
+                lit(4),
+            ])
+            .alias("struct_col"),
+        );
+
+        let df = df.select(col("struct_col").dropFields(["b", "c"]).alias("struct_col"));
+
+        let res = df.collect().await?;
+
+        let a: ArrayRef = Arc::new(Int32Array::from(vec![1]));
+        let d: ArrayRef = Arc::new(Int32Array::from(vec![4]));
+
+        let struct_array: ArrayRef = Arc::new(StructArray::from(vec![
+            (Arc::new(Field::new("a", DataType::Int32, false)), a),
+            (Arc::new(Field::new("d", DataType::Int32, false)), d),
+        ]));
+
+        let expected = RecordBatch::try_from_iter(vec![("struct_col", struct_array)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_col_with_field() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .range(None, 1, 1, None)
+            .select(named_struct([lit("a"), lit(1), lit("b"), lit(2)]).alias("struct_col"));
+
+        let df = df.select(col("struct_col").withField("b", lit(4)).alias("struct_col"));
+
+        let res = df.collect().await?;
+
+        let a: ArrayRef = Arc::new(Int32Array::from(vec![1]));
+        let b: ArrayRef = Arc::new(Int32Array::from(vec![4]));
+
+        let struct_array: ArrayRef = Arc::new(StructArray::from(vec![
+            (Arc::new(Field::new("a", DataType::Int32, false)), a),
+            (Arc::new(Field::new("b", DataType::Int32, false)), b),
+        ]));
+
+        let expected = RecordBatch::try_from_iter(vec![("struct_col", struct_array)])?;
 
         assert_eq!(expected, res);
         Ok(())
