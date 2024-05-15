@@ -5,7 +5,7 @@ use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::group::GroupedData;
 use crate::plan::LogicalPlanBuilder;
-pub use crate::readwriter::{DataFrameReader, DataFrameWriter};
+pub use crate::readwriter::{DataFrameReader, DataFrameWriter, DataFrameWriterV2};
 use crate::session::SparkSession;
 use crate::spark;
 use crate::storage;
@@ -1025,6 +1025,11 @@ impl DataFrame {
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
     pub fn write(self) -> DataFrameWriter {
         DataFrameWriter::new(self)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn writeTo(self, table: &str) -> DataFrameWriterV2 {
+        DataFrameWriterV2::new(self, table)
     }
 
     /// Interface for [DataStreamWriter] to save the content of the streaming DataFrame out
