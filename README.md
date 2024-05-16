@@ -192,7 +192,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | toJSON                        | ![open] |                                                            |
 | toLocalIterator               | ![open] |                                                            |
 | toPandas                      | ![open] | TBD on this exact implementation. Might be toPolars        |
-| transform                     | ![open] |                                                            |
+| transform                     | ![done] |                                                            |
 | union                         | ![done] |                                                            |
 | unionAll                      | ![done] |                                                            |
 | unionByName                   | ![done] |                                                            |
