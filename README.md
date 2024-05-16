@@ -282,8 +282,11 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | desc             | ![done] |                                                                              |
 | desc_nulls_first | ![done] |                                                                              |
 | desc_nulls_last  | ![done] |                                                                              |
-| dropFields       | ![open] |                                                                              |
+| dropFields       | ![done] |                                                                              |
 | endswith         | ![done] |                                                                              |
+| eqNullSafe       | ![open] |                                                                              |
+| getField         | ![open] | This is depreciated but will need to be implemented                          |
+| getItem          | ![open] | This is depreciated but will need to be implemented                          |
 | ilike            | ![done] |                                                                              |
 | isNotNull        | ![done] |                                                                              |
 | isNull           | ![done] |                                                                              |
@@ -296,6 +299,7 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | startswith       | ![done] |                                                                              |
 | substr           | ![open] |                                                                              |
 | when             | ![open] |                                                                              |
+| withField        | ![done] |                                                                              |
 | eq `==`          | ![done] | Rust does not like when you try to overload `==` and return something other than a `bool`. Currently implemented column equality like `col('name').eq(col('id'))`. Not the best, but it works for now                                                                           |
 | addition `+`     | ![done] |                                                                              |
 | subtration `-`   | ![done] |                                                                              |
@@ -601,7 +605,7 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | Spark Literal Type | Rust Type           | Status  |
 |--------------------|---------------------|---------|
 | Null               |                     | ![open] |
-| Binary             |                     | ![open] |
+| Binary             | `&[u8]`             | ![done] |
 | Boolean            | `bool`              | ![done] |
 | Byte               |                     | ![open] |
 | Short              | `i16`               | ![done] |
@@ -612,14 +616,14 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | Decimal            |                     | ![open] |
 | String             | `&str` / `String`   | ![done] |
 | Date               | `chrono::NaiveDate` | ![done] |
-| Timestamp          |                     | ![open] |
-| TimestampNtz       | `chrono::TimeZone`  | ![done] |
+| Timestamp          | `chrono::DateTime<Tz>`  | ![done] |
+| TimestampNtz       | `chrono::NaiveDateTime` | ![done] |
 | CalendarInterval   |                     | ![open] |
 | YearMonthInterval  |                     | ![open] |
 | DayTimeInterval    |                     | ![open] |
 | Array              | `slice` / `Vec`     | ![done] |
-| Map                |                     | ![open] |
-| Struct             |                     | ![open] |
+| Map                | Create with the function `create_map` | ![done] |
+| Struct             | Create with the function `struct_col` or `named_struct` | ![done] |
 
 
 ### Window & WindowSpec

@@ -5,7 +5,7 @@ use crate::errors::SparkError;
 use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::group::GroupedData;
 use crate::plan::LogicalPlanBuilder;
-pub use crate::readwriter::{DataFrameReader, DataFrameWriter};
+pub use crate::readwriter::{DataFrameReader, DataFrameWriter, DataFrameWriterV2};
 use crate::session::SparkSession;
 use crate::spark;
 use crate::storage;
@@ -66,19 +66,19 @@ use arrow::util::pretty;
 #[derive(Clone, Debug)]
 pub struct DataFrame {
     /// Global [SparkSession] connecting to the remote cluster
-    pub spark_session: SparkSession,
+    pub(crate) spark_session: Box<SparkSession>,
 
     /// Logical Plan representing the unresolved Relation
     /// which will be submitted to the remote cluster
-    pub logical_plan: LogicalPlanBuilder,
+    pub(crate) plan: LogicalPlanBuilder,
 }
 
 impl DataFrame {
     /// create default DataFrame based on a spark session and initial logical plan
-    pub fn new(spark_session: SparkSession, logical_plan: LogicalPlanBuilder) -> DataFrame {
+    pub fn new(spark_session: SparkSession, plan: LogicalPlanBuilder) -> DataFrame {
         DataFrame {
-            spark_session,
-            logical_plan,
+            spark_session: Box::new(spark_session),
+            plan,
         }
     }
 
@@ -99,7 +99,12 @@ impl DataFrame {
 
     /// Returns a new [DataFrame] with an alias set.
     pub fn alias(self, alias: &str) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.alias(alias))
+        let plan = self.plan.alias(alias);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Persists the [DataFrame] with the default [storage::StorageLevel::MemoryAndDiskDeser] (MEMORY_AND_DISK_DESER).
@@ -133,7 +138,7 @@ impl DataFrame {
             expr_type: Some(spark::expression::ExprType::UnresolvedRegex(
                 spark::expression::UnresolvedRegex {
                     col_name: col_name.to_string(),
-                    plan_id: Some(self.logical_plan.plan_id()),
+                    plan_id: Some(self.plan.plan_id()),
                 },
             )),
         };
@@ -150,7 +155,7 @@ impl DataFrame {
     /// }
     /// ```
     pub async fn collect(self) -> Result<RecordBatch, SparkError> {
-        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
         self.spark_session.client().to_arrow(plan).await
     }
 
@@ -175,9 +180,14 @@ impl DataFrame {
     /// Calculates the correlation of two columns of a [DataFrame] as a `f64`.
     /// Currently only supports the Pearson Correlation Coefficient.
     pub async fn corr(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
-        let result = DataFrame::new(self.spark_session, self.logical_plan.corr(col1, col2))
-            .collect()
-            .await?;
+        let plan = self.plan.corr(col1, col2);
+
+        let df = DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        };
+
+        let result = df.collect().await?;
 
         let col = result.column(0);
 
@@ -194,9 +204,14 @@ impl DataFrame {
 
     /// Calculate the sample covariance for the given columns, specified by their names, as a f64
     pub async fn cov(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
-        let result = DataFrame::new(self.spark_session, self.logical_plan.cov(col1, col2))
-            .collect()
-            .await?;
+        let plan = self.plan.cov(col1, col2);
+
+        let df = DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        };
+
+        let result = df.collect().await?;
 
         let col = result.column(0);
 
@@ -241,7 +256,7 @@ impl DataFrame {
     ) -> Result<(), SparkError> {
         let command_type =
             spark::command::CommandType::CreateDataframeView(spark::CreateDataFrameViewCommand {
-                input: Some(self.logical_plan.relation()),
+                input: Some(self.plan.relation()),
                 name: name.to_string(),
                 is_global,
                 replace,
@@ -256,16 +271,24 @@ impl DataFrame {
     /// Returns the cartesian product with another [DataFrame].
     #[allow(non_snake_case)]
     pub fn crossJoin(self, other: DataFrame) -> DataFrame {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan
-                .join(other.logical_plan, None::<&str>, JoinType::Cross, vec![]),
-        )
+        let plan = self
+            .plan
+            .join(other.plan, None::<&str>, JoinType::Cross, vec![]);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Computes a pair-wise frequency table of the given columns. Also known as a contingency table.
     pub fn crosstab(self, col1: &str, col2: &str) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.crosstab(col1, col2))
+        let plan = self.plan.crosstab(col1, col2);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Create a multi-dimensional cube for the current DataFrame using the specified columns, so we can run aggregations on them.
@@ -279,17 +302,32 @@ impl DataFrame {
     where
         I: IntoIterator<Item = &'a str> + std::default::Default,
     {
-        DataFrame::new(self.spark_session, self.logical_plan.describe(cols))
+        let plan = self.plan.describe(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns a new [DataFrame] containing the distinct rows in this [DataFrame].
     pub fn distinct(self) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.distinct())
+        let plan = self.plan.distinct();
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns a new [DataFrame] without the specified columns
     pub fn drop<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.drop(cols))
+        let plan = self.plan.drop(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Return a new [DataFrame] with duplicate rows removed,
@@ -300,7 +338,12 @@ impl DataFrame {
     /// Alias for `dropDuplciates`
     ///
     pub fn drop_duplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.drop_duplicates(cols))
+        let plan = self.plan.drop_duplicates(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Return a new DataFrame with duplicate rows removed, optionally only considering certain columns.
@@ -311,10 +354,12 @@ impl DataFrame {
 
     /// Returns a new DataFrame omitting rows with null values.
     pub fn dropna(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.dropna(how, threshold, subset),
-        )
+        let plan = self.plan.dropna(how, threshold, subset);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns all column names and their data types as a Vec containing
@@ -345,10 +390,13 @@ impl DataFrame {
     #[allow(non_snake_case)]
     pub fn exceptAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.exceptAll(other.logical_plan),
-        )
+
+        let plan = self.plan.exceptAll(other.plan);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Prints the [spark::Plan] to the console
@@ -368,7 +416,7 @@ impl DataFrame {
             None => ExplainMode::Simple,
         };
 
-        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
 
         let analyze =
             spark::analyze_plan_request::Analyze::Explain(spark::analyze_plan_request::Explain {
@@ -393,7 +441,12 @@ impl DataFrame {
     /// }
     /// ```
     pub fn filter<T: ToFilterExpr>(self, condition: T) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.filter(condition))
+        let plan = self.plan.filter(condition);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns the first row as a RecordBatch.
@@ -407,10 +460,12 @@ impl DataFrame {
     where
         I: IntoIterator<Item = &'a str>,
     {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.freqItems(cols, support),
-        )
+        let plan = self.plan.freqItems(cols, support);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Groups the DataFrame using the specified columns, and returns a [GroupedData] object
@@ -430,7 +485,12 @@ impl DataFrame {
 
     /// Specifies some hint on the current DataFrame.
     pub fn hint<T: ToVecExpr>(self, name: &str, parameters: Option<T>) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.hint(name, parameters))
+        let plan = self.plan.hint(name, parameters);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns a best-effort snapshot of the files that compose this DataFrame
@@ -438,7 +498,7 @@ impl DataFrame {
     pub async fn inputFiles(self) -> Result<Vec<String>, SparkError> {
         let input_files = spark::analyze_plan_request::Analyze::InputFiles(
             spark::analyze_plan_request::InputFiles {
-                plan: Some(LogicalPlanBuilder::plan_root(self.logical_plan)),
+                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
             },
         );
 
@@ -450,19 +510,25 @@ impl DataFrame {
     /// Return a new DataFrame containing rows only in both this DataFrame and another DataFrame.
     pub fn intersect(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.intersect(other.logical_plan),
-        )
+
+        let plan = self.plan.intersect(other.plan);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
     pub fn intersectAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.intersectAll(other.logical_plan),
-        )
+
+        let plan = self.plan.intersectAll(other.plan);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Checks if the DataFrame is empty and returns a boolean value.
@@ -478,7 +544,7 @@ impl DataFrame {
     pub async fn isStreaming(self) -> Result<bool, SparkError> {
         let is_streaming = spark::analyze_plan_request::Analyze::IsStreaming(
             spark::analyze_plan_request::IsStreaming {
-                plan: Some(LogicalPlanBuilder::plan_root(self.logical_plan)),
+                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
             },
         );
 
@@ -502,10 +568,12 @@ impl DataFrame {
     /// ```
 
     pub fn join<T: ToExpr>(self, other: DataFrame, on: Option<T>, how: JoinType) -> DataFrame {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.join(other.logical_plan, on, how, vec![]),
-        )
+        let plan = self.plan.join(other.plan, on, how, vec![]);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Limits the result count o thte number specified and returns a new [DataFrame]
@@ -517,7 +585,12 @@ impl DataFrame {
     /// }
     /// ```
     pub fn limit(self, limit: i32) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.limit(limit))
+        let plan = self.plan.limit(limit);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Alias for [DataFrame::unpivot]
@@ -537,7 +610,12 @@ impl DataFrame {
 
     /// Returns a new [DataFrame] by skiping the first n rows
     pub fn offset(self, num: i32) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.offset(num))
+        let plan = self.plan.offset(num);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
@@ -545,13 +623,18 @@ impl DataFrame {
     where
         I: IntoIterator<Item = Column>,
     {
-        DataFrame::new(self.spark_session, self.logical_plan.sort(cols))
+        let plan = self.plan.sort(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     pub async fn persist(self, storage_level: storage::StorageLevel) -> DataFrame {
         let analyze =
             spark::analyze_plan_request::Analyze::Persist(spark::analyze_plan_request::Persist {
-                relation: Some(self.logical_plan.clone().relation()),
+                relation: Some(self.plan.clone().relation()),
                 storage_level: Some(storage_level.into()),
             });
 
@@ -559,7 +642,12 @@ impl DataFrame {
 
         client.analyze(analyze).await.unwrap();
 
-        DataFrame::new(self.spark_session, self.logical_plan)
+        let plan = self.plan;
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Prints out the schema in the tree format to a specific level number.
@@ -567,7 +655,7 @@ impl DataFrame {
     pub async fn printSchema(self, level: Option<i32>) -> Result<String, SparkError> {
         let tree_string = spark::analyze_plan_request::Analyze::TreeString(
             spark::analyze_plan_request::TreeString {
-                plan: Some(LogicalPlanBuilder::plan_root(self.logical_plan)),
+                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
                 level,
             },
         );
@@ -585,10 +673,12 @@ impl DataFrame {
     /// * (optional) `shuffle`: to induce a shuffle. Default is `false`
     ///
     pub fn repartition(self, num_partitions: u32, shuffle: Option<bool>) -> DataFrame {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.repartition(num_partitions, shuffle),
-        )
+        let plan = self.plan.repartition(num_partitions, shuffle);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Create a multi-dimensional rollup for the current DataFrame using the specified columns,
@@ -600,8 +690,8 @@ impl DataFrame {
     /// Returns True when the logical query plans inside both DataFrames are equal and therefore return the same results.
     #[allow(non_snake_case)]
     pub async fn sameSemantics(self, other: DataFrame) -> Result<bool, SparkError> {
-        let target_plan = Some(LogicalPlanBuilder::plan_root(self.logical_plan));
-        let other_plan = Some(LogicalPlanBuilder::plan_root(other.logical_plan));
+        let target_plan = Some(LogicalPlanBuilder::plan_root(self.plan));
+        let other_plan = Some(LogicalPlanBuilder::plan_root(other.plan));
 
         let same_semantics = spark::analyze_plan_request::Analyze::SameSemantics(
             spark::analyze_plan_request::SameSemantics {
@@ -623,17 +713,20 @@ impl DataFrame {
         with_replacement: Option<bool>,
         seed: Option<i64>,
     ) -> DataFrame {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan
-                .sample(lower_bound, upper_bound, with_replacement, seed),
-        )
+        let plan = self
+            .plan
+            .sample(lower_bound, upper_bound, with_replacement, seed);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns the schema of this DataFrame as a [spark::DataType]
     /// which contains the schema of a DataFrame
     pub async fn schema(self) -> Result<spark::DataType, SparkError> {
-        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
 
         let schema =
             spark::analyze_plan_request::Analyze::Schema(spark::analyze_plan_request::Schema {
@@ -658,7 +751,12 @@ impl DataFrame {
     /// }
     /// ```
     pub fn select<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        DataFrame::new(self.spark_session, self.logical_plan.select(cols))
+        let plan = self.plan.select(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Project a set of SQL expressions and returns a new [DataFrame]
@@ -676,12 +774,17 @@ impl DataFrame {
     where
         I: IntoIterator<Item = &'a str>,
     {
-        DataFrame::new(self.spark_session, self.logical_plan.select_expr(cols))
+        let plan = self.plan.select_expr(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
     pub async fn semanticHash(self) -> Result<i32, SparkError> {
-        let plan = LogicalPlanBuilder::plan_root(self.logical_plan);
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
 
         let semantic_hash = spark::analyze_plan_request::Analyze::SemanticHash(
             spark::analyze_plan_request::SemanticHash { plan: Some(plan) },
@@ -707,7 +810,7 @@ impl DataFrame {
         vertical: Option<bool>,
     ) -> Result<(), SparkError> {
         let show_expr = RelType::ShowString(Box::new(spark::ShowString {
-            input: self.logical_plan.relation_input(),
+            input: self.plan.relation_input(),
             num_rows: num_rows.unwrap_or(10),
             truncate: truncate.unwrap_or(0),
             vertical: vertical.unwrap_or(false),
@@ -724,11 +827,16 @@ impl DataFrame {
     where
         I: IntoIterator<Item = Column>,
     {
-        DataFrame::new(self.spark_session, self.logical_plan.sort(cols))
+        let plan = self.plan.sort(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
-    pub fn sparkSession(self) -> SparkSession {
+    pub fn sparkSession(self) -> Box<SparkSession> {
         self.spark_session
     }
 
@@ -736,7 +844,7 @@ impl DataFrame {
     pub async fn storageLevel(self) -> Result<storage::StorageLevel, SparkError> {
         let storage_level = spark::analyze_plan_request::Analyze::GetStorageLevel(
             spark::analyze_plan_request::GetStorageLevel {
-                relation: Some(self.logical_plan.relation()),
+                relation: Some(self.plan.relation()),
             },
         );
 
@@ -748,10 +856,13 @@ impl DataFrame {
 
     pub fn subtract(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.substract(other.logical_plan),
-        )
+
+        let plan = self.plan.substract(other.plan);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns the last `n` rows as a [RecordBatch]
@@ -760,15 +871,18 @@ impl DataFrame {
     ///
     pub async fn tail(self, limit: i32) -> Result<RecordBatch, SparkError> {
         let limit_expr = RelType::Tail(Box::new(spark::Tail {
-            input: self.logical_plan.relation_input(),
+            input: self.plan.relation_input(),
             limit,
         }));
 
-        let logical_plan = LogicalPlanBuilder::from(limit_expr);
+        let plan = LogicalPlanBuilder::from(limit_expr);
 
-        DataFrame::new(self.spark_session, logical_plan)
-            .collect()
-            .await
+        let df = DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        };
+
+        df.collect().await
     }
 
     pub async fn take(self, n: i32) -> Result<RecordBatch, SparkError> {
@@ -780,40 +894,53 @@ impl DataFrame {
     where
         I: IntoIterator<Item = &'a str>,
     {
-        DataFrame::new(self.spark_session, self.logical_plan.to_df(cols))
+        let plan = self.plan.to_df(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     pub fn union(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.unionAll(other.logical_plan),
-        )
+
+        let plan = self.plan.unionAll(other.plan);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
     pub fn unionAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.unionAll(other.logical_plan),
-        )
+
+        let plan = self.plan.unionAll(other.plan);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
     pub fn unionByName(self, other: DataFrame, allow_missing_columns: Option<bool>) -> DataFrame {
         self.check_same_session(&other).unwrap();
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan
-                .unionByName(other.logical_plan, allow_missing_columns),
-        )
+
+        let plan = self.plan.unionByName(other.plan, allow_missing_columns);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     pub async fn unpersist(self, blocking: Option<bool>) -> DataFrame {
         let unpersist = spark::analyze_plan_request::Analyze::Unpersist(
             spark::analyze_plan_request::Unpersist {
-                relation: Some(self.logical_plan.clone().relation()),
+                relation: Some(self.plan.clone().relation()),
                 blocking,
             },
         );
@@ -822,7 +949,10 @@ impl DataFrame {
 
         client.analyze(unpersist).await.unwrap();
 
-        DataFrame::new(self.spark_session, self.logical_plan)
+        DataFrame {
+            spark_session: self.spark_session,
+            plan: self.plan,
+        }
     }
 
     /// Unpivot a DataFrame from wide format to long format, optionally leaving identifier columns set.
@@ -841,19 +971,24 @@ impl DataFrame {
         let ids = ids.to_vec_expr();
         let values = values.map(|val| val.to_vec_expr());
 
-        let logical_plan =
-            self.logical_plan
-                .unpivot(ids, values, variable_column_name, value_column_name);
+        let plan = self
+            .plan
+            .unpivot(ids, values, variable_column_name, value_column_name);
 
-        DataFrame::new(self.spark_session, logical_plan)
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
     pub fn withColumn(self, colName: &str, col: Column) -> DataFrame {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.withColumn(colName, col),
-        )
+        let plan = self.plan.withColumn(colName, col);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     #[allow(non_snake_case)]
@@ -862,7 +997,12 @@ impl DataFrame {
         I: IntoIterator<Item = (K, Column)>,
         K: ToString,
     {
-        DataFrame::new(self.spark_session, self.logical_plan.withColumns(colMap))
+        let plan = self.plan.withColumns(colMap);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
 
     /// Returns a new [DataFrame] by renaming multiple columns from a
@@ -875,14 +1015,21 @@ impl DataFrame {
         K: AsRef<str>,
         V: AsRef<str>,
     {
-        DataFrame::new(
-            self.spark_session,
-            self.logical_plan.withColumnsRenamed(cols),
-        )
+        let plan = self.plan.withColumnsRenamed(cols);
+
+        DataFrame {
+            spark_session: self.spark_session,
+            plan,
+        }
     }
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
     pub fn write(self) -> DataFrameWriter {
         DataFrameWriter::new(self)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn writeTo(self, table: &str) -> DataFrameWriterV2 {
+        DataFrameWriterV2::new(self, table)
     }
 
     /// Interface for [DataStreamWriter] to save the content of the streaming DataFrame out

@@ -8,7 +8,10 @@ use crate::session::SparkSession;
 use crate::spark;
 use crate::DataFrame;
 
+use crate::expressions::ToVecExpr;
 use spark::write_operation::SaveMode;
+use spark::write_operation_v2::Mode;
+use spark::Expression;
 
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
@@ -238,7 +241,7 @@ impl DataFrameWriter {
     /// The data source is specified by the `format` and a set of `options`.
     pub async fn save(self, path: &str) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
-            input: Some(self.dataframe.logical_plan.clone().relation()),
+            input: Some(self.dataframe.plan.clone().relation()),
             source: self.format,
             mode: self.mode.into(),
             sort_column_names: self.sort_by,
@@ -259,7 +262,7 @@ impl DataFrameWriter {
 
     async fn save_table(self, table_name: &str, save_method: i32) -> Result<(), SparkError> {
         let write_command = spark::command::CommandType::WriteOperation(spark::WriteOperation {
-            input: Some(self.dataframe.logical_plan.relation()),
+            input: Some(self.dataframe.plan.relation()),
             source: self.format,
             mode: self.mode.into(),
             sort_column_names: self.sort_by,
@@ -299,6 +302,105 @@ impl DataFrameWriter {
     #[allow(non_snake_case)]
     pub async fn insertInto(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
+    }
+}
+
+pub struct DataFrameWriterV2 {
+    dataframe: DataFrame,
+    table: String,
+    provider: Option<String>,
+    options: HashMap<String, String>,
+    properties: HashMap<String, String>,
+    partitioning: Vec<Expression>,
+    overwrite_condition: Option<Expression>,
+}
+
+impl DataFrameWriterV2 {
+    pub fn new(dataframe: DataFrame, table: &str) -> Self {
+        Self {
+            dataframe,
+            table: table.to_string(),
+            provider: None,
+            options: HashMap::new(),
+            properties: HashMap::new(),
+            partitioning: vec![],
+            overwrite_condition: None,
+        }
+    }
+
+    pub fn using(mut self, provider: &str) -> Self {
+        self.provider.replace(provider.to_string());
+        self
+    }
+
+    pub fn option(mut self, key: &str, value: &str) -> Self {
+        self.options.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn options(mut self, provider: HashMap<String, String>) -> Self {
+        self.options.extend(provider);
+        self
+    }
+
+    #[allow(non_snake_case)]
+    pub fn tableProperty(mut self, property: &str, value: &str) -> Self {
+        self.properties
+            .insert(property.to_string(), value.to_string());
+        self
+    }
+
+    #[allow(non_snake_case)]
+    pub fn partitionBy<T: ToVecExpr>(mut self, columns: T) -> Self {
+        self.partitioning = columns.to_vec_expr();
+        self
+    }
+
+    pub async fn create(self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Create).await
+    }
+
+    pub async fn replace(self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Replace).await
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn createOrReplace(self) -> Result<(), SparkError> {
+        self.execute_write(Mode::CreateOrReplace).await
+    }
+
+    pub async fn append(self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Append).await
+    }
+
+    pub async fn overwrite(self) -> Result<(), SparkError> {
+        self.execute_write(Mode::Overwrite).await
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn overwritePartitions(self) -> Result<(), SparkError> {
+        self.execute_write(Mode::OverwritePartitions).await
+    }
+
+    async fn execute_write(self, mode: Mode) -> Result<(), SparkError> {
+        let mut builder = spark::WriteOperationV2 {
+            input: Some(self.dataframe.plan.relation()),
+            table_name: self.table,
+            provider: self.provider,
+            partitioning_columns: self.partitioning,
+            options: self.options,
+            table_properties: self.properties,
+            mode: 0,
+            overwrite_condition: self.overwrite_condition,
+        };
+        builder.set_mode(mode);
+        let cmd = spark::command::CommandType::WriteOperationV2(builder);
+        let plan = LogicalPlanBuilder::plan_cmd(cmd);
+        self.dataframe
+            .spark_session
+            .client()
+            .execute_command(plan)
+            .await
     }
 }
 
@@ -392,6 +494,27 @@ mod tests {
 
         assert_eq!(records.num_rows(), 1000);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframev2_write() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .range(None, 1000, 1, Some(16))
+            .selectExpr(vec!["id AS range_id"]);
+
+        let table = "employees";
+
+        df.writeTo(table).using("csv").create().await?;
+
+        let df = spark.clone().table(table)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
         Ok(())
     }
 }
