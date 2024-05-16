@@ -213,6 +213,7 @@ impl SparkSession {
     #[allow(non_snake_case)]
     pub fn createDataFrame(self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
         let logical_plan = LogicalPlanBuilder::local_relation(data)?;
+
         Ok(DataFrame::new(self, logical_plan))
     }
 
