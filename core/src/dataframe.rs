@@ -902,6 +902,25 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] based on a provided closure.
+    ///
+    /// # Example:
+    /// ```
+    /// // the closure will capture this variable from the current scope
+    /// let val = 100;
+    ///
+    /// let add_new_col =
+    ///     |df: DataFrame| -> DataFrame { df.withColumn("new_col", lit(val)).select("new_col") };
+    ///
+    /// df = df.transform(add_new_col);
+    /// ```
+    pub fn transform<F>(self, mut func: F) -> DataFrame
+    where
+        F: FnMut(DataFrame) -> DataFrame,
+    {
+        func(self)
+    }
+
     pub fn union(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -1992,6 +2011,29 @@ mod tests {
         let val: ArrayRef = Arc::new(Float32Array::from(vec![11.0, 1.1, 12.0, 1.2]));
 
         let expected = RecordBatch::try_from_iter(vec![("id", ids), ("var", var), ("val", val)])?;
+
+        assert_eq!(expected, res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_df_transform() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark.range(None, 1, 1, None);
+
+        let val: i64 = 100;
+
+        // closure with captured value from the immediate scope
+        let func =
+            |df: DataFrame| -> DataFrame { df.withColumn("new_col", lit(val)).select("new_col") };
+
+        let res = df.transform(func).collect().await?;
+
+        let col: ArrayRef = Arc::new(Int64Array::from(vec![val]));
+
+        let expected = RecordBatch::try_from_iter(vec![("new_col", col)])?;
 
         assert_eq!(expected, res);
 
