@@ -20,7 +20,7 @@ $ cargo run --bin sql
 
 ### reader
 
-Read a CSV file, select specific columns, and display the results
+Reader a CSV file, select specific columns, and display the results
 
 ```bash
 $ cargo run --bin reader
