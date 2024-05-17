@@ -11,10 +11,6 @@ license.workspace = true
 documentation.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-include = [
-    "examples/**/*",
-    "src/**/*"
-]
 
 [dependencies]
 spark-connect-core = { version = "0.0.1-beta.4", path = "../core" }
@@ -27,22 +23,3 @@ tls = ["spark-connect-core/tls"]
 
 [lib]
 doctest = false
-
-[[example]]
-name = "reader"
-
-[[example]]
-name = "sql"
-
-[[example]]
-name = "writer"
-
-[[example]]
-name = "delta"
-
-[[example]]
-name = "readstream"
-
-[[example]]
-name = "databricks"
-required-features = ["tls"]
