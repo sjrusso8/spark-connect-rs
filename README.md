@@ -74,28 +74,181 @@ The following section outlines some of the larger functionality that are not yet
 
 [Spark Session](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/spark_session.html) type object and its implemented traits
 
-| SparkSession       | API     | Comment                                       |
-|--------------------|---------|-----------------------------------------------|
-| active             | ![open] |                                               |
-| appName            | ![open] |                                               |
-| catalog            | ![open] | Partial. Only Get/List traits are implemented |
-| createDataFrame    | ![done] | Partial. Only works for `RecordBatch`         |
-| range              | ![done] |                                               |
-| read               | ![done] |                                               |
-| readStream         | ![done] | Creates a `DataStreamReader` object           |
-| sql                | ![done] |                                               |
-| stop               | ![open] |                                               |
-| streams            | ![open] | Stream Manager is not yet implemented         |
-| table              | ![open] |                                               |
-| version            | ![open] |                                               |
-| addArtifact(s)     | ![open] |                                               |
-| interruptAll       | ![open] |                                               |
-| interruptTag       | ![open] |                                               |
-| interruptOperation | ![open] |                                               |
-| addTag             | ![open] |                                               |
-| removeTag          | ![open] |                                               |
-| getTags            | ![open] |                                               |
-| clearTags          | ![open] |                                               |
+|SparkSession      |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|active            |![open]   |                                       |
+|addArtifact(s)    |![open]   |                                       |
+|addTag            |![open]   |                                       |
+|clearTags         |![open]   |                                       |
+|copyFromLocalToFs |![open]   |                                       |
+|createDataFrame   |![partial]|Partial. Only works for `RecordBatch`  |
+|getActiveSessions |![open]   |                                       |
+|getTags           |![open]   |                                       |
+|interruptAll      |![open]   |                                       |
+|interruptOperation|![open]   |                                       |
+|interruptTag      |![open]   |                                       |
+|newSession        |![open]   |                                       |
+|range             |![done]   |                                       |
+|removeTag         |![done]   |                                       |
+|sql               |![done]   |                                       |
+|stop              |![open]   |                                       |
+|table             |![done]   |                                       |
+|catalog           |![done]   |[Catalog](#catalog)                  |
+|client            |X         |unstable developer api for testing only|
+|conf              |![open]   |[Conf](#runtimeconfig)                  |
+|read              |![done]   |[DataFrameReader](#dataframereader)                  |
+|readStream        |![done]   |[DataStreamReader](#datastreamreader)                  |
+|streams           |![open]   |[Streams](#streamingquerymanager)                  |
+|udf               |![open]   |[Udf](#udfregistration) - may not be possible                 |
+|udtf              |![open]   |[Udtf](#udtfregistration) - may not be possible                 |
+|version           |![open]   |                                       |
+
+### SparkSessionBuilder
+|SparkSessionBuilder|API       |Comment                                |
+|-------------------|----------|---------------------------------------|
+|appName            |![open]   |                                       |
+|config             |![open]   |                                       |
+|master             |![open]   |                                       |
+|remote             |![partial]|Validate using [spark connection string](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)|
+
+### StreamingQueryManager
+
+|StreamingQueryManager|API       |Comment                                |
+|---------------------|----------|---------------------------------------|
+|awaitAnyTermination  |![open]   |                                       |
+|get                  |![open]   |                                       |
+|resetTerminated      |![open]   |                                       |
+|active               |![open]   |                                       |
+
+### StreamingQuery
+
+|StreamingQuery    |API       |Comment                               |
+|------------------|----------|---------------------------------------|
+|awaitTermination  |![done]   |                                       |
+|exception         |![open]   |                                       |
+|explain           |![open]   |                                       |
+|processAllAvailable|![open]   |                                       |
+|stop              |![open]   |                                       |
+|id                |![done]   |                                       |
+|isActive          |![done]   |                                       |
+|lastProgress      |![done]   |                                       |
+|name              |![done]   |                                       |
+|recentProgress    |![done]   |                                       |
+|runId             |![done]   |                                       |
+|status            |![done]   |                                       |
+
+### DataStreamReader
+
+|DataStreamReader  |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|csv               |![open]   |                                       |
+|format            |![done]   |                                       |
+|json              |![open]   |                                       |
+|load              |![done]   |                                       |
+|option            |![done]   |                                       |
+|options           |![done]   |                                       |
+|orc               |![open]   |                                       |
+|parquet           |![open]   |                                       |
+|schema            |![done]   |                                       |
+|table             |![open]   |                                       |
+|text              |![open]   |                                       |
+
+### DataFrameReader
+
+|DataFrameReader  |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|csv               |![open]   |                                       |
+|format            |![done]   |                                       |
+|json              |![open]   |                                       |
+|load              |![done]   |                                       |
+|option            |![done]   |                                       |
+|options           |![done]   |                                       |
+|orc               |![open]   |                                       |
+|parquet           |![open]   |                                       |
+|schema            |![open]   |                                       |
+|table             |![done]   |                                       |
+|text              |![open]   |                                       |
+
+### DataStreamWriter
+
+Start a streaming job and return a `StreamingQuery` object to handle the stream operations.
+
+|DataStreamWriter  |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|foreach           |          |                                       |
+|foreachBatch      |          |                                       |
+|format            |![done]   |                                       |
+|option            |![done]   |                                       |
+|options           |![done]   |                                       |
+|outputMode        |![done]   |Uses an Enum for `OutputMode`          |
+|partitionBy       |![done]   |                                       |
+|queryName         |![done]   |                                       |
+|start             |![done]   |                                       |
+|toTable           |![done]   |                                       |
+|trigger           |![done]   |Uses an Enum for `TriggerMode`         |
+
+### StreamingQueryListener
+
+|StreamingQueryListener|API       |Comment                                |
+|----------------------|----------|---------------------------------------|
+|onQueryIdle           |![open]   |                                       |
+|onQueryProgress       |![open]   |                                       |
+|onQueryStarted        |![open]   |                                       |
+|onQueryTerminated     |![open]   |                                       |
+
+### UdfRegistration (may not be possible)
+
+|UDFRegistration   |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|register          |![open]   |                                       |
+|registerJavaFunction|![open]   |                                       |
+|registerJavaUDAF  |![open]   |                                       |
+
+### UdtfRegistration (may not be possible)
+
+|UDTFRegistration  |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|register          |![open]   |                                       |
+
+### RuntimeConfig
+
+|RuntimeConfig     |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|get               |![open]   |                                       |
+|isModifiable      |![open]   |                                       |
+|set               |![open]   |                                       |
+|unset             |![open]   |                                       |
+
+### Catalog
+
+|Catalog           |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|cacheTable        |![done]   |                                       |
+|clearCache        |![done]   |                                       |
+|createExternalTale|![open]   |                                       |
+|createTable       |![open]   |                                       |
+|currentCatalog    |![done]   |                                       |
+|currentDatabase   |![done]   |                                       |
+|databaseExists    |![done]   |                                       |
+|dropGlobalTempView|![done]   |                                       |
+|dropTempView      |![done]   |                                       |
+|functionExists    |![done]   |                                       |
+|getDatabase       |![done]   |                                       |
+|getFunction       |![done]   |                                       |
+|getTable          |![done]   |                                       |
+|isCached          |![done]   |                                       |
+|listCatalogs      |![done]   |                                       |
+|listDatabases     |![done]   |                                       |
+|listFunctions     |![done]   |                                       |
+|listTables        |![done]   |                                       |
+|recoverPartitions |![done]   |                                       |
+|refreshByPath     |![done]   |                                       |
+|refreshTable      |![done]   |                                       |
+|registerFunction  |![open]   |                                       |
+|setCurrentCatalog |![done]   |                                       |
+|setCurrentDatabase|![done]   |                                       |
+|tableExists       |![done]   |                                       |
+|uncacheTable      |![done]   |                                       |
 
 
 ### DataFrame
@@ -193,7 +346,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | unionAll                      | ![done] |                                                            |
 | unionByName                   | ![done] |                                                            |
 | unpersist                     | ![done] |                                                            |
-| unpivot                       | ![open] |                                                            |
+| unpivot                       | ![done] |                                                            |
 | where                         | ![done] | use `filter` instead, `where` is a keyword for rust        |
 | withColumn                    | ![done] |                                                            |
 | withColumns                   | ![done] |                                                            |
@@ -203,62 +356,47 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | withWatermark                 | ![open] |                                                            |
 | write                         | ![done] |                                                            |
 | writeStream                   | ![done] |                                                            |
-| writeTo                       | ![open] |                                                            |
+| writeTo                       | ![done] |                                                            |
 
 ### DataFrameWriter
 
 Spark Connect *should* respect the format as long as your cluster supports the specified type and has the
 required jars
 
-| DataFrameWriter | API     | Comment                                                                      |
-|-----------------|---------|------------------------------------------------------------------------------|
-| format          | ![done] |                                                                              |
-| option          | ![done] |                                                                              |
-| options         | ![done] |                                                                              |
-| mode            | ![done] |                                                                              |
-| bucketBy        | ![done] |                                                                              |
-| sortBy          | ![done] |                                                                              |
-| partitionBy     | ![done] |                                                                              |
-| save            | ![done] |                                                                              |
-| saveAsTable     | ![done] |                                                                              |
-| insertInto      | ![done] |                                                                              |
+|DataFrameWriter   |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|bucketBy          |![done]   |                                       |
+|csv               |          |                                       |
+|format            |![done]   |                                       |
+|insertInto        |![done]   |                                       |
+|jdbc              |          |                                       |
+|json              |          |                                       |
+|mode              |![done]   |                                       |
+|option            |![done]   |                                       |
+|options           |![done]   |                                       |
+|orc               |          |                                       |
+|parquet           |          |                                       |
+|partitionBy       |          |                                       |
+|save              |![done]   |                                       |
+|saveAsTable       |![done]   |                                       |
+|sortBy            |![done]   |                                       |
+|text              |          |                                       |
 
-### DataStreamWriter
+### DataFrameWriterV2
 
-Start a streaming job and return a `StreamingQuery` object to handle the stream operations.
-
-| DataStreamWriter | API     | Comment                                                 |
-|-----------------|---------|----------------------------------------------------------|
-| format          | ![done] |                                                          |
-| foreach         | ![open] |                                                          |
-| foreachBatch    | ![open] |                                                          |
-| option          | ![done] |                                                          |
-| options         | ![done] |                                                          |
-| outputMode      | ![done] | Uses an Enum for `OutputMode`                            |
-| partitionBy     | ![done] |                                                          |
-| queryName       | ![done] |                                                          |
-| trigger         | ![done] | Uses an Enum for `TriggerMode`                           |
-| start           | ![done] |                                                          |
-| toTable         | ![done] |                                                          |
-
-### StreamingQuery
-
-A handle to a query that is executing continuously in the background as new data arrives.
-
-| StreamingQuery      | API     | Comment |
-|---------------------|---------|---------|
-| awaitTermination    | ![done] |         |
-| exception           | ![open] |         |
-| explain             | ![open] |         |
-| processAllAvailable | ![open] |         |
-| stop                | ![done] |         |
-| id                  | ![done] |         |
-| isActive            | ![done] |         |
-| lastProgress        | ![done] |         |
-| name                | ![done] |         |
-| recentProgress      | ![done] |         |
-| runId               | ![done] |         |
-| status              | ![done] |         |
+|DataFrameWriterV2 |API       |Comment                                |
+|------------------|----------|---------------------------------------|
+|append            |![open]   |                                       |
+|create            |![open]   |                                       |
+|createOrReplace   |![open]   |                                       |
+|option            |![open]   |                                       |
+|options           |![open]   |                                       |
+|overwrite         |![open]   |                                       |
+|overwritePartitions|![open]   |                                       |
+|partitionedBy     |![open]   |                                       |
+|replace           |![open]   |                                       |
+|tableProperty     |![open]   |                                       |
+|using             |![open]   |                                       |
 
 ### Column
 
@@ -293,7 +431,7 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | over             | ![done] | Refer to **Window** for creating window specifications                       |
 | rlike            | ![done] |                                                                              |
 | startswith       | ![done] |                                                                              |
-| substr           | ![open] |                                                                              |
+| substr           | ![done] |                                                                              |
 | when             | ![open] |                                                                              |
 | withField        | ![done] |                                                                              |
 | eq `==`          | ![done] | Rust does not like when you try to overload `==` and return something other than a `bool`. Currently implemented column equality like `col('name').eq(col('id'))`. Not the best, but it works for now                                                                           |
@@ -314,14 +452,14 @@ Only a few of the functions are covered by unit tests.
 | Functions                   | API     | Comment |
 |-----------------------------|---------|---------|
 | abs                         | ![done] |         |
-| acos                        | ![open] |         |
-| acosh                       | ![open] |         |
+| acos                        | ![done] |         |
+| acosh                       | ![done] |         |
 | add_months                  | ![done] |         |
 | aggregate                   | ![open] |         |
 | approxCountDistinct         | ![open] |         |
-| approx_count_distinct       | ![open] |         |
+| approx_count_distinct       | ![done] |         |
 | array                       | ![done] |         |
-| array_append                | ![open] |         |
+| array_append                | ![done] |         |
 | array_compact               | ![done] |         |
 | array_contains              | ![open] |         |
 | array_distinct              | ![done] |         |
@@ -331,9 +469,9 @@ Only a few of the functions are covered by unit tests.
 | array_join                  | ![open] |         |
 | array_max                   | ![done] |         |
 | array_min                   | ![done] |         |
-| array_position              | ![open] |         |
-| array_remove                | ![open] |         |
-| array_repeat                | ![open] |         |
+| array_position              | ![done] |         |
+| array_remove                | ![done] |         |
+| array_repeat                | ![done] |         |
 | array_sort                  | ![open] |         |
 | array_union                 | ![done] |         |
 | arrays_overlap              | ![open] |         |
@@ -342,13 +480,13 @@ Only a few of the functions are covered by unit tests.
 | asc_nulls_first             | ![done] |         |
 | asc_nulls_last              | ![done] |         |
 | ascii                       | ![done] |         |
-| asin                        | ![open] |         |
-| asinh                       | ![open] |         |
+| asin                        | ![done] |         |
+| asinh                       | ![done] |         |
 | assert_true                 | ![open] |         |
-| atan                        | ![open] |         |
-| atan2                       | ![open] |         |
-| atanh                       | ![open] |         |
-| avg                         | ![open] |         |
+| atan                        | ![done] |         |
+| atan2                       | ![done] |         |
+| atanh                       | ![done] |         |
+| avg                         | ![done] |         |
 | base64                      | ![done] |         |
 | bin                         | ![done] |         |
 | bit_length                  | ![done] |         |
@@ -358,12 +496,12 @@ Only a few of the functions are covered by unit tests.
 | bround                      | ![open] |         |
 | bucket                      | ![open] |         |
 | call_udf                    | ![open] |         |
-| cbrt                        | ![open] |         |
+| cbrt                        | ![done] |         |
 | ceil                        | ![done] |         |
 | coalesce                    | ![done] |         |
 | col                         | ![done] |         |
-| collect_list                | ![open] |         |
-| collect_set                 | ![open] |         |
+| collect_list                | ![done] |         |
+| collect_set                 | ![done] |         |
 | column                      | ![done] |         |
 | concat                      | ![done] |         |
 | concat_ws                   | ![open] |         |
@@ -375,14 +513,14 @@ Only a few of the functions are covered by unit tests.
 | count                       | ![open] |         |
 | countDistinct               | ![open] |         |
 | count_distinct              | ![open] |         |
-| covar_pop                   | ![open] |         |
-| covar_samp                  | ![open] |         |
+| covar_pop                   | ![done] |         |
+| covar_samp                  | ![done] |         |
 | crc32                       | ![done] |         |
 | create_map                  | ![done] |         |
-| csc                         | ![open] |         |
+| csc                         | ![done] |         |
 | cume_dist                   | ![done] |         |
 | current_date                | ![done] |         |
-| current_timestamp           | ![open] |         |
+| current_timestamp           | ![done] |         |
 | date_add                    | ![done] |         |
 | date_format                 | ![open] |         |
 | date_sub                    | ![done] |         |
@@ -393,7 +531,7 @@ Only a few of the functions are covered by unit tests.
 | dayofyear                   | ![done] |         |
 | days                        | ![done] |         |
 | decode                      | ![open] |         |
-| degrees                     | ![open] |         |
+| degrees                     | ![done] |         |
 | dense_rank                  | ![done] |         |
 | desc                        | ![done] |         |
 | desc_nulls_first            | ![done] |         |
@@ -404,7 +542,7 @@ Only a few of the functions are covered by unit tests.
 | exp                         | ![done] |         |
 | explode                     | ![done] |         |
 | explode_outer               | ![done] |         |
-| expm1                       | ![open] |         |
+| expm1                       | ![done] |         |
 | expr                        | ![done] |         |
 | factorial                   | ![done] |         |
 | filter                      | ![open] |         |
@@ -423,11 +561,11 @@ Only a few of the functions are covered by unit tests.
 | get_active_spark_context    | ![open] |         |
 | get_json_object             | ![open] |         |
 | greatest                    | ![done] |         |
-| grouping                    | ![open] |         |
+| grouping                    | ![done] |         |
 | grouping_id                 | ![open] |         |
 | has_numpy                   | ![open] |         |
 | hash                        | ![done] |         |
-| hex                         | ![open] |         |
+| hex                         | ![done] |         |
 | hour                        | ![done] |         |
 | hours                       | ![done] |         |
 | hypot                       | ![open] |         |
@@ -440,7 +578,7 @@ Only a few of the functions are covered by unit tests.
 | isnan                       | ![done] |         |
 | isnull                      | ![done] |         |
 | json_tuple                  | ![open] |         |
-| kurtosis                    | ![open] |         |
+| kurtosis                    | ![done] |         |
 | lag                         | ![open] |         |
 | last                        | ![open] |         |
 | last_day                    | ![open] |         |
@@ -449,7 +587,7 @@ Only a few of the functions are covered by unit tests.
 | length                      | ![done] |         |
 | levenshtein                 | ![open] |         |
 | lit                         | ![done] |         |
-| localtimestamp              | ![open] |         |
+| localtimestamp              | ![done] |         |
 | locate                      | ![open] |         |
 | log                         | ![done] |         |
 | log10                       | ![done] |         |
@@ -468,12 +606,12 @@ Only a few of the functions are covered by unit tests.
 | map_keys                    | ![done] |         |
 | map_values                  | ![done] |         |
 | map_zip_with                | ![open] |         |
-| max                         | ![open] |         |
+| max                         | ![done] |         |
 | max_by                      | ![open] |         |
 | md5                         | ![done] |         |
-| mean                        | ![open] |         |
-| median                      | ![open] |         |
-| min                         | ![open] |         |
+| mean                        | ![done] |         |
+| median                      | ![done] |         |
+| min                         | ![done] |         |
 | min_by                      | ![open] |         |
 | minute                      | ![done] |         |
 | mode                        | ![open] |         |
@@ -485,7 +623,7 @@ Only a few of the functions are covered by unit tests.
 | next_day                    | ![open] |         |
 | np                          | ![open] |         |
 | nth_value                   | ![open] |         |
-| ntile                       | ![open] |         |
+| ntile                       | ![done] |         |
 | octet_length                | ![done] |         |
 | overlay                     | ![open] |         |
 | overload                    | ![open] |         |
@@ -496,9 +634,9 @@ Only a few of the functions are covered by unit tests.
 | posexplode                  | ![done] |         |
 | posexplode_outer            | ![done] |         |
 | pow                         | ![done] |         |
-| product                     | ![open] |         |
+| product                     | ![done] |         |
 | quarter                     | ![done] |         |
-| radians                     | ![open] |         |
+| radians                     | ![done] |         |
 | raise_error                 | ![open] |         |
 | rand                        | ![done] |         |
 | randn                       | ![done] |         |
@@ -507,14 +645,14 @@ Only a few of the functions are covered by unit tests.
 | regexp_replace              | ![open] |         |
 | repeat                      | ![open] |         |
 | reverse                     | ![done] |         |
-| rint                        | ![open] |         |
+| rint                        | ![done] |         |
 | round                       | ![done] |         |
 | row_number                  | ![done] |         |
 | rpad                        | ![open] |         |
 | rtrim                       | ![done] |         |
 | schema_of_csv               | ![open] |         |
 | schema_of_json              | ![open] |         |
-| sec                         | ![open] |         |
+| sec                         | ![done] |         |
 | second                      | ![done] |         |
 | sentences                   | ![open] |         |
 | sequence                    | ![open] |         |
@@ -528,29 +666,29 @@ Only a few of the functions are covered by unit tests.
 | shiftright                  | ![open] |         |
 | shiftrightunsigned          | ![open] |         |
 | shuffle                     | ![done] |         |
-| signum                      | ![open] |         |
-| sin                         | ![open] |         |
-| sinh                        | ![open] |         |
+| signum                      | ![done] |         |
+| sin                         | ![done] |         |
+| sinh                        | ![done] |         |
 | size                        | ![done] |         |
-| skewness                    | ![open] |         |
+| skewness                    | ![done] |         |
 | slice                       | ![open] |         |
 | sort_array                  | ![open] |         |
 | soundex                     | ![done] |         |
 | spark_partition_id          | ![done] |         |
 | split                       | ![open] |         |
 | sqrt                        | ![done] |         |
-| stddev                      | ![open] |         |
-| stddev_pop                  | ![open] |         |
-| stddev_samp                 | ![open] |         |
+| stddev                      | ![done] |         |
+| stddev_pop                  | ![done] |         |
+| stddev_samp                 | ![done] |         |
 | struct                      | ![open] |         |
 | substring                   | ![open] |         |
 | substring_index             | ![open] |         |
-| sum                         | ![open] |         |
+| sum                         | ![done] |         |
 | sumDistinct                 | ![open] |         |
 | sum_distinct                | ![open] |         |
 | sys                         | ![open] |         |
-| tan                         | ![open] |         |
-| tanh                        | ![open] |         |
+| tan                         | ![done] |         |
+| tanh                        | ![done] |         |
 | timestamp_seconds           | ![done] |         |
 | toDegrees                   | ![open] |         |
 | toRadians                   | ![open] |         |
@@ -569,13 +707,13 @@ Only a few of the functions are covered by unit tests.
 | try_remote_functions        | ![open] |         |
 | udf                         | ![open] |         |
 | unbase64                    | ![done] |         |
-| unhex                       | ![open] |         |
+| unhex                       | ![done] |         |
 | unix_timestamp              | ![open] |         |
 | unwrap_udt                  | ![open] |         |
 | upper                       | ![done] |         |
-| var_pop                     | ![open] |         |
-| var_samp                    | ![open] |         |
-| variance                    | ![open] |         |
+| var_pop                     | ![done] |         |
+| var_samp                    | ![done] |         |
+| variance                    | ![done] |         |
 | warnings                    | ![open] |         |
 | weekofyear                  | ![done] |         |
 | when                        | ![open] |         |
@@ -643,3 +781,4 @@ For ease of use it's recommended to use `Window` to create the `WindowSpec`.
 
 [open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg
 [done]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/ApprovedChanges.svg
+[partial]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueDrafted.svg
