@@ -146,7 +146,7 @@ impl SparkSession {
     /// `end` (exclusive) with a step value `step`, and control the number
     /// of partitions with `num_partitions`
     pub fn range(
-        self,
+        self: Arc<Self>,
         start: Option<i64>,
         end: i64,
         step: i64,
@@ -162,29 +162,57 @@ impl SparkSession {
         DataFrame::new(self, LogicalPlanBuilder::from(range_relation))
     }
 
+    pub fn setCatalog(self: Arc<Self>, catalog: &str) -> DataFrame {
+        let catalog_relation = spark::relation::RelType::Catalog(spark::Catalog {
+            cat_type: Some(spark::catalog::CatType::SetCurrentCatalog(
+                spark::SetCurrentCatalog {
+                    catalog_name: catalog.to_string(),
+                },
+            )),
+        });
+
+        let logical_plan = LogicalPlanBuilder::from(catalog_relation);
+
+        DataFrame::new(self, logical_plan)
+    }
+
+    pub fn setDatabase(self: Arc<Self>, database: &str) -> DataFrame {
+        let catalog_relation = spark::relation::RelType::Catalog(spark::Catalog {
+            cat_type: Some(spark::catalog::CatType::SetCurrentDatabase(
+                spark::SetCurrentDatabase {
+                    db_name: database.to_string(),
+                },
+            )),
+        });
+
+        let logical_plan = LogicalPlanBuilder::from(catalog_relation);
+
+        DataFrame::new(self, logical_plan)
+    }
+
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
-    pub fn read(self) -> DataFrameReader {
+    pub fn read(self: Arc<Self>) -> DataFrameReader {
         DataFrameReader::new(self)
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
     #[allow(non_snake_case)]
-    pub fn readStream(self) -> DataStreamReader {
+    pub fn readStream(self: Arc<Self>) -> DataStreamReader {
         DataStreamReader::new(self)
     }
 
-    pub fn table(self, name: &str) -> Result<DataFrame, SparkError> {
+    pub fn table(self: Arc<Self>, name: &str) -> Result<DataFrame, SparkError> {
         DataFrameReader::new(self).table(name, None)
     }
 
     /// Interface through which the user may create, drop, alter or query underlying databases,
     /// tables, functions, etc.
-    pub fn catalog(self) -> Catalog {
+    pub fn catalog(self: Arc<Self>) -> Catalog {
         Catalog::new(self)
     }
 
     /// Returns a [DataFrame] representing the result of the given query
-    pub async fn sql(self, sql_query: &str) -> Result<DataFrame, SparkError> {
+    pub async fn sql(self: Arc<Self>, sql_query: &str) -> Result<DataFrame, SparkError> {
         let sql_cmd = spark::command::CommandType::SqlCommand(spark::SqlCommand {
             sql: sql_query.to_string(),
             args: HashMap::default(),
@@ -207,7 +235,7 @@ impl SparkSession {
     }
 
     #[allow(non_snake_case)]
-    pub fn createDataFrame(self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
+    pub fn createDataFrame(self: Arc<Self>, data: &RecordBatch) -> Result<DataFrame, SparkError> {
         let logical_plan = LogicalPlanBuilder::local_relation(data)?;
 
         Ok(DataFrame::new(self, logical_plan))
@@ -220,13 +248,17 @@ impl SparkSession {
 
     /// Spark Connection gRPC client interface
     #[cfg(not(feature = "wasm"))]
-    pub fn client(self) -> SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>> {
-        self.client
+    pub fn client(
+        self: Arc<Self>,
+    ) -> SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>> {
+        self.client.clone()
     }
 
     #[cfg(feature = "wasm")]
-    pub fn client(self) -> SparkConnectClient<InterceptedService<Client, MetadataInterceptor>> {
-        self.client
+    pub fn client(
+        self: Arc<Self>,
+    ) -> SparkConnectClient<InterceptedService<Client, MetadataInterceptor>> {
+        self.client.clone()
     }
 }
 

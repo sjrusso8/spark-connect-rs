@@ -2,13 +2,13 @@
 // and then adding transformations for 'select' & 'sort'
 // printing the results as "show(...)"
 
-use spark_connect_rs::{SparkSession, SparkSessionBuilder};
-
 use spark_connect_rs::functions as F;
+use spark_connect_rs::{SparkSession, SparkSessionBuilder};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::default().build().await?;
+    let spark: Arc<SparkSession> = Arc::new(SparkSessionBuilder::default().build().await?);
 
     let path = ["/opt/spark/examples/src/main/resources/people.csv"];
 
