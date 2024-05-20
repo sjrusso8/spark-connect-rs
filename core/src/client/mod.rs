@@ -64,7 +64,10 @@ impl ChannelBuilder {
     }
 
     pub fn endpoint(&self) -> String {
-        format!("https://{}:{}", self.host, self.port)
+        if (self.use_ssl) {
+            return format!("https://{}:{}", self.host, self.port);
+        }
+        format!("http://{}:{}", self.host, self.port)
     }
 
     pub fn token(&self) -> Option<String> {

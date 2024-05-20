@@ -61,8 +61,7 @@ impl SparkSessionBuilder {
         let channel = Endpoint::from_shared(self.channel_builder.endpoint())
             .expect("Failed to create endpoint")
             .connect()
-            .await
-            .expect("Failed to create channel");
+            .await?;
 
         let service_client = SparkConnectServiceClient::with_interceptor(
             channel,

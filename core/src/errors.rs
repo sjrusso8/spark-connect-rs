@@ -7,6 +7,8 @@ use std::error::Error;
 
 use arrow::error::ArrowError;
 
+use tonic::transport::Error as TonicTransportError;
+
 /// Different `Spark` types
 #[derive(Debug)]
 pub enum SparkError {
@@ -17,6 +19,7 @@ pub enum SparkError {
     IoError(String, std::io::Error),
     ArrowError(ArrowError),
     InvalidConnectionUrl(String),
+    TonicTransportError(TonicTransportError),
 }
 
 impl SparkError {
@@ -50,6 +53,12 @@ impl From<ArrowError> for SparkError {
     }
 }
 
+impl From<TonicTransportError> for SparkError {
+    fn from(error: TonicTransportError) -> Self {
+        SparkError::TonicTransportError(error)
+    }
+}
+
 impl From<tonic::Status> for SparkError {
     fn from(status: tonic::Status) -> Self {
         SparkError::AnalysisException(status.message().to_string())
@@ -77,6 +86,9 @@ impl Display for SparkError {
             SparkError::ArrowError(desc) => write!(f, "Apache Arrow error: {desc}"),
             SparkError::NotYetImplemented(source) => write!(f, "Not yet implemented: {source}"),
             SparkError::InvalidConnectionUrl(val) => write!(f, "Invalid URL error: {val}"),
+            SparkError::TonicTransportError(source) => {
+                write!(f, "Tonic Transport error: {source}")
+            }
         }
     }
 }
