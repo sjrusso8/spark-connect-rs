@@ -14,6 +14,7 @@ pub use spark::aggregate::GroupType;
 pub use spark::analyze_plan_request::explain::ExplainMode;
 pub use spark::join::JoinType;
 pub use spark::write_operation::SaveMode;
+use std::sync::Arc;
 
 use spark::relation::RelType;
 
@@ -66,7 +67,7 @@ use arrow::util::pretty;
 #[derive(Clone, Debug)]
 pub struct DataFrame {
     /// Global [SparkSession] connecting to the remote cluster
-    pub(crate) spark_session: Box<SparkSession>,
+    pub(crate) spark_session: Arc<SparkSession>,
 
     /// Logical Plan representing the unresolved Relation
     /// which will be submitted to the remote cluster
@@ -75,9 +76,9 @@ pub struct DataFrame {
 
 impl DataFrame {
     /// create default DataFrame based on a spark session and initial logical plan
-    pub fn new(spark_session: SparkSession, plan: LogicalPlanBuilder) -> DataFrame {
+    pub fn new(spark_session: Arc<SparkSession>, plan: LogicalPlanBuilder) -> DataFrame {
         DataFrame {
-            spark_session: Box::new(spark_session),
+            spark_session,
             plan,
         }
     }
@@ -733,7 +734,7 @@ impl DataFrame {
                 plan: Some(plan),
             });
 
-        let mut client = self.spark_session.client();
+        let mut client = self.spark_session.client().clone();
 
         client.analyze(schema).await?.schema()
     }
@@ -836,7 +837,7 @@ impl DataFrame {
     }
 
     #[allow(non_snake_case)]
-    pub fn sparkSession(self) -> Box<SparkSession> {
+    pub fn sparkSession(self) -> Arc<SparkSession> {
         self.spark_session
     }
 
