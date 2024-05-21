@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .range(None, 1000, 1, Some(16))
         .select(col("id").alias("range_id"));
 
-    let path = "/opt/spark/examples/src/main/rust/employees/";
+    let path = "/opt/spark/examples/src/main/rust/range_table/";
 
     df.write()
         .format("csv")

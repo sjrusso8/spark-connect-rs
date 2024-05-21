@@ -19,14 +19,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .option("delimiter", ";")
         .load(path)?;
 
-    df.select([
-        F::col("name"),
-        F::col("age").cast("int").alias("age_int"),
-        (F::lit(3.0) + F::col("age").cast("int")).alias("addition"),
-    ])
-    .sort(vec![F::col("name").desc()])
-    .show(Some(5), None, None)
-    .await?;
+    // select columns and perform data manipulations
+    let df = df
+        .select([
+            F::col("name"),
+            F::col("age").cast("int").alias("age_int"),
+            (F::lit(3.0) + F::col("age").cast("int")).alias("addition"),
+        ])
+        .sort([F::col("name").desc()]);
+
+    df.show(Some(5), None, None).await?;
 
     // print results
     // +--------------------------+

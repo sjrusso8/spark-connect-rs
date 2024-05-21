@@ -16,8 +16,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
+    // path might vary based on where you started your spark cluster
+    // the `/examples` folder of spark contains dummy data
     let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
 
+    // Load a CSV file from the spark server
     let df = spark
         .clone()
         .read()
@@ -27,25 +30,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .option("inferSchema", "True")
         .load(paths)?;
 
+    // write as a delta table and register it as a table
     df.write()
         .format("delta")
         .mode(SaveMode::Overwrite)
         .saveAsTable("default.people_delta")
         .await?;
 
+    // view the history of the table
     spark
+        .clone()
         .sql("DESCRIBE HISTORY default.people_delta")
         .await?
         .show(Some(1), None, Some(true))
         .await?;
 
-    // print results
+    // create another dataframe
+    let df = spark
+        .clone()
+        .sql("SELECT 'john' as name, 40 as age, 'engineer' as job")
+        .await?;
+
+    // append to the delta table
+    df.write()
+        .format("delta")
+        .mode(SaveMode::Append)
+        .saveAsTable("default.people_delta")
+        .await?;
+
+    // view history
+    spark
+        .clone()
+        .sql("DESCRIBE HISTORY default.people_delta")
+        .await?
+        .show(Some(2), None, Some(true))
+        .await?;
+
     // +-------------------------------------------------------------------------------------------------------+
     // | show_string                                                                                           |
     // +-------------------------------------------------------------------------------------------------------+
     // | -RECORD 0-------------------------------------------------------------------------------------------- |
-    // |  version             | 3                                                                              |
-    // |  timestamp           | 2024-03-16 13:46:23.552                                                        |
+    // |  version             | 1                                                                              |
+    // |  timestamp           | 2024-05-17 14:27:34.462                                                        |
+    // |  userId              | NULL                                                                           |
+    // |  userName            | NULL                                                                           |
+    // |  operation           | WRITE                                                                          |
+    // |  operationParameters | {mode -> Append, partitionBy -> []}                                            |
+    // |  job                 | NULL                                                                           |
+    // |  notebook            | NULL                                                                           |
+    // |  clusterId           | NULL                                                                           |
+    // |  readVersion         | 0                                                                              |
+    // |  isolationLevel      | Serializable                                                                   |
+    // |  isBlindAppend       | true                                                                           |
+    // |  operationMetrics    | {numFiles -> 1, numOutputRows -> 1, numOutputBytes -> 947}                     |
+    // |  userMetadata        | NULL                                                                           |
+    // |  engineInfo          | Apache-Spark/3.5.1 Delta-Lake/3.0.0                                            |
+    // | -RECORD 1-------------------------------------------------------------------------------------------- |
+    // |  version             | 0                                                                              |
+    // |  timestamp           | 2024-05-17 14:27:30.726                                                        |
     // |  userId              | NULL                                                                           |
     // |  userName            | NULL                                                                           |
     // |  operation           | CREATE OR REPLACE TABLE AS SELECT                                              |
@@ -53,13 +95,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // |  job                 | NULL                                                                           |
     // |  notebook            | NULL                                                                           |
     // |  clusterId           | NULL                                                                           |
-    // |  readVersion         | 2                                                                              |
+    // |  readVersion         | NULL                                                                           |
     // |  isolationLevel      | Serializable                                                                   |
     // |  isBlindAppend       | false                                                                          |
     // |  operationMetrics    | {numFiles -> 1, numOutputRows -> 2, numOutputBytes -> 988}                     |
     // |  userMetadata        | NULL                                                                           |
-    // |  engineInfo          | Apache-Spark/3.5.0 Delta-Lake/3.0.0                                            |
-    // | only showing top 1 row                                                                                |
+    // |  engineInfo          | Apache-Spark/3.5.1 Delta-Lake/3.0.0                                            |
     // |                                                                                                       |
     // +-------------------------------------------------------------------------------------------------------+
 

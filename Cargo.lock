@@ -565,6 +565,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "examples"
+version = "0.0.0"
+dependencies = [
+ "spark-connect-rs",
+ "tokio",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
