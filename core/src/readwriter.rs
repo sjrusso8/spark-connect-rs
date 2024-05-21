@@ -1,7 +1,6 @@
 //! DataFrameReader & DataFrameWriter representations
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
@@ -18,14 +17,14 @@ use spark::Expression;
 /// from a specific file format.
 #[derive(Clone, Debug)]
 pub struct DataFrameReader {
-    spark_session: Arc<SparkSession>,
+    spark_session: SparkSession,
     format: Option<String>,
     read_options: HashMap<String, String>,
 }
 
 impl DataFrameReader {
     /// Create a new DataFrameReader with a [SparkSession]
-    pub fn new(spark_session: Arc<SparkSession>) -> Self {
+    pub fn new(spark_session: SparkSession) -> Self {
         Self {
             spark_session,
             format: None,

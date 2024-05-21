@@ -1,7 +1,6 @@
 //! Streaming implementation for the Spark Connect Client
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
@@ -14,16 +13,16 @@ use crate::errors::SparkError;
 /// DataStreamReader represents the entrypoint to create a streaming DataFrame
 #[derive(Clone, Debug)]
 pub struct DataStreamReader {
-    spark_session: Arc<SparkSession>,
+    spark_session: Box<SparkSession>,
     format: Option<String>,
     schema: Option<String>,
     read_options: HashMap<String, String>,
 }
 
 impl DataStreamReader {
-    pub fn new(spark_session: Arc<SparkSession>) -> Self {
+    pub fn new(spark_session: SparkSession) -> Self {
         Self {
-            spark_session: spark_session,
+            spark_session: Box::new(spark_session),
             format: None,
             schema: None,
             read_options: HashMap::new(),
@@ -240,7 +239,7 @@ impl DataStreamWriter {
             .write_stream_operation_start_result;
 
         Ok(StreamingQuery::new(
-            self.dataframe.spark_session.clone(),
+            self.dataframe.spark_session,
             operation_start_resp.unwrap(),
         ))
     }
@@ -272,7 +271,7 @@ impl DataStreamWriter {
 /// This object is used to control and monitor the active stream
 #[derive(Clone, Debug)]
 pub struct StreamingQuery {
-    spark_session: Arc<SparkSession>,
+    spark_session: Box<SparkSession>,
     query_instance: spark::StreamingQueryInstanceId,
     query_id: String,
     run_id: String,
@@ -281,7 +280,7 @@ pub struct StreamingQuery {
 
 impl StreamingQuery {
     pub fn new(
-        spark_session: Arc<SparkSession>,
+        spark_session: Box<SparkSession>,
         write_stream: spark::WriteStreamOperationStartResult,
     ) -> Self {
         let query_instance = write_stream.query_id.unwrap();
@@ -478,17 +477,15 @@ mod tests {
     use crate::errors::SparkError;
     use crate::SparkSessionBuilder;
 
-    async fn setup() -> Arc<SparkSession> {
+    async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
         let connection = "sc://127.0.0.1:15002/;user_id=rust_stream";
 
-        Arc::new(
-            SparkSessionBuilder::remote(connection)
-                .build()
-                .await
-                .unwrap(),
-        )
+        SparkSessionBuilder::remote(connection)
+            .build()
+            .await
+            .unwrap()
     }
 
     #[tokio::test]

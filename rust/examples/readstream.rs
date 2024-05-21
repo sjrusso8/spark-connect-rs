@@ -3,16 +3,15 @@ use spark_connect_rs;
 use spark_connect_rs::streaming::{OutputMode, Trigger};
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
-use std::{sync::Arc, thread, time};
+use std::{thread, time};
 
 // This example demonstrates creating a Spark Stream and monitoring the progress
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: Arc<SparkSession> = Arc::new(
+    let spark: SparkSession =
         SparkSessionBuilder::remote("sc://127.0.0.1:15002/;user_id=stream_example")
             .build()
-            .await?,
-    );
+            .await?;
 
     let df = spark
         .readStream()
