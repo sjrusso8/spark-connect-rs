@@ -64,7 +64,13 @@ impl ChannelBuilder {
     }
 
     pub fn endpoint(&self) -> String {
-        format!("https://{}:{}", self.host, self.port)
+        let scheme = if cfg!(feature = "tls") {
+            "https"
+        } else {
+            "http"
+        };
+
+        format!("{}://{}:{}", scheme, self.host, self.port)
     }
 
     pub fn token(&self) -> Option<String> {
@@ -665,7 +671,7 @@ mod tests {
 
     #[test]
     fn test_channel_builder_default() {
-        let expected_url = "https://localhost:15002".to_string();
+        let expected_url = "http://localhost:15002".to_string();
 
         let cb = ChannelBuilder::default();
 
