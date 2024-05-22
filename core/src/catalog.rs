@@ -1,6 +1,7 @@
 //! Spark Catalog representation through which the user may create, drop, alter or query underlying databases, tables, functions, etc.
 
 use arrow::array::RecordBatch;
+use std::sync::Arc;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
@@ -10,11 +11,11 @@ use crate::storage::StorageLevel;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
-    spark_session: SparkSession,
+    spark_session: Arc<SparkSession>,
 }
 
 impl Catalog {
-    pub fn new(spark_session: SparkSession) -> Self {
+    pub fn new(spark_session: Arc<SparkSession>) -> Self {
         Self { spark_session }
     }
 

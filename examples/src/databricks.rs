@@ -13,7 +13,7 @@ use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::remote("sc://<workspace instance name>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>")
+    let spark: Arc<SparkSession> = Arc::new(SparkSessionBuilder::remote("sc://<workspace instance name>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>"))
         .build()
         .await?;
 

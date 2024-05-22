@@ -6,14 +6,18 @@ use spark_connect_rs::functions::col;
 
 use spark_connect_rs::dataframe::SaveMode;
 
+use std::sync::Arc;
+
 // This example demonstrates creating a Spark DataFrame from range()
 // alias the column name, writing the results to a CSV
 // then reading the csv file back
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
-        .build()
-        .await?;
+    let spark: Arc<SparkSession> = Arc::new(
+        SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
+            .build()
+            .await?,
+    );
 
     let df = spark
         .clone()

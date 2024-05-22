@@ -60,11 +60,7 @@ With docker:
 docker compose up --build -d
 ```
 
-**Step 5**: Run an example from the repo under `/examples`
-
-```bash
-cargo run --example sql
-```
+**Step 5**: Run an example from the repo under [/examples](https://github.com/sjrusso8/spark-connect-rs/tree/main/examples/README.md)
 
 ## Features
 
@@ -198,7 +194,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | unionByName                   | ![done] |                                                            |
 | unpersist                     | ![done] |                                                            |
 | unpivot                       | ![open] |                                                            |
-| where                         | ![done] | use `sort` where is a keyword for rust                     |
+| where                         | ![done] | use `filter` instead, `where` is a keyword for rust        |
 | withColumn                    | ![done] |                                                            |
 | withColumns                   | ![done] |                                                            |
 | withColumnRenamed             | ![open] |                                                            |
