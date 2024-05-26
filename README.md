@@ -165,7 +165,7 @@ The following section outlines some of the larger functionality that are not yet
 |options           |![done]   |                                       |
 |orc               |![open]   |                                       |
 |parquet           |![open]   |                                       |
-|schema            |![open]   |                                       |
+|schema            |![done]   |                                       |
 |table             |![done]   |                                       |
 |text              |![open]   |                                       |
 
