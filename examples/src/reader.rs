@@ -5,6 +5,7 @@
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 use spark_connect_rs::functions as F;
+use spark_connect_rs::types::DataType;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,8 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = df
         .select([
             F::col("name"),
-            F::col("age").cast("int").alias("age_int"),
-            (F::lit(3.0) + F::col("age").cast("int")).alias("addition"),
+            F::col("age").cast(DataType::Integer).alias("age_int"),
+            (F::lit(3.0) + F::col("age_int")).alias("addition"),
         ])
         .sort([F::col("name").desc()]);
 

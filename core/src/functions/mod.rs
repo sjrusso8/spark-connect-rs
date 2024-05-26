@@ -547,7 +547,7 @@ mod tests {
         let df = spark
             .clone()
             .range(None, 1, 1, Some(1))
-            .select(lit([1, 2, 3]));
+            .select(lit(vec![1, 2, 3]));
 
         let row = df.collect().await?;
 

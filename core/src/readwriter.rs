@@ -6,6 +6,7 @@ use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
+use crate::types::{SparkDataType, StructType};
 use crate::DataFrame;
 
 use crate::expressions::ToVecExpr;
@@ -13,12 +14,38 @@ use spark::write_operation::SaveMode;
 use spark::write_operation_v2::Mode;
 use spark::Expression;
 
+/// A trait used to a create a DDL string or JSON string
+///
+/// Primarily used for [StructType] and Strings
+pub trait ToSchema {
+    fn to_schema(&self) -> String;
+}
+
+impl ToSchema for StructType {
+    fn to_schema(&self) -> String {
+        self.json()
+    }
+}
+
+impl ToSchema for String {
+    fn to_schema(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl ToSchema for &str {
+    fn to_schema(&self) -> String {
+        self.to_string()
+    }
+}
+
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
 pub struct DataFrameReader {
     spark_session: SparkSession,
     format: Option<String>,
+    schema: Option<String>,
     read_options: HashMap<String, String>,
 }
 
@@ -28,6 +55,7 @@ impl DataFrameReader {
         Self {
             spark_session,
             format: None,
+            schema: None,
             read_options: HashMap::new(),
         }
     }
@@ -41,6 +69,11 @@ impl DataFrameReader {
     /// Add an input option for the underlying data source
     pub fn option(mut self, key: &str, value: &str) -> Self {
         self.read_options.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn schema<T: ToSchema>(mut self, schema: T) -> Self {
+        self.schema = Some(schema.to_schema());
         self
     }
 
@@ -76,7 +109,7 @@ impl DataFrameReader {
             is_streaming: false,
             read_type: Some(spark::read::ReadType::DataSource(spark::read::DataSource {
                 format: self.format,
-                schema: None,
+                schema: self.schema,
                 options: self.read_options,
                 paths: paths.into_iter().map(|p| p.to_string()).collect(),
                 predicates: vec![],
@@ -411,6 +444,7 @@ mod tests {
 
     use crate::errors::SparkError;
     use crate::functions::*;
+    use crate::types::{DataType, StructField, StructType};
     use crate::SparkSessionBuilder;
 
     async fn setup() -> SparkSession {
@@ -440,6 +474,49 @@ mod tests {
         let rows = df.collect().await?;
 
         assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read_schema() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = ["/opt/spark/examples/src/main/resources/people.json"];
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: false,
+                metadata: None,
+            },
+            StructField {
+                name: "age",
+                data_type: DataType::Short,
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        let df = spark
+            .clone()
+            .read()
+            .format("json")
+            .schema(schema)
+            .load(path)?;
+
+        let schema_datatype = df.printSchema(None).await?;
+
+        let df = spark
+            .clone()
+            .read()
+            .format("json")
+            .schema("name string, age short")
+            .load(path)?;
+
+        let schema_ddl = df.printSchema(None).await?;
+
+        assert_eq!(schema_datatype, schema_ddl);
         Ok(())
     }
 
