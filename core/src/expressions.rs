@@ -19,7 +19,6 @@
 use crate::spark;
 
 use crate::column::Column;
-use crate::types::ToDataType;
 
 /// Translate string values into a `spark::Expression`
 pub trait ToExpr {
@@ -232,19 +231,19 @@ impl ToLiteralExpr for Column {
 /// Create a Spark ArrayType from a vec
 impl<T> ToLiteralExpr for Vec<T>
 where
-    T: ToDataType + ToLiteral,
+    T: ToLiteral + Clone,
+    spark::DataType: From<T>,
 {
     fn to_literal_expr(&self) -> spark::Expression {
-        let kind = self
-            .first()
-            .expect("Array can not be empty")
-            .to_proto_type();
+        let element_type = Some(spark::DataType::from(
+            self.first().expect("Array can not be empty").clone(),
+        ));
 
-        let literal_vec = self.iter().map(|val| val.to_literal()).collect();
+        let elements = self.iter().map(|val| val.to_literal()).collect();
 
         let array_type = spark::expression::literal::Array {
-            element_type: Some(kind),
-            elements: literal_vec,
+            element_type,
+            elements,
         };
 
         spark::Expression {
@@ -260,19 +259,19 @@ where
 /// Create a Spark ArrayType from a slice
 impl<const N: usize, T> ToLiteralExpr for [T; N]
 where
-    T: ToDataType + ToLiteral,
+    T: ToLiteral + Clone,
+    spark::DataType: From<T>,
 {
     fn to_literal_expr(&self) -> spark::Expression {
-        let kind = self
-            .first()
-            .expect("Array can not be empty")
-            .to_proto_type();
+        let element_type = Some(spark::DataType::from(
+            self.first().expect("Array can not be empty").clone(),
+        ));
 
-        let literal_vec = self.iter().map(|val| val.to_literal()).collect();
+        let elements = self.iter().map(|val| val.to_literal()).collect();
 
         let array_type = spark::expression::literal::Array {
-            element_type: Some(kind),
-            elements: literal_vec,
+            element_type,
+            elements,
         };
 
         spark::Expression {
