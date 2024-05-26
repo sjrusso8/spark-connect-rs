@@ -725,10 +725,34 @@ Only a few of the functions are covered by unit tests.
 | zip_with                    | ![open] |         |
 
 
-### Schema
+### Data Types
 
-Spark schema objects have not yet been translated into rust objects.
+Data types are used for creating schemas and for casting columns to specific types
 
+| Column                | API     | Comment           |
+|-----------------------|---------|-------------------|
+| ArrayType             | ![done] |                   |
+| BinaryType            | ![done] |                   |
+| BooleanType           | ![done] |                   |
+| ByteType              | ![done] |                   |
+| DateType              | ![done] |                   |
+| DecimalType           | ![done] |                   |
+| DoubleType            | ![done] |                   |
+| FloatType             | ![done] |                   |
+| IntegerType           | ![done] |                   |
+| LongType              | ![done] |                   |
+| MapType               | ![done] |                   |
+| NullType              | ![done] |                   |
+| ShortType             | ![done] |                   |
+| StringType            | ![done] |                   |
+| CharType              | ![done] |                   |
+| VarcharType           | ![done] |                   |
+| StructField           | ![done] |                   |
+| StructType            | ![done] |                   |
+| TimestampType         | ![done] |                   |
+| TimestampNTZType      | ![done] |                   |
+| DayTimeIntervalType   | ![done] |                   |
+| YearMonthIntervalType | ![done] |                   |
 
 ### Literal Types
 
