@@ -43,16 +43,17 @@ impl Default for SparkSessionBuilder {
 }
 
 impl SparkSessionBuilder {
-    fn new(connection: &str) -> Self {
-        let channel_builder = ChannelBuilder::create(connection).unwrap();
-
-        Self { channel_builder }
+    fn new(connection: &str) -> Result<Self, SparkError> {
+        match ChannelBuilder::create(connection) {
+            Ok(channel_builder) => Ok(Self { channel_builder }),
+            Err(e) => Err(e),
+        }
     }
 
     /// Validate a connect string for a remote Spark Session
     ///
     /// String must conform to the [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
-    pub fn remote(connection: &str) -> Self {
+    pub fn remote(connection: &str) -> Result<Self, SparkError> {
         Self::new(connection)
     }
 

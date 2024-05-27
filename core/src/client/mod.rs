@@ -114,8 +114,7 @@ impl ChannelBuilder {
             .host_str()
             .ok_or_else(|| {
                 SparkError::InvalidConnectionUrl(
-                    "The hostname must not be empty. Please update
-                    the URL to follow the correct format, e.g., 'sc://hostname:port'."
+                    "Invalid URL: Hostname cannot be empty. Ensure the URL is in the correct format, e.g., 'sc://hostname:port'."
                         .to_string(),
                 )
             })?
@@ -123,8 +122,7 @@ impl ChannelBuilder {
 
         let port = url.port().ok_or_else(|| {
             SparkError::InvalidConnectionUrl(
-                "The port must not be empty. Please update
-                    the URL to follow the correct format, e.g., 'sc://hostname:port'."
+                "Invalid URL: Port cannot be empty. Ensure the URL is in the correct format, e.g., 'sc://hostname:port'."
                     .to_string(),
             )
         })?;
