@@ -13,3 +13,5 @@ services:
     ports:
       - "4040:4040"
       - "15002:15002"
+    volumes:
+      - ./datasets:/datasets

@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // path might vary based on where you started your spark cluster
     // the `/examples` folder of spark contains dummy data
-    let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
+    let paths = ["/datasets/people.csv"];
 
     // Load a CSV file from the spark server
     let df = spark

@@ -19,6 +19,8 @@ The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://
 ├── core       <- core implementation in Rust
 │   └─ spark   <- git submodule for apache/spark
 ├── rust       <- shim for 'spark-connect-rs' from core
+├── examples   <- examples of using different aspects of the crate
+├── datasets   <- sample files from the main spark repo
 ```
 
 Future state would be to have additional bindings for other languages along side the top level `rust` folder.
