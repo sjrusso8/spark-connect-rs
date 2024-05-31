@@ -20,8 +20,17 @@ pub use spark::write_operation::SaveMode;
 
 use arrow::array::PrimitiveArray;
 use arrow::datatypes::{DataType, Float64Type};
+use arrow::json::ArrayWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
+
+#[cfg(feature = "datafusion")]
+use datafusion::execution::context::SessionContext;
+
+#[cfg(feature = "polars")]
+use polars;
+#[cfg(feature = "polars")]
+use polars_arrow;
 
 /// DataFrame is composed of a [SparkSession] referencing a
 /// Spark Connect enabled cluster, and a [LogicalPlanBuilder] which represents
@@ -901,6 +910,77 @@ impl DataFrame {
             spark_session: self.spark_session,
             plan,
         }
+    }
+
+    /// Converts a [DataFrame] into String representation of JSON
+    ///
+    /// Each row is turned into a JSON document
+    pub async fn to_json(self) -> Result<String, SparkError> {
+        if self.clone().isEmpty().await? {
+            return Ok(String::from("[]"));
+        };
+
+        let batches = self.collect().await?;
+        let buf = Vec::new();
+        let mut writer = ArrayWriter::new(buf);
+
+        writer.write_batches(&[&batches])?;
+        writer.finish()?;
+
+        let res = String::from_utf8_lossy(&writer.into_inner()).into_owned();
+
+        Ok(res)
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn toJSON(self) -> Result<String, SparkError> {
+        self.to_json().await
+    }
+
+    /// Converts a [DataFrame] into a [datafusion::dataframe::DataFrame]
+    #[cfg(feature = "datafusion")]
+    #[cfg(any(feature = "default", feature = "datafusion"))]
+    pub async fn to_datafusion(
+        self,
+        ctx: &SessionContext,
+    ) -> Result<datafusion::dataframe::DataFrame, SparkError> {
+        let batch = self.collect().await?;
+
+        Ok(ctx.read_batch(batch)?)
+    }
+
+    #[cfg(feature = "datafusion")]
+    #[allow(non_snake_case)]
+    pub async fn toDataFusion(
+        self,
+        ctx: &SessionContext,
+    ) -> Result<datafusion::dataframe::DataFrame, SparkError> {
+        self.to_datafusion(ctx).await
+    }
+
+    #[cfg(feature = "polars")]
+    /// Converts a [DataFrame] into a [polars::frame::DataFrame]
+    #[cfg(any(feature = "default", feature = "polars"))]
+    pub async fn to_polars(self) -> Result<polars::frame::DataFrame, SparkError> {
+        let batch = self.collect().await?;
+        let schema = batch.schema();
+
+        let mut columns = Vec::with_capacity(batch.num_columns());
+        for (i, column) in batch.columns().iter().enumerate() {
+            let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
+            columns.push(polars::series::Series::from_arrow(
+                schema.fields().get(i).unwrap().name(),
+                arrow,
+            )?);
+        }
+
+        Ok(polars::frame::DataFrame::from_iter(columns))
+    }
+
+    #[cfg(feature = "polars")]
+    #[allow(non_snake_case)]
+    pub async fn toPolars(self) -> Result<polars::frame::DataFrame, SparkError> {
+        self.to_polars().await
     }
 
     /// Returns a new [DataFrame] based on a provided closure.
@@ -2037,6 +2117,88 @@ mod tests {
         let expected = RecordBatch::try_from_iter(vec![("new_col", col)])?;
 
         assert_eq!(expected, res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_df_to_json() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let data = mock_data();
+
+        let df = spark.clone().createDataFrame(&data)?;
+
+        let val = df.toJSON().await?;
+
+        let expected = String::from("[{\"name\":\"Tom\",\"age\":14},{\"name\":\"Alice\",\"age\":23},{\"name\":\"Bob\",\"age\":16}]");
+
+        assert_eq!(expected, val);
+
+        // empty dataframe
+        let df = spark.range(Some(0), 0, 1, None);
+
+        let val = df.toJSON().await?;
+
+        assert_eq!(String::from("[]"), val);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "datafusion")]
+    async fn test_df_to_datafusion() -> Result<(), SparkError> {
+        use datafusion::prelude::SessionContext;
+
+        let spark = setup().await;
+        let ctx = SessionContext::new();
+
+        let data = mock_data();
+
+        let df = spark.clone().createDataFrame(&data)?;
+
+        let df_output = df.toDataFusion(&ctx).await?.collect().await?;
+        let df_expected = ctx.read_batch(data)?.collect().await?;
+
+        assert_eq!(df_expected, df_output);
+
+        // empty dataframe
+        let df = spark.clone().range(Some(0), 0, 1, None);
+
+        let val = df.toDataFusion(&ctx).await?.collect().await?;
+
+        assert_eq!(0, val[0].num_rows());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "polars")]
+    async fn test_df_to_polars() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let data = mock_data();
+
+        let schema = data.schema();
+
+        // transform arrow into polars_arrow
+        // same code as used in the function
+        let mut columns = Vec::with_capacity(data.num_columns());
+        for (i, column) in data.columns().iter().enumerate() {
+            let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
+            columns.push(polars::series::Series::from_arrow(
+                schema.fields().get(i).unwrap().name(),
+                arrow,
+            )?);
+        }
+
+        let df_expected = polars::frame::DataFrame::from_iter(columns);
+
+        let df = spark.clone().createDataFrame(&data)?;
+
+        let df_output = df.toPolars().await?;
+
+        assert_eq!(df_expected, df_output);
 
         Ok(())
     }
