@@ -24,12 +24,12 @@ use arrow::json::ArrayWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 
-#[cfg(any(feature = "default", feature = "datafusion"))]
+#[cfg(feature = "datafusion")]
 use datafusion::execution::context::SessionContext;
 
-#[cfg(any(feature = "default", feature = "polars"))]
+#[cfg(feature = "polars")]
 use polars;
-#[cfg(any(feature = "default", feature = "polars"))]
+#[cfg(feature = "polars")]
 use polars_arrow;
 
 /// DataFrame is composed of a [SparkSession] referencing a
@@ -938,6 +938,7 @@ impl DataFrame {
     }
 
     /// Converts a [DataFrame] into a [datafusion::dataframe::DataFrame]
+    #[cfg(feature = "datafusion")]
     #[cfg(any(feature = "default", feature = "datafusion"))]
     pub async fn to_datafusion(
         self,
@@ -948,6 +949,7 @@ impl DataFrame {
         Ok(ctx.read_batch(batch)?)
     }
 
+    #[cfg(feature = "datafusion")]
     #[allow(non_snake_case)]
     pub async fn toDataFusion(
         self,
@@ -955,6 +957,8 @@ impl DataFrame {
     ) -> Result<datafusion::dataframe::DataFrame, SparkError> {
         self.to_datafusion(ctx).await
     }
+
+    #[cfg(feature = "polars")]
     /// Converts a [DataFrame] into a [polars::frame::DataFrame]
     #[cfg(any(feature = "default", feature = "polars"))]
     pub async fn to_polars(self) -> Result<polars::frame::DataFrame, SparkError> {
@@ -973,6 +977,7 @@ impl DataFrame {
         Ok(polars::frame::DataFrame::from_iter(columns))
     }
 
+    #[cfg(feature = "polars")]
     #[allow(non_snake_case)]
     pub async fn toPolars(self) -> Result<polars::frame::DataFrame, SparkError> {
         self.to_polars().await
@@ -2141,6 +2146,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "datafusion")]
     async fn test_df_to_datafusion() -> Result<(), SparkError> {
         use datafusion::prelude::SessionContext;
 
@@ -2167,6 +2173,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "polars")]
     async fn test_df_to_polars() -> Result<(), SparkError> {
         let spark = setup().await;
 

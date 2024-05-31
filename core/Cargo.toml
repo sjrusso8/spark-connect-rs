@@ -58,9 +58,6 @@ default = [
   "tonic/codegen",
   "tonic/prost",
   "tonic/transport",
-  "dep:datafusion",
-  "dep:polars",
-  "dep:polars-arrow"
 ]
 
 tls = [

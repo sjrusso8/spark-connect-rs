@@ -7,8 +7,9 @@ use std::error::Error;
 
 use arrow::error::ArrowError;
 
-#[cfg(any(feature = "default", feature = "datafusion"))]
+#[cfg(feature = "datafusion")]
 use datafusion::error::DataFusionError;
+#[cfg(feature = "polars")]
 use polars::error::PolarsError;
 
 /// Different `Spark` types
@@ -66,13 +67,14 @@ impl From<serde_json::Error> for SparkError {
     }
 }
 
-#[cfg(any(feature = "default", feature = "datafusion"))]
+#[cfg(feature = "datafusion")]
 impl From<DataFusionError> for SparkError {
     fn from(_value: DataFusionError) -> Self {
         SparkError::AnalysisException("Error converting to DataFusion DataFrame".to_string())
     }
 }
-#[cfg(any(feature = "default", feature = "polars"))]
+
+#[cfg(feature = "polars")]
 impl From<PolarsError> for SparkError {
     fn from(_value: PolarsError) -> Self {
         SparkError::AnalysisException("Error converting to Polars DataFrame".to_string())
