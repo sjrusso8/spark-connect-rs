@@ -265,7 +265,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | coalesce                      | ![done] |                                                            |
 | colRegex                      | ![done] |                                                            |
 | collect                       | ![done] |                                                            |
-| columns                       | ![done] |                                                            |
+| columns                       | ![done] |                                                           |
 | corr                          | ![done] |                                                            |
 | count                         | ![done] |                                                            |
 | cov                           | ![done] |                                                            |
@@ -338,9 +338,10 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | take                          | ![done] |                                                            |
 | to                            | ![done] |                                                            |
 | toDF                          | ![done] |                                                            |
-| toJSON                        | ![open] |                                                            |
+| toJSON                        | ![partial] | Does not return an `RDD` but a long JSON formatted `String` |
 | toLocalIterator               | ![open] |                                                            |
-| toPandas                      | ![open] | TBD on this exact implementation. Might be toPolars        |
+| ~~toPandas~~ to_polars & toPolars  | ![partial] | Convert to a `polars::frame::DataFrame`            |
+| **new** to_datafusion & toDataFusion | ![done] | Convert to a `datafusion::dataframe::DataFrame`     |
 | transform                     | ![done] |                                                            |
 | union                         | ![done] |                                                            |
 | unionAll                      | ![done] |                                                            |
