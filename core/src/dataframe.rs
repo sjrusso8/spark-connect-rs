@@ -58,7 +58,7 @@ use polars_arrow;
 /// A `DataFrame` is created from a `spark.sql()` statement
 ///
 /// ```rust
-/// let df = spark.sql("SELECT * FROM json.`/datasets/employees.json`").await?;
+/// let df = spark.sql("SELECT * FROM json.`/opt/spark/work-dir/datasets/employees.json`").await?;
 /// ```
 ///
 /// ## read & readStream
@@ -1745,7 +1745,7 @@ mod tests {
     async fn test_df_input_files() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/datasets/people.csv"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let df = spark
             .read()

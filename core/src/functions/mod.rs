@@ -643,7 +643,7 @@ mod tests {
     async fn test_func_input_file() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/datasets/people.csv"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let df = spark
             .read()
@@ -654,7 +654,9 @@ mod tests {
 
         let res = df.select(input_file_name()).head(None).await?;
 
-        let a: ArrayRef = Arc::new(StringArray::from(vec!["file:///datasets/people.csv"]));
+        let a: ArrayRef = Arc::new(StringArray::from(vec![
+            "file:///opt/spark/work-dir/datasets/people.csv",
+        ]));
 
         let expected = RecordBatch::try_from_iter(vec![("input_file_name()", a)])?;
 

@@ -11,14 +11,14 @@ use spark_connect_rs::types::DataType;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spark: SparkSession = SparkSessionBuilder::default().build().await?;
 
-    let path = ["/datasets/people.csv"];
+    let path = "./datasets/people.csv";
 
     let df = spark
         .read()
         .format("csv")
         .option("header", "True")
         .option("delimiter", ";")
-        .load(path)?;
+        .load([path])?;
 
     // select columns and perform data manipulations
     let df = df

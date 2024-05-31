@@ -462,7 +462,7 @@ mod tests {
     async fn test_dataframe_read() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/datasets/people.csv"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let df = spark
             .read()
@@ -481,7 +481,7 @@ mod tests {
     async fn test_dataframe_read_schema() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/datasets/people.json"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let schema = StructType::new(vec![
             StructField {

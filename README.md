@@ -46,12 +46,17 @@ cargo build
 
 With local spark:
 
-1. [Download Spark distribution](https://spark.apache.org/downloads.html) (3.4.0+), unzip the package.
+1. [Download Spark distribution](https://spark.apache.org/downloads.html) (3.5.1 recommended), unzip the package.
+
+2. Set your `SPARK_HOME` environment variable to the location where spark was extracted to,
 
 2. Start the Spark Connect server with the following command (make sure to use a package version that matches your Spark distribution):
 
-```
-sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.12:3.4.0
+```bash
+$ $SPARK_HOME/sbin/start-connect-server.sh --packages "org.apache.spark:spark-connect_2.12:3.5.1,io.delta:delta-spark_2.12:3.0.0" \
+      --conf "spark.driver.extraJavaOptions=-Divy.cache.dir=/tmp -Divy.home=/tmp" \
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+      --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
 ```
 
 With docker:
@@ -59,7 +64,7 @@ With docker:
 1. Start the Spark Connect server by leveraging the created `docker-compose.yml` in this repo. This will start a Spark Connect Server running on port 15002
 
 ```bash
-docker compose up --build -d
+$ docker compose up --build -d
 ```
 
 **Step 5**: Run an example from the repo under [/examples](https://github.com/sjrusso8/spark-connect-rs/tree/main/examples/README.md)

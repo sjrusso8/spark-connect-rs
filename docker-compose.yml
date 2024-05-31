@@ -14,4 +14,4 @@ services:
       - "4040:4040"
       - "15002:15002"
     volumes:
-      - ./datasets:/datasets
+      - ./datasets:/opt/spark/work-dir/datasets

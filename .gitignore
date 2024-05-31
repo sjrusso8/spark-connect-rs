@@ -2,3 +2,6 @@
 
 .vscode
 *.ipynb
+
+/spark-warehouse
+/artifacts
