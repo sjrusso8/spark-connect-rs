@@ -1,5 +1,3 @@
-use spark_connect_rs;
-
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
 use spark_connect_rs::functions::col;
@@ -20,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .range(None, 1000, 1, Some(16))
         .select(col("id").alias("range_id"));
 
-    let path = "/opt/spark/examples/src/main/rust/range_table/";
+    let path = "file:///tmp/range_table/";
 
     df.write()
         .format("csv")

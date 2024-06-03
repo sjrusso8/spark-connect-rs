@@ -462,7 +462,7 @@ mod tests {
     async fn test_dataframe_read() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let df = spark
             .read()
@@ -481,7 +481,7 @@ mod tests {
     async fn test_dataframe_read_schema() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/opt/spark/examples/src/main/resources/people.json"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let schema = StructType::new(vec![
             StructField {
@@ -529,7 +529,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .selectExpr(vec!["id AS range_id"]);
 
-        let path = "/opt/spark/examples/src/main/rust/employees/";
+        let path = "/tmp/range_id/";
 
         df.write()
             .mode(SaveMode::Overwrite)
