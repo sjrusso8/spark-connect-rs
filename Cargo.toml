@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "rust", "wasi"]
+members = ["core", "rust", "wasi", "examples"]
 resolver = "2"
 
 [workspace.package]
@@ -37,3 +37,7 @@ url = { version = "2.5" }
 chrono = { version = "0.4" }
 
 getrandom = { version = "0.2" }
+
+datafusion = { version = "38.0", default-features = false }
+polars = { version = "0.40", default-features = false }
+polars-arrow = { version = "0.40", default-features = false, features = ["arrow_rs"]  }

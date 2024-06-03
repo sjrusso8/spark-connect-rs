@@ -7,3 +7,6 @@ wasm-pack.log
 
 .vscode
 *.ipynb
+
+/spark-warehouse
+/artifacts

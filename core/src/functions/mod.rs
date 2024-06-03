@@ -547,7 +547,7 @@ mod tests {
         let df = spark
             .clone()
             .range(None, 1, 1, Some(1))
-            .select(lit([1, 2, 3]));
+            .select(lit(vec![1, 2, 3]));
 
         let row = df.collect().await?;
 
@@ -643,7 +643,7 @@ mod tests {
     async fn test_func_input_file() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = ["/opt/spark/examples/src/main/resources/people.csv"];
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let df = spark
             .read()
@@ -655,7 +655,7 @@ mod tests {
         let res = df.select(input_file_name()).head(None).await?;
 
         let a: ArrayRef = Arc::new(StringArray::from(vec![
-            "file:///opt/spark/examples/src/main/resources/people.csv",
+            "file:///opt/spark/work-dir/datasets/people.csv",
         ]));
 
         let expected = RecordBatch::try_from_iter(vec![("input_file_name()", a)])?;

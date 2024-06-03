@@ -245,7 +245,7 @@ mod tests {
         let ssbuilder = SparkSessionBuilder::remote(connection);
 
         assert_eq!(
-            "https://myhost.com:443".to_string(),
+            "http://myhost.com:443".to_string(),
             ssbuilder.channel_builder.endpoint()
         );
         assert_eq!(
