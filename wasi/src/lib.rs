@@ -15,26 +15,6 @@ use wasm_bindgen_futures::spawn_local;
 
 #[wasm_bindgen(main)]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Simple example with read and write
-    // let spark: SparkSession = SparkSessionBuilder::remote("sc://127.0.0.1:8080/;user_id=wasi")
-    //     .build()
-    //     .await?;
-
-    // let df = spark
-    //     .clone()
-    //     .range(None, 1000, 1, Some(16))
-    //     .select(col("id").alias("range_id"));
-    //
-    // let path = "/opt/spark/examples/src/main/rust/employees/";
-    //
-    // df.write()
-    //     .format("csv")
-    //     .mode(SaveMode::Overwrite)
-    //     .option("header", "true")
-    //     .save(path)
-    //     .await?;
-
-    // for some reason you can only get one response during a session
     // after the first response, all other ones are 'malformed'
     let spark: SparkSession =
         SparkSessionBuilder::remote("sc://127.0.0.1:8080/;user_id=wasm_stream_example")
@@ -56,14 +36,37 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .start(None)
         .await?;
 
-    // prints values to console after waiting 10 seconds
-    spawn_local(async {
-        for _ in 1..5 {
-            console::log_1(&"10 second sleep".into());
-            TimeoutFuture::new(10_000).await;
+    let window = web_sys::window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let body = document.body().expect("document should have a body");
 
-            let val = &query.clone().lastProgress().await.unwrap();
-            console::log_1(&val.to_string().into());
+    let val = document
+        .create_element("p")
+        .expect("failed to create element `p`");
+
+    val.set_text_content(Some(
+        "--------------- Start Spark Structured Streaming Job ---------------",
+    ));
+
+    body.append_child(&val).expect("failed to apppend text");
+
+    // prints values to console after waiting 10 seconds
+    spawn_local(async move {
+        for _ in 1..10 {
+            console::log_1(&"3 second sleep".into());
+            TimeoutFuture::new(3_000).await;
+
+            let json_val = &query.clone().lastProgress().await.unwrap();
+
+            let val = document
+                .create_element("p")
+                .expect("failed to create element `p`");
+
+            val.set_text_content(Some(&json_val.to_string()));
+
+            body.append_child(&val).expect("failed to apppend text");
+
+            console::log_1(&json_val.to_string().into());
         }
 
         query.stop().await.unwrap();
