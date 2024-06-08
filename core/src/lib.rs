@@ -118,6 +118,7 @@ pub mod spark {
 pub mod catalog;
 pub mod client;
 pub mod column;
+pub mod conf;
 pub mod dataframe;
 pub mod errors;
 pub mod expressions;
