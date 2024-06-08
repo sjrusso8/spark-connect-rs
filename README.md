@@ -85,36 +85,36 @@ The following section outlines some of the larger functionality that are not yet
 |------------------|----------|---------------------------------------|
 |active            |![open]   |                                       |
 |addArtifact(s)    |![open]   |                                       |
-|addTag            |![open]   |                                       |
-|clearTags         |![open]   |                                       |
+|addTag            |![done]   |                                       |
+|clearTags         |![done]   |                                       |
 |copyFromLocalToFs |![open]   |                                       |
 |createDataFrame   |![partial]|Partial. Only works for `RecordBatch`  |
 |getActiveSessions |![open]   |                                       |
-|getTags           |![open]   |                                       |
-|interruptAll      |![open]   |                                       |
-|interruptOperation|![open]   |                                       |
-|interruptTag      |![open]   |                                       |
+|getTags           |![done]   |                                       |
+|interruptAll      |![done]   |                                       |
+|interruptOperation|![done]   |                                       |
+|interruptTag      |![done]   |                                       |
 |newSession        |![open]   |                                       |
 |range             |![done]   |                                       |
 |removeTag         |![done]   |                                       |
 |sql               |![done]   |                                       |
 |stop              |![open]   |                                       |
 |table             |![done]   |                                       |
-|catalog           |![done]   |[Catalog](#catalog)                  |
-|client            |X         |unstable developer api for testing only|
-|conf              |![open]   |[Conf](#runtimeconfig)                  |
-|read              |![done]   |[DataFrameReader](#dataframereader)                  |
-|readStream        |![done]   |[DataStreamReader](#datastreamreader)                  |
-|streams           |![open]   |[Streams](#streamingquerymanager)                  |
-|udf               |![open]   |[Udf](#udfregistration) - may not be possible                 |
-|udtf              |![open]   |[Udtf](#udtfregistration) - may not be possible                 |
-|version           |![open]   |                                       |
+|catalog           |![done]   |[Catalog](#catalog)                    |
+|client            |![done]   |unstable developer api for testing only |
+|conf              |![done]   |[Conf](#runtimeconfig)                 |
+|read              |![done]   |[DataFrameReader](#dataframereader)    |
+|readStream        |![done]   |[DataStreamReader](#datastreamreader)  |
+|streams           |![open]   |[Streams](#streamingquerymanager)      |
+|udf               |![open]   |[Udf](#udfregistration) - may not be possible   |
+|udtf              |![open]   |[Udtf](#udtfregistration) - may not be possible |
+|version           |![done]   |                                       |
 
 ### SparkSessionBuilder
 |SparkSessionBuilder|API       |Comment                                |
 |-------------------|----------|---------------------------------------|
-|appName            |![open]   |                                       |
-|config             |![open]   |                                       |
+|appName            |![done]   |                                       |
+|config             |![done]   |                                       |
 |master             |![open]   |                                       |
 |remote             |![partial]|Validate using [spark connection string](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)|
 
