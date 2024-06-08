@@ -221,10 +221,10 @@ Start a streaming job and return a `StreamingQuery` object to handle the stream 
 
 |RuntimeConfig     |API       |Comment                                |
 |------------------|----------|---------------------------------------|
-|get               |![open]   |                                       |
-|isModifiable      |![open]   |                                       |
-|set               |![open]   |                                       |
-|unset             |![open]   |                                       |
+|get               |![done]   |                                       |
+|isModifiable      |![done]   |                                       |
+|set               |![done]   |                                       |
+|unset             |![done]   |                                       |
 
 ### Catalog
 
@@ -394,17 +394,17 @@ required jars
 
 |DataFrameWriterV2 |API       |Comment                                |
 |------------------|----------|---------------------------------------|
-|append            |![open]   |                                       |
-|create            |![open]   |                                       |
-|createOrReplace   |![open]   |                                       |
-|option            |![open]   |                                       |
-|options           |![open]   |                                       |
-|overwrite         |![open]   |                                       |
-|overwritePartitions|![open]   |                                       |
-|partitionedBy     |![open]   |                                       |
-|replace           |![open]   |                                       |
-|tableProperty     |![open]   |                                       |
-|using             |![open]   |                                       |
+|append            |![done]   |                                       |
+|create            |![done]   |                                       |
+|createOrReplace   |![done]   |                                       |
+|option            |![done]   |                                       |
+|options           |![done]   |                                       |
+|overwrite         |![done]   |                                       |
+|overwritePartitions|![done]   |                                       |
+|partitionedBy     |![done]   |                                       |
+|replace           |![done]   |                                       |
+|tableProperty     |![done]   |                                       |
+|using             |![done]   |                                       |
 
 ### Column
 
