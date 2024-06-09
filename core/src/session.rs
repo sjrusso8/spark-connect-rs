@@ -8,7 +8,6 @@ use crate::conf::RunTimeConfig;
 use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::plan::LogicalPlanBuilder;
 use crate::spark;
-use crate::streaming::DataStreamReader;
 
 use crate::client::{ChannelBuilder, MetadataInterceptor, SparkConnectClient};
 use crate::errors::SparkError;
@@ -195,12 +194,6 @@ impl SparkSession {
         DataFrameReader::new(self)
     }
 
-    /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
-    #[allow(non_snake_case)]
-    pub fn readStream(self) -> DataStreamReader {
-        DataStreamReader::new(self)
-    }
-
     pub fn table(self, name: &str) -> Result<DataFrame, SparkError> {
         DataFrameReader::new(self).table(name, None)
     }
@@ -216,7 +209,6 @@ impl SparkSession {
         let sql_cmd = spark::command::CommandType::SqlCommand(spark::SqlCommand {
             sql: sql_query.to_string(),
             args: HashMap::default(),
-            pos_args: vec![],
         });
 
         let plan = LogicalPlanBuilder::plan_cmd(sql_cmd);
@@ -255,45 +247,6 @@ impl SparkSession {
     #[cfg(feature = "wasm")]
     pub fn client(self) -> SparkConnectClient<InterceptedService<Client, MetadataInterceptor>> {
         self.client
-    }
-
-    /// Interrupt all operations of this session currently running on the connected server.
-    #[allow(non_snake_case)]
-    pub async fn interruptAll(self) -> Result<Vec<String>, SparkError> {
-        let resp = self
-            .client()
-            .interrupt_request(spark::interrupt_request::InterruptType::All, None)
-            .await?;
-
-        Ok(resp.interrupted_ids)
-    }
-
-    /// Interrupt all operations of this session with the given operation tag.
-    #[allow(non_snake_case)]
-    pub async fn interruptTag(self, tag: &str) -> Result<Vec<String>, SparkError> {
-        let resp = self
-            .client()
-            .interrupt_request(
-                spark::interrupt_request::InterruptType::Tag,
-                Some(tag.to_string()),
-            )
-            .await?;
-
-        Ok(resp.interrupted_ids)
-    }
-
-    /// Interrupt an operation of this session with the given operationId.
-    #[allow(non_snake_case)]
-    pub async fn interruptOperation(self, op_id: &str) -> Result<Vec<String>, SparkError> {
-        let resp = self
-            .client()
-            .interrupt_request(
-                spark::interrupt_request::InterruptType::OperationId,
-                Some(op_id.to_string()),
-            )
-            .await?;
-
-        Ok(resp.interrupted_ids)
     }
 
     /// Add a tag to be assigned to all the operations started by this thread in this session.
@@ -412,7 +365,7 @@ mod tests {
 
         let version = spark.version().await?;
 
-        assert_eq!("3.5.1".to_string(), version);
+        assert_eq!("3.4.2".to_string(), version);
         Ok(())
     }
 

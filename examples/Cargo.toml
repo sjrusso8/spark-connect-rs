@@ -23,10 +23,6 @@ name = "writer"
 path = "src/writer.rs"
 
 [[bin]]
-name = "readstream"
-path = "src/readstream.rs"
-
-[[bin]]
 name = "databricks"
 path = "src/databricks.rs"
 required-feature = ["tls"]

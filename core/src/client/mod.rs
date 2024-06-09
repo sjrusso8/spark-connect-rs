@@ -292,11 +292,6 @@ pub struct ResponseHandler {
     pub schema: Option<spark::DataType>,
     batches: Vec<RecordBatch>,
     pub sql_command_result: Option<spark::execute_plan_response::SqlCommandResult>,
-    pub write_stream_operation_start_result: Option<spark::WriteStreamOperationStartResult>,
-    pub streaming_query_command_result: Option<spark::StreamingQueryCommandResult>,
-    pub get_resources_command_result: Option<spark::GetResourcesCommandResult>,
-    pub streaming_query_manager_command_result: Option<spark::StreamingQueryManagerCommandResult>,
-    pub result_complete: Option<spark::execute_plan_response::ResultComplete>,
     total_count: isize,
 }
 
@@ -323,11 +318,6 @@ impl ResponseHandler {
             schema: None,
             batches: Vec::new(),
             sql_command_result: None,
-            write_stream_operation_start_result: None,
-            streaming_query_command_result: None,
-            get_resources_command_result: None,
-            streaming_query_manager_command_result: None,
-            result_complete: None,
             total_count: 0,
         }
     }
@@ -393,11 +383,8 @@ where
         spark::ExecutePlanRequest {
             session_id: self.session_id(),
             user_context: self.user_context.clone(),
-            operation_id: None,
             plan: None,
             client_type: self.builder.user_agent.clone(),
-            request_options: vec![],
-            tags: self.tags.clone(),
         }
     }
 
@@ -455,51 +442,6 @@ where
         drop(client);
 
         self.handle_analyze(resp)
-    }
-
-    #[allow(clippy::await_holding_lock)]
-    pub async fn interrupt_request(
-        &mut self,
-        interrupt_type: spark::interrupt_request::InterruptType,
-        id_or_tag: Option<String>,
-    ) -> Result<spark::InterruptResponse, SparkError> {
-        let mut req = spark::InterruptRequest {
-            session_id: self.session_id(),
-            user_context: self.user_context.clone(),
-            client_type: self.builder.user_agent.clone(),
-            interrupt_type: 0,
-            interrupt: None,
-        };
-
-        match interrupt_type {
-            spark::interrupt_request::InterruptType::All => {
-                req.interrupt_type = interrupt_type.into();
-            }
-            spark::interrupt_request::InterruptType::Tag => {
-                let tag = id_or_tag.expect("Tag can not be empty");
-                let interrupt = spark::interrupt_request::Interrupt::OperationTag(tag);
-                req.interrupt_type = interrupt_type.into();
-                req.interrupt = Some(interrupt);
-            }
-            spark::interrupt_request::InterruptType::OperationId => {
-                let op_id = id_or_tag.expect("Operation ID can not be empty");
-                let interrupt = spark::interrupt_request::Interrupt::OperationId(op_id);
-                req.interrupt_type = interrupt_type.into();
-                req.interrupt = Some(interrupt);
-            }
-            spark::interrupt_request::InterruptType::Unspecified => {
-                return Err(SparkError::AnalysisException(
-                    "Interrupt Type was not specified".to_string(),
-                ))
-            }
-        };
-
-        let mut client = self.stub.write();
-
-        let resp = client.interrupt(req).await?.into_inner();
-        drop(client);
-
-        Ok(resp)
     }
 
     fn validate_tag(&self, tag: &str) -> Result<(), SparkError> {
@@ -574,18 +516,6 @@ where
                 }
                 ResponseType::SqlCommandResult(sql_cmd) => {
                     self.handler.sql_command_result = Some(sql_cmd.clone())
-                }
-                ResponseType::WriteStreamOperationStartResult(write_stream_op) => {
-                    self.handler.write_stream_operation_start_result = Some(write_stream_op)
-                }
-                ResponseType::StreamingQueryCommandResult(stream_qry_cmd) => {
-                    self.handler.streaming_query_command_result = Some(stream_qry_cmd)
-                }
-                ResponseType::GetResourcesCommandResult(resource_cmd) => {
-                    self.handler.get_resources_command_result = Some(resource_cmd)
-                }
-                ResponseType::StreamingQueryManagerCommandResult(stream_qry_mngr_cmd) => {
-                    self.handler.streaming_query_manager_command_result = Some(stream_qry_mngr_cmd)
                 }
                 _ => {
                     return Err(SparkError::NotYetImplemented(

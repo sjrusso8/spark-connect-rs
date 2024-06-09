@@ -242,14 +242,14 @@ impl LogicalPlanBuilder {
                 input: self.relation_input(),
                 column_names: cols.into_iter().map(|col| col.to_string()).collect(),
                 all_columns_as_keys: Some(false),
-                within_watermark: Some(false),
+                // within_watermark: Some(false),
             })),
 
             None => RelType::Deduplicate(Box::new(spark::Deduplicate {
                 input: self.relation_input(),
                 column_names: vec![],
                 all_columns_as_keys: Some(true),
-                within_watermark: Some(false),
+                // within_watermark: Some(false),
             })),
         };
 
@@ -462,7 +462,7 @@ impl LogicalPlanBuilder {
                 .into_iter()
                 .map(|col| col.to_string())
                 .collect(),
-            join_data_type: None,
+            // join_data_type: None,
         };
 
         let join_rel = RelType::Join(Box::new(join));

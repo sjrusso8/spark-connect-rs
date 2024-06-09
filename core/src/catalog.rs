@@ -6,7 +6,6 @@ use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
-use crate::storage::StorageLevel;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -60,12 +59,10 @@ impl Catalog {
 
     /// Returns a list of catalogs in this session
     #[allow(non_snake_case)]
-    pub async fn listCatalogs(self, pattern: Option<&str>) -> Result<RecordBatch, SparkError> {
-        let pattern = pattern.map(|val| val.to_owned());
-
-        let cat_type = Some(spark::catalog::CatType::ListCatalogs(spark::ListCatalogs {
-            pattern,
-        }));
+    pub async fn listCatalogs(self) -> Result<RecordBatch, SparkError> {
+        let cat_type = Some(spark::catalog::CatType::ListCatalogs(
+            spark::ListCatalogs {},
+        ));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
@@ -105,11 +102,9 @@ impl Catalog {
 
     /// Returns a list of databases in this session
     #[allow(non_snake_case)]
-    pub async fn listDatabases(self, pattern: Option<&str>) -> Result<RecordBatch, SparkError> {
-        let pattern = pattern.map(|val| val.to_owned());
-
+    pub async fn listDatabases(self) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::ListDatabases(
-            spark::ListDatabases { pattern },
+            spark::ListDatabases {},
         ));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
@@ -151,14 +146,9 @@ impl Catalog {
 
     /// Returns a list of tables/views in the specific database
     #[allow(non_snake_case)]
-    pub async fn listTables(
-        self,
-        pattern: Option<&str>,
-        dbName: Option<&str>,
-    ) -> Result<RecordBatch, SparkError> {
+    pub async fn listTables(self, dbName: Option<&str>) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::ListTables(spark::ListTables {
             db_name: dbName.map(|db| db.to_owned()),
-            pattern: pattern.map(|val| val.to_owned()),
         }));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
@@ -183,15 +173,10 @@ impl Catalog {
     }
 
     #[allow(non_snake_case)]
-    pub async fn listFunctions(
-        self,
-        dbName: Option<&str>,
-        pattern: Option<&str>,
-    ) -> Result<RecordBatch, SparkError> {
+    pub async fn listFunctions(self, dbName: Option<&str>) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::ListFunctions(
             spark::ListFunctions {
                 db_name: dbName.map(|val| val.to_owned()),
-                pattern: pattern.map(|val| val.to_owned()),
             },
         ));
 
@@ -325,14 +310,9 @@ impl Catalog {
     }
 
     #[allow(non_snake_case)]
-    pub async fn cacheTable(
-        self,
-        tableName: &str,
-        storageLevel: Option<StorageLevel>,
-    ) -> Result<(), SparkError> {
+    pub async fn cacheTable(self, tableName: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::CacheTable(spark::CacheTable {
             table_name: tableName.to_string(),
-            storage_level: storageLevel.map(|val| val.to_owned().into()),
         }));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
@@ -467,7 +447,7 @@ mod tests {
     async fn test_list_catalogs() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let value = spark.catalog().listCatalogs(None).await?;
+        let value = spark.catalog().listCatalogs().await?;
 
         assert_eq!(2, value.num_columns());
         assert_eq!(1, value.num_rows());
@@ -620,11 +600,7 @@ mod tests {
             .sql("CREATE TABLE cache_table (name STRING, age INT) using parquet")
             .await?;
 
-        spark
-            .clone()
-            .catalog()
-            .cacheTable("cache_table", None)
-            .await?;
+        spark.clone().catalog().cacheTable("cache_table").await?;
 
         let res = spark.clone().catalog().isCached("cache_table").await?;
 

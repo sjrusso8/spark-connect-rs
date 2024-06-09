@@ -128,7 +128,8 @@ pub mod plan;
 pub mod readwriter;
 pub mod session;
 pub mod storage;
-pub mod streaming;
+// streaming not supported on spark connect 3.4
+// pub mod streaming;
 pub mod types;
 pub mod window;
 

@@ -106,7 +106,6 @@ impl DataFrameReader {
         I: IntoIterator<Item = &'a str>,
     {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
-            is_streaming: false,
             read_type: Some(spark::read::ReadType::DataSource(spark::read::DataSource {
                 format: self.format,
                 schema: self.schema,
@@ -141,7 +140,6 @@ impl DataFrameReader {
         options: Option<HashMap<String, String>>,
     ) -> Result<DataFrame, SparkError> {
         let read_type = Some(spark::relation::RelType::Read(spark::Read {
-            is_streaming: false,
             read_type: Some(spark::read::ReadType::NamedTable(spark::read::NamedTable {
                 unparsed_identifier: table_name.to_string(),
                 options: options.unwrap_or(self.read_options),
@@ -505,7 +503,7 @@ mod tests {
             .schema(schema)
             .load(path)?;
 
-        let schema_datatype = df.printSchema(None).await?;
+        let schema_datatype = df.printSchema().await?;
 
         let df = spark
             .clone()
@@ -514,7 +512,7 @@ mod tests {
             .schema("name string, age short")
             .load(path)?;
 
-        let schema_ddl = df.printSchema(None).await?;
+        let schema_ddl = df.printSchema().await?;
 
         assert_eq!(schema_datatype, schema_ddl);
         Ok(())

@@ -9,7 +9,7 @@ use crate::session::SparkSession;
 use crate::storage;
 
 pub use crate::readwriter::{DataFrameReader, DataFrameWriter, DataFrameWriterV2};
-pub use crate::streaming::{DataStreamReader, DataStreamWriter, OutputMode, StreamingQuery};
+// pub use crate::streaming::{DataStreamReader, DataStreamWriter, OutputMode, StreamingQuery};
 
 use crate::spark;
 pub use spark::aggregate::GroupType;
@@ -662,11 +662,10 @@ impl DataFrame {
 
     /// Prints out the schema in the tree format to a specific level number.
     #[allow(non_snake_case)]
-    pub async fn printSchema(self, level: Option<i32>) -> Result<String, SparkError> {
+    pub async fn printSchema(self) -> Result<String, SparkError> {
         let tree_string = spark::analyze_plan_request::Analyze::TreeString(
             spark::analyze_plan_request::TreeString {
                 plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
-                level,
             },
         );
 
@@ -1130,13 +1129,6 @@ impl DataFrame {
     #[allow(non_snake_case)]
     pub fn writeTo(self, table: &str) -> DataFrameWriterV2 {
         DataFrameWriterV2::new(self, table)
-    }
-
-    /// Interface for [DataStreamWriter] to save the content of the streaming DataFrame out
-    /// into external storage.
-    #[allow(non_snake_case)]
-    pub fn writeStream(self) -> DataStreamWriter {
-        DataStreamWriter::new(self)
     }
 }
 
