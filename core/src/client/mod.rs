@@ -434,7 +434,6 @@ where
         Ok(())
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn analyze(
         &mut self,
         analyze: spark::analyze_plan_request::Analyze,
