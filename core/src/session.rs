@@ -16,7 +16,7 @@ use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use arrow::record_batch::RecordBatch;
 
-use parking_lot::RwLock;
+use tokio::sync::RwLock;
 
 #[cfg(not(feature = "wasm"))]
 use tonic::transport::{Channel, Endpoint};

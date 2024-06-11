@@ -16,14 +16,14 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
 
-use parking_lot::RwLock;
-
 use tonic::codegen::{Body, Bytes, StdError};
 use tonic::metadata::{
     Ascii, AsciiMetadataValue, KeyAndValueRef, MetadataKey, MetadataMap, MetadataValue,
 };
 use tonic::service::Interceptor;
 use tonic::Status;
+
+use tokio::sync::RwLock;
 
 use url::Url;
 
@@ -410,15 +410,13 @@ where
         }
     }
 
-    #[allow(clippy::await_holding_lock)]
     async fn execute_and_fetch(
         &mut self,
         req: spark::ExecutePlanRequest,
     ) -> Result<(), SparkError> {
-        let mut client = self.stub.write();
+        let mut client = self.stub.write().await;
 
         let mut resp = client.execute_plan(req).await?.into_inner();
-
         drop(client);
 
         // clear out any prior responses
@@ -445,19 +443,16 @@ where
 
         req.analyze = Some(analyze);
 
-        let mut client = self.stub.write();
-
         // clear out any prior responses
         self.analyzer = AnalyzeHandler::new();
 
+        let mut client = self.stub.write().await;
         let resp = client.analyze_plan(req).await?.into_inner();
-
         drop(client);
 
         self.handle_analyze(resp)
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn interrupt_request(
         &mut self,
         interrupt_type: spark::interrupt_request::InterruptType,
@@ -494,10 +489,9 @@ where
             }
         };
 
-        let mut client = self.stub.write();
+        let mut client = self.stub.write().await;
 
         let resp = client.interrupt(req).await?.into_inner();
-        drop(client);
 
         Ok(resp)
     }
@@ -538,7 +532,6 @@ where
         self.tags = vec![];
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn config_request(
         &mut self,
         operation: spark::config_request::Operation,
@@ -550,10 +543,9 @@ where
             operation: Some(operation),
         };
 
-        let mut client = self.stub.write();
+        let mut client = self.stub.write().await;
 
         let resp = client.config(operation).await?.into_inner();
-        drop(client);
 
         Ok(resp)
     }
