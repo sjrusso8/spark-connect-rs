@@ -291,7 +291,7 @@ impl SparkSession {
 
     /// Interrupt all operations of this session currently running on the connected server.
     #[allow(non_snake_case)]
-    pub async fn interruptAll(self) -> Result<Vec<String>, SparkError> {
+    pub async fn interruptAll(self: Arc<Self>) -> Result<Vec<String>, SparkError> {
         let resp = self
             .client()
             .interrupt_request(spark::interrupt_request::InterruptType::All, None)
@@ -302,7 +302,7 @@ impl SparkSession {
 
     /// Interrupt all operations of this session with the given operation tag.
     #[allow(non_snake_case)]
-    pub async fn interruptTag(self, tag: &str) -> Result<Vec<String>, SparkError> {
+    pub async fn interruptTag(self: Arc<Self>, tag: &str) -> Result<Vec<String>, SparkError> {
         let resp = self
             .client()
             .interrupt_request(
@@ -316,7 +316,10 @@ impl SparkSession {
 
     /// Interrupt an operation of this session with the given operationId.
     #[allow(non_snake_case)]
-    pub async fn interruptOperation(self, op_id: &str) -> Result<Vec<String>, SparkError> {
+    pub async fn interruptOperation(
+        self: Arc<Self>,
+        op_id: &str,
+    ) -> Result<Vec<String>, SparkError> {
         let resp = self
             .client()
             .interrupt_request(

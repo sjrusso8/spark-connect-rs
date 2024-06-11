@@ -9,6 +9,8 @@
 //
 // To view the connected Spark Session, go to the cluster Spark UI and select the 'Connect' tab.
 
+use std::sync::Arc;
+
 use spark_connect_rs::functions::{avg, col};
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 
@@ -17,7 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn_str = "sc://<workspace instance name>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>";
 
     // connect the databricks cluster
-    let spark: SparkSession = SparkSessionBuilder::remote(conn_str).build().await?;
+    let spark: Arc<SparkSession> = Arc::new(
+        SparkSessionBuilder::remote(conn_str)
+            .map_err(|e| Box::new(e))?
+            .build()
+            .await?,
+    );
 
     // read unity catalog table
     let df = spark.read().table("samples.nyctaxi.trips", None)?;

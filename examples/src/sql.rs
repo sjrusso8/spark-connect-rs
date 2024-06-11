@@ -9,6 +9,7 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spark: Arc<SparkSession> = Arc::new(
         SparkSessionBuilder::remote("sc://127.0.0.1:15002/")
+            .map_err(|e| Box::new(e))?
             .build()
             .await?,
     );
