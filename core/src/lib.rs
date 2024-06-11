@@ -49,7 +49,7 @@
 //!         .build()
 //!         .await?;
 //!
-//!     let df = spark.sql("SELECT * FROM json.`/opt/spark/examples/src/main/resources/employees.json`").await?;
+//!     let df = spark.sql("SELECT * FROM json.`/datasets/employees.json`").await?;
 //!
 //!     // Show the first 5 records
 //!     df.filter("salary > 3000").show(Some(5), None, None).await?;
@@ -72,7 +72,7 @@
 //!         .build()
 //!         .await?;
 //!
-//!     let paths = ["/opt/spark/examples/src/main/resources/people.csv"];
+//!     let paths = ["/datasets/people.csv"];
 //!
 //!     let df = spark
 //!         .read()
@@ -118,6 +118,7 @@ pub mod spark {
 pub mod catalog;
 pub mod client;
 pub mod column;
+pub mod conf;
 pub mod dataframe;
 pub mod errors;
 pub mod expressions;

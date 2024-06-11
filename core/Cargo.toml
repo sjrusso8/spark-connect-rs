@@ -41,6 +41,11 @@ chrono = { workspace = true }
 
 getrandom = { workspace = true, optional = true }
 
+datafusion = { workspace = true, optional = true }
+
+polars = { workspace = true, optional = true }
+polars-arrow = { workspace = true, optional = true }
+
 [build-dependencies]
 tonic-build = "0.11.0"
 
@@ -65,4 +70,13 @@ wasm = [
  "tonic/codegen",
  "tonic/prost",
  "getrandom/js",
+]
+
+datafusion = [
+  "dep:datafusion"
+]
+
+polars = [
+  "dep:polars",
+  "dep:polars-arrow"
 ]

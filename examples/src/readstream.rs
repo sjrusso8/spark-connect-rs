@@ -1,5 +1,3 @@
-use spark_connect_rs;
-
 use spark_connect_rs::streaming::{OutputMode, Trigger};
 use spark_connect_rs::{SparkSession, SparkSessionBuilder};
 

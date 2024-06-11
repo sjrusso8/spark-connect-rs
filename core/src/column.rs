@@ -6,6 +6,7 @@ use crate::spark;
 
 use crate::expressions::{ToExpr, ToLiteralExpr};
 use crate::functions::invoke_func;
+use crate::types::DataType;
 use crate::window::WindowSpec;
 
 /// # Column
@@ -40,43 +41,28 @@ pub struct Column {
     pub expression: spark::Expression,
 }
 
-impl From<spark::Expression> for Column {
-    /// Used for creating columns from a [spark::Expression]
-    fn from(expression: spark::Expression) -> Self {
-        Self { expression }
+/// Trait used to cast columns to a specific [DataType]
+///
+/// Either with a String or a [DataType]
+pub trait CastToDataType {
+    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType;
+}
+
+impl CastToDataType for DataType {
+    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType {
+        spark::expression::cast::CastToType::Type(self.clone().into())
     }
 }
 
-impl From<&str> for Column {
-    /// `&str` values containing a `*` will be created as an unresolved star expression
-    /// Otherwise, the value is created as an unresolved attribute
-    fn from(value: &str) -> Self {
-        let expression = match value {
-            "*" => spark::Expression {
-                expr_type: Some(spark::expression::ExprType::UnresolvedStar(
-                    spark::expression::UnresolvedStar {
-                        unparsed_target: None,
-                    },
-                )),
-            },
-            value if value.ends_with(".*") => spark::Expression {
-                expr_type: Some(spark::expression::ExprType::UnresolvedStar(
-                    spark::expression::UnresolvedStar {
-                        unparsed_target: Some(value.to_string()),
-                    },
-                )),
-            },
-            _ => spark::Expression {
-                expr_type: Some(spark::expression::ExprType::UnresolvedAttribute(
-                    spark::expression::UnresolvedAttribute {
-                        unparsed_identifier: value.to_string(),
-                        plan_id: None,
-                    },
-                )),
-            },
-        };
+impl CastToDataType for String {
+    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType {
+        spark::expression::cast::CastToType::TypeStr(self.to_string())
+    }
+}
 
-        Column::from(expression)
+impl CastToDataType for &str {
+    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType {
+        spark::expression::cast::CastToType::TypeStr(self.to_string())
     }
 }
 
@@ -236,25 +222,31 @@ impl Column {
         )
     }
 
-    /// Casts the column into the Spark type represented as a `&str`
+    /// Casts the column into the Spark DataType
     ///
     /// # Arguments:
     ///
-    /// * `to_type` is the string representation of the datatype
+    /// * `to_type` is a string or [DataType] of the target type
     ///
     /// # Example:
     /// ```rust
+    /// use crate::types::DataType;
+    ///
     /// let df = df.select([
     ///       col("age").cast("int"),
     ///       col("name").cast("string")
     ///     ])
+    ///
+    /// // Using DataTypes
+    /// let df = df.select([
+    ///       col("age").cast(DataType::Integer),
+    ///       col("name").cast(DataType::String)
+    ///     ])
     /// ```
-    pub fn cast(self, to_type: &str) -> Column {
-        let type_str = spark::expression::cast::CastToType::TypeStr(to_type.to_string());
-
+    pub fn cast<T: CastToDataType>(self, to_type: T) -> Column {
         let cast = spark::expression::Cast {
             expr: Some(Box::new(self.expression)),
-            cast_to_type: Some(type_str),
+            cast_to_type: Some(to_type.cast_to_data_type()),
         };
 
         let expression = spark::Expression {
@@ -385,6 +377,46 @@ impl Column {
 
         let expression = spark::Expression {
             expr_type: Some(spark::expression::ExprType::Window(Box::new(window_expr))),
+        };
+
+        Column::from(expression)
+    }
+}
+
+impl From<spark::Expression> for Column {
+    /// Used for creating columns from a [spark::Expression]
+    fn from(expression: spark::Expression) -> Self {
+        Self { expression }
+    }
+}
+
+impl From<&str> for Column {
+    /// `&str` values containing a `*` will be created as an unresolved star expression
+    /// Otherwise, the value is created as an unresolved attribute
+    fn from(value: &str) -> Self {
+        let expression = match value {
+            "*" => spark::Expression {
+                expr_type: Some(spark::expression::ExprType::UnresolvedStar(
+                    spark::expression::UnresolvedStar {
+                        unparsed_target: None,
+                    },
+                )),
+            },
+            value if value.ends_with(".*") => spark::Expression {
+                expr_type: Some(spark::expression::ExprType::UnresolvedStar(
+                    spark::expression::UnresolvedStar {
+                        unparsed_target: Some(value.to_string()),
+                    },
+                )),
+            },
+            _ => spark::Expression {
+                expr_type: Some(spark::expression::ExprType::UnresolvedAttribute(
+                    spark::expression::UnresolvedAttribute {
+                        unparsed_identifier: value.to_string(),
+                        plan_id: None,
+                    },
+                )),
+            },
         };
 
         Column::from(expression)

@@ -7,6 +7,10 @@ use std::error::Error;
 
 use arrow::error::ArrowError;
 
+#[cfg(feature = "datafusion")]
+use datafusion::error::DataFusionError;
+#[cfg(feature = "polars")]
+use polars::error::PolarsError;
 use tonic::transport::Error as TonicTransportError;
 
 /// Different `Spark` types
@@ -68,6 +72,20 @@ impl From<tonic::Status> for SparkError {
 impl From<serde_json::Error> for SparkError {
     fn from(value: serde_json::Error) -> Self {
         SparkError::AnalysisException(value.to_string())
+    }
+}
+
+#[cfg(feature = "datafusion")]
+impl From<DataFusionError> for SparkError {
+    fn from(_value: DataFusionError) -> Self {
+        SparkError::AnalysisException("Error converting to DataFusion DataFrame".to_string())
+    }
+}
+
+#[cfg(feature = "polars")]
+impl From<PolarsError> for SparkError {
+    fn from(_value: PolarsError) -> Self {
+        SparkError::AnalysisException("Error converting to Polars DataFrame".to_string())
     }
 }
 
