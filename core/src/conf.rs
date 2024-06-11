@@ -35,6 +35,24 @@ pub struct RunTimeConfig {
 ///    .await?;
 /// ```
 impl RunTimeConfig {
+    #[cfg(not(feature = "wasm"))]
+    pub fn new(
+        client: &SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+    ) -> RunTimeConfig {
+        RunTimeConfig {
+            client: client.clone(),
+        }
+    }
+
+    #[cfg(feature = "wasm")]
+    pub fn new(
+        client: &SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
+    ) -> RunTimeConfig {
+        RunTimeConfig {
+            client: client.clone(),
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) async fn set_configs(
         &mut self,
