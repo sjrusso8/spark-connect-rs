@@ -2475,6 +2475,7 @@ dependencies = [
  "arrow-ipc",
  "chrono",
  "datafusion",
+ "futures",
  "getrandom",
  "parking_lot",
  "polars",

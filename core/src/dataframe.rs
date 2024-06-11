@@ -1609,6 +1609,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_df_explain_concurrent() -> Result<(), SparkError> {
+        let spark = setup().await;
+        let spark_clone = spark.clone();
+
+        let data = mock_data();
+
+        let df = spark.createDataFrame(&data)?;
+        let df_clone = spark_clone.createDataFrame(&data)?;
+
+        let (res, res_clone) = futures::join!(df.explain(None), df_clone.explain(None));
+        let (val, val_clone) = (res?, res_clone?);
+
+        assert!(val.contains("== Physical Plan =="));
+        assert!(val_clone.contains("== Physical Plan =="));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_df_filter() -> Result<(), SparkError> {
         let spark = setup().await;
 
