@@ -18,7 +18,7 @@ rust-version = "1.76"
 tonic = { version ="0.11", default-features = false }
 tonic-web-wasm-client = { version = "0.5" }
 
-tokio = { version = "1.37", default-features = false, features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.37", default-features = false, features = ["macros"] }
 
 arrow = { version = "51", features = ["prettyprint"] }
 arrow-ipc = { version = "51" }

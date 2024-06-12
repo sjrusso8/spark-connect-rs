@@ -46,6 +46,7 @@ polars-arrow = { workspace = true, optional = true }
 
 [dev-dependencies]
 futures = "0.3"
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [build-dependencies]
 tonic-build = "0.11.0"
@@ -71,6 +72,7 @@ wasm = [
  "tonic/codegen",
  "tonic/prost",
  "getrandom/js",
+ "tokio"
 ]
 
 datafusion = [
