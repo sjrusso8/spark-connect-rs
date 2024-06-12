@@ -21,6 +21,12 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build()
             .await?;
 
+    // spark.config
+    spark
+        .conf()
+        .set("spark.sql.shuffle.partitions", "42")
+        .await?;
+
     let df = spark
         .readStream()
         .format("rate")
