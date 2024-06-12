@@ -33,7 +33,7 @@ required-feature = ["tls"]
 
 [dependencies]
 spark-connect-rs = { version = "0.0.1-beta.4", path = "../rust" }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [features]
 tls = ["spark-connect-rs/tls"]
