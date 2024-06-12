@@ -170,16 +170,12 @@ impl SparkSession {
         }
     }
 
-    pub fn session(&self) -> SparkSession {
-        self.clone()
-    }
-
     /// Create a [DataFrame] with a spingle column named `id`,
     /// containing elements in a range from `start` (default 0) to
     /// `end` (exclusive) with a step value `step`, and control the number
     /// of partitions with `num_partitions`
     pub fn range(
-        &self,
+        self,
         start: Option<i64>,
         end: i64,
         step: i64,
@@ -192,7 +188,7 @@ impl SparkSession {
             num_partitions,
         });
 
-        DataFrame::new(self.session(), LogicalPlanBuilder::from(range_relation))
+        DataFrame::new(self, LogicalPlanBuilder::from(range_relation))
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
