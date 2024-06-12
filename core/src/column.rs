@@ -41,7 +41,7 @@ pub struct Column {
     pub expression: spark::Expression,
 }
 
-/// Trait used to cast columns to specific [DataTypes]
+/// Trait used to cast columns to a specific [DataType]
 ///
 /// Either with a String or a [DataType]
 pub trait CastToDataType {

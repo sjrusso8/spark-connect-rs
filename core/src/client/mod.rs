@@ -16,14 +16,14 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
 
-use parking_lot::RwLock;
-
 use tonic::codegen::{Body, Bytes, StdError};
 use tonic::metadata::{
     Ascii, AsciiMetadataValue, KeyAndValueRef, MetadataKey, MetadataMap, MetadataValue,
 };
 use tonic::service::Interceptor;
 use tonic::Status;
+
+use tokio::sync::RwLock;
 
 use url::Url;
 
@@ -357,6 +357,8 @@ pub struct SparkConnectClient<T> {
     builder: ChannelBuilder,
     pub handler: ResponseHandler,
     pub analyzer: AnalyzeHandler,
+    pub user_context: Option<spark::UserContext>,
+    pub tags: Vec<String>,
 }
 
 impl<T> SparkConnectClient<T>
@@ -367,11 +369,19 @@ where
     <T::ResponseBody as Body>::Error: Into<StdError> + Send,
 {
     pub fn new(stub: Arc<RwLock<SparkConnectServiceClient<T>>>, builder: ChannelBuilder) -> Self {
+        let user_ref = builder.user_id.clone().unwrap_or("".to_string());
+
         SparkConnectClient {
             stub,
             builder,
             handler: ResponseHandler::new(),
             analyzer: AnalyzeHandler::new(),
+            user_context: Some(spark::UserContext {
+                user_id: user_ref.clone(),
+                user_name: user_ref,
+                extensions: vec![],
+            }),
+            tags: vec![],
         }
     }
 
@@ -382,41 +392,31 @@ where
     fn execute_plan_request_with_metadata(&self) -> spark::ExecutePlanRequest {
         spark::ExecutePlanRequest {
             session_id: self.session_id(),
-            user_context: Some(spark::UserContext {
-                user_id: self.builder.user_id.clone().unwrap_or("n/a".to_string()),
-                user_name: self.builder.user_id.clone().unwrap_or("n/a".to_string()),
-                extensions: vec![],
-            }),
+            user_context: self.user_context.clone(),
             operation_id: None,
             plan: None,
             client_type: self.builder.user_agent.clone(),
             request_options: vec![],
-            tags: vec![],
+            tags: self.tags.clone(),
         }
     }
 
     fn analyze_plan_request_with_metadata(&self) -> spark::AnalyzePlanRequest {
         spark::AnalyzePlanRequest {
             session_id: self.session_id(),
-            user_context: Some(spark::UserContext {
-                user_id: self.builder.user_id.clone().unwrap_or("n/a".to_string()),
-                user_name: self.builder.user_id.clone().unwrap_or("n/a".to_string()),
-                extensions: vec![],
-            }),
+            user_context: self.user_context.clone(),
             client_type: self.builder.user_agent.clone(),
             analyze: None,
         }
     }
 
-    #[allow(clippy::await_holding_lock)]
     async fn execute_and_fetch(
         &mut self,
         req: spark::ExecutePlanRequest,
     ) -> Result<(), SparkError> {
-        let mut client = self.stub.write();
+        let mut client = self.stub.write().await;
 
         let mut resp = client.execute_plan(req).await?.into_inner();
-
         drop(client);
 
         // clear out any prior responses
@@ -434,7 +434,6 @@ where
         Ok(())
     }
 
-    #[allow(clippy::await_holding_lock)]
     pub async fn analyze(
         &mut self,
         analyze: spark::analyze_plan_request::Analyze,
@@ -443,16 +442,111 @@ where
 
         req.analyze = Some(analyze);
 
-        let mut client = self.stub.write();
-
         // clear out any prior responses
         self.analyzer = AnalyzeHandler::new();
 
+        let mut client = self.stub.write().await;
         let resp = client.analyze_plan(req).await?.into_inner();
-
         drop(client);
 
         self.handle_analyze(resp)
+    }
+
+    pub async fn interrupt_request(
+        &mut self,
+        interrupt_type: spark::interrupt_request::InterruptType,
+        id_or_tag: Option<String>,
+    ) -> Result<spark::InterruptResponse, SparkError> {
+        let mut req = spark::InterruptRequest {
+            session_id: self.session_id(),
+            user_context: self.user_context.clone(),
+            client_type: self.builder.user_agent.clone(),
+            interrupt_type: 0,
+            interrupt: None,
+        };
+
+        match interrupt_type {
+            spark::interrupt_request::InterruptType::All => {
+                req.interrupt_type = interrupt_type.into();
+            }
+            spark::interrupt_request::InterruptType::Tag => {
+                let tag = id_or_tag.expect("Tag can not be empty");
+                let interrupt = spark::interrupt_request::Interrupt::OperationTag(tag);
+                req.interrupt_type = interrupt_type.into();
+                req.interrupt = Some(interrupt);
+            }
+            spark::interrupt_request::InterruptType::OperationId => {
+                let op_id = id_or_tag.expect("Operation ID can not be empty");
+                let interrupt = spark::interrupt_request::Interrupt::OperationId(op_id);
+                req.interrupt_type = interrupt_type.into();
+                req.interrupt = Some(interrupt);
+            }
+            spark::interrupt_request::InterruptType::Unspecified => {
+                return Err(SparkError::AnalysisException(
+                    "Interrupt Type was not specified".to_string(),
+                ))
+            }
+        };
+
+        let mut client = self.stub.write().await;
+
+        let resp = client.interrupt(req).await?.into_inner();
+
+        Ok(resp)
+    }
+
+    fn validate_tag(&self, tag: &str) -> Result<(), SparkError> {
+        if tag.contains(',') {
+            return Err(SparkError::AnalysisException(
+                "Spark Connect tag can not contain ',' ".to_string(),
+            ));
+        };
+
+        if tag.is_empty() {
+            return Err(SparkError::AnalysisException(
+                "Spark Connect tag can not an empty string ".to_string(),
+            ));
+        };
+
+        Ok(())
+    }
+
+    pub fn add_tag(&mut self, tag: &str) -> Result<(), SparkError> {
+        self.validate_tag(tag)?;
+        self.tags.push(tag.to_string());
+        Ok(())
+    }
+
+    pub fn remove_tag(&mut self, tag: &str) -> Result<(), SparkError> {
+        self.validate_tag(tag)?;
+        self.tags.retain(|t| t != tag);
+        Ok(())
+    }
+
+    pub fn get_tags(&self) -> &Vec<String> {
+        &self.tags
+    }
+
+    pub fn clear_tags(&mut self) {
+        self.tags = vec![];
+    }
+
+    pub async fn config_request(
+        &mut self,
+        operation: spark::config_request::Operation,
+    ) -> Result<spark::ConfigResponse, SparkError> {
+        let operation = spark::ConfigRequest {
+            session_id: self.session_id(),
+            user_context: self.user_context.clone(),
+            client_type: self.builder.user_agent.clone(),
+            operation: Some(operation),
+        };
+
+        let mut client = self.stub.write().await;
+
+        let resp = client.config(operation).await?.into_inner();
+
+        Ok(resp)
     }
 
     fn handle_response(&mut self, resp: spark::ExecutePlanResponse) -> Result<(), SparkError> {
@@ -469,7 +563,6 @@ where
                 ResponseType::ArrowBatch(res) => {
                     self.deserialize(res.data.as_slice(), res.row_count)?
                 }
-                // TODO! this shouldn't be clones but okay for now
                 ResponseType::SqlCommandResult(sql_cmd) => {
                     self.handler.sql_command_result = Some(sql_cmd.clone())
                 }
