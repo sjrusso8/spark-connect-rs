@@ -96,12 +96,9 @@ impl SparkSessionBuilder {
 
         let client = Arc::new(RwLock::new(service_client));
 
-        let spark_connnect_client =
-            SparkConnectClient::new(client.clone(), self.channel_builder.clone());
+        let spark_connnect_client = SparkConnectClient::new(client, self.channel_builder.clone());
 
-        let mut rt_config = RunTimeConfig {
-            client: spark_connnect_client.clone(),
-        };
+        let mut rt_config = RunTimeConfig::new(&spark_connnect_client);
 
         rt_config.set_configs(&self.configs).await?;
 
@@ -126,8 +123,11 @@ impl SparkSessionBuilder {
 
         let client = Arc::new(RwLock::new(service_client));
 
-        let spark_connnect_client =
-            SparkConnectClient::new(client.clone(), self.channel_builder.clone());
+        let spark_connnect_client = SparkConnectClient::new(client, self.channel_builder.clone());
+
+        let mut rt_config = RunTimeConfig::new(&spark_connnect_client);
+
+        rt_config.set_configs(&self.configs).await?;
 
         Ok(SparkSession::new(spark_connnect_client))
     }
@@ -135,7 +135,7 @@ impl SparkSessionBuilder {
     /// Attempt to connect to a remote Spark Session
     ///
     /// and return a [SparkSession]
-    pub async fn build(self) -> Result<SparkSession, SparkError> {
+    pub async fn build(&self) -> Result<SparkSession, SparkError> {
         self.create_client().await
     }
 }
@@ -173,6 +173,7 @@ impl SparkSession {
             client,
         }
     }
+
     /// Create a [DataFrame] with a spingle column named `id`,
     /// containing elements in a range from `start` (default 0) to
     /// `end` (exclusive) with a step value `step`, and control the number
@@ -337,9 +338,7 @@ impl SparkSession {
 
     /// [RunTimeConfig] configuration interface for Spark.
     pub fn conf(&self) -> RunTimeConfig {
-        RunTimeConfig {
-            client: self.client.clone(),
-        }
+        RunTimeConfig::new(&self.client)
     }
 }
 
