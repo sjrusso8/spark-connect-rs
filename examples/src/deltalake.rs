@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.write()
         .format("delta")
         .mode(SaveMode::Overwrite)
-        .saveAsTable("default.people_delta")
+        .save_as_table("default.people_delta")
         .await?;
 
     // view the history of the table
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.write()
         .format("delta")
         .mode(SaveMode::Append)
-        .saveAsTable("default.people_delta")
+        .save_as_table("default.people_delta")
         .await?;
 
     // view history

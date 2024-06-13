@@ -53,7 +53,6 @@ impl RunTimeConfig {
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) async fn set_configs(
         &mut self,
         map: &HashMap<String, String>,
@@ -131,8 +130,7 @@ impl RunTimeConfig {
     }
 
     /// Indicates whether the configuration property with the given key is modifiable in the current session.
-    #[allow(non_snake_case)]
-    pub async fn isModifable(&mut self, key: &str) -> Result<bool, SparkError> {
+    pub async fn is_modifable(&mut self, key: &str) -> Result<bool, SparkError> {
         let op_type = spark::config_request::operation::OpType::IsModifiable(
             spark::config_request::IsModifiable {
                 keys: vec![key.to_string()],

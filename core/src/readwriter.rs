@@ -216,8 +216,7 @@ impl DataFrameWriter {
     /// Buckets the output by the given columns.
     /// If specified, the output is laid out on the file system
     /// similar to Hive’s bucketing scheme.
-    #[allow(non_snake_case)]
-    pub fn bucketBy<'a, I>(mut self, num_buckets: i32, buckets: I) -> Self
+    pub fn bucket_by<'a, I>(mut self, num_buckets: i32, buckets: I) -> Self
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -229,8 +228,7 @@ impl DataFrameWriter {
     }
 
     /// Sorts the output in each bucket by the given columns on the file system
-    #[allow(non_snake_case)]
-    pub fn sortBy<'a, I>(mut self, cols: I) -> Self
+    pub fn sort_by<'a, I>(mut self, cols: I) -> Self
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -239,8 +237,7 @@ impl DataFrameWriter {
     }
 
     /// Partitions the output by the given columns on the file system
-    #[allow(non_snake_case)]
-    pub fn partitionBy<'a, I>(mut self, cols: I) -> Self
+    pub fn partition_by<'a, I>(mut self, cols: I) -> Self
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -320,8 +317,7 @@ impl DataFrameWriter {
     }
 
     /// Saves the context of the [DataFrame] as the specified table.
-    #[allow(non_snake_case)]
-    pub async fn saveAsTable(self, table_name: &str) -> Result<(), SparkError> {
+    pub async fn save_as_table(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 1).await
     }
 
@@ -332,8 +328,7 @@ impl DataFrameWriter {
     ///
     /// Unlike `saveAsTable()`, this method ignores the column names and just uses
     /// position-based resolution
-    #[allow(non_snake_case)]
-    pub async fn insertInto(self, table_name: &str) -> Result<(), SparkError> {
+    pub async fn insert_tnto(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
     }
 }
@@ -376,15 +371,13 @@ impl DataFrameWriterV2 {
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn tableProperty(mut self, property: &str, value: &str) -> Self {
+    pub fn table_property(mut self, property: &str, value: &str) -> Self {
         self.properties
             .insert(property.to_string(), value.to_string());
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn partitionBy<T: ToVecExpr>(mut self, columns: T) -> Self {
+    pub fn partition_by<T: ToVecExpr>(mut self, columns: T) -> Self {
         self.partitioning = columns.to_vec_expr();
         self
     }
@@ -397,8 +390,7 @@ impl DataFrameWriterV2 {
         self.execute_write(Mode::Replace).await
     }
 
-    #[allow(non_snake_case)]
-    pub async fn createOrReplace(self) -> Result<(), SparkError> {
+    pub async fn create_or_replace(self) -> Result<(), SparkError> {
         self.execute_write(Mode::CreateOrReplace).await
     }
 
@@ -410,8 +402,7 @@ impl DataFrameWriterV2 {
         self.execute_write(Mode::Overwrite).await
     }
 
-    #[allow(non_snake_case)]
-    pub async fn overwritePartitions(self) -> Result<(), SparkError> {
+    pub async fn overwrite_partitions(self) -> Result<(), SparkError> {
         self.execute_write(Mode::OverwritePartitions).await
     }
 
@@ -426,9 +417,12 @@ impl DataFrameWriterV2 {
             mode: 0,
             overwrite_condition: self.overwrite_condition,
         };
+
         builder.set_mode(mode);
+
         let cmd = spark::command::CommandType::WriteOperationV2(builder);
         let plan = LogicalPlanBuilder::plan_cmd(cmd);
+
         self.dataframe
             .spark_session
             .client()
@@ -498,23 +492,17 @@ mod tests {
             },
         ]);
 
-        let df = spark
-            .clone()
-            .read()
-            .format("json")
-            .schema(schema)
-            .load(path)?;
+        let df = spark.read().format("json").schema(schema).load(path)?;
 
-        let schema_datatype = df.printSchema(None).await?;
+        let schema_datatype = df.print_schema(None).await?;
 
         let df = spark
-            .clone()
             .read()
             .format("json")
             .schema("name string, age short")
             .load(path)?;
 
-        let schema_ddl = df.printSchema(None).await?;
+        let schema_ddl = df.print_schema(None).await?;
 
         assert_eq!(schema_datatype, schema_ddl);
         Ok(())
@@ -525,9 +513,8 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .clone()
             .range(None, 1000, 1, Some(16))
-            .selectExpr(vec!["id AS range_id"]);
+            .select_expr(vec!["id AS range_id"]);
 
         let path = "/tmp/range_id/";
 
@@ -539,7 +526,6 @@ mod tests {
             .await?;
 
         let df = spark
-            .clone()
             .read()
             .format("csv")
             .option("header", "true")
@@ -556,16 +542,15 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .clone()
             .range(None, 1000, 1, Some(16))
-            .selectExpr(vec!["id AS range_id"]);
+            .select_expr(vec!["id AS range_id"]);
 
         df.write()
             .mode(SaveMode::Overwrite)
-            .saveAsTable("test_table")
+            .save_as_table("test_table")
             .await?;
 
-        let df = spark.clone().read().table("test_table", None)?;
+        let df = spark.read().table("test_table", None)?;
 
         let records = df.select(vec![col("range_id")]).collect().await?;
 
@@ -579,15 +564,14 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .clone()
             .range(None, 1000, 1, Some(16))
-            .selectExpr(vec!["id AS range_id"]);
+            .select_expr(vec!["id AS range_id"]);
 
         let table = "employees";
 
-        df.writeTo(table).using("csv").create().await?;
+        df.write_to(table).using("csv").create().await?;
 
-        let df = spark.clone().table(table)?;
+        let df = spark.table(table)?;
 
         let records = df.select(vec![col("range_id")]).collect().await?;
 

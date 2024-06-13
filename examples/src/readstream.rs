@@ -12,16 +12,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
     let df = spark
-        .readStream()
+        .read_stream()
         .format("rate")
         .option("rowsPerSecond", "5")
         .load(None)?;
 
     let query = df
-        .writeStream()
+        .write_stream()
         .format("console")
-        .queryName("example_stream")
-        .outputMode(OutputMode::Append)
+        .query_name("example_stream")
+        .output_mode(OutputMode::Append)
         .trigger(Trigger::ProcessingTimeInterval("1 seconds".to_string()))
         .start(None)
         .await?;
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // loop to get multiple progression stats
     for _ in 1..5 {
         thread::sleep(time::Duration::from_secs(5));
-        let val = &query.clone().lastProgress().await?;
+        let val = &query.clone().last_progress().await?;
         println!("{}", val);
     }
 

@@ -123,7 +123,7 @@ mod tests {
 
         let df = spark.range(None, 100, 1, Some(8));
 
-        let res = df.groupBy::<Column>(None).count().collect().await?;
+        let res = df.group_by::<Column>(None).count().collect().await?;
 
         let a: ArrayRef = Arc::new(Int64Array::from(vec![100]));
 
@@ -149,11 +149,11 @@ mod tests {
             ("earnings", earnings),
         ])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .clone()
-            .groupBy(Some("year"))
+            .group_by(Some("year"))
             .pivot("course", Some(vec!["Java"]))
             .sum("earnings")
             .collect()
@@ -172,7 +172,7 @@ mod tests {
         assert_eq!(expected, res);
 
         let res = df
-            .groupBy(Some("year"))
+            .group_by(Some("year"))
             .pivot("course", None)
             .sum("earnings")
             .collect()

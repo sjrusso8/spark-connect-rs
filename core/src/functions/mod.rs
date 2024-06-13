@@ -531,7 +531,6 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .clone()
             .range(None, 1, 1, Some(1))
             .select([lit(5).alias("height"), col("id")]);
 
@@ -544,10 +543,7 @@ mod tests {
 
         assert_eq!(expected.clone(), row);
 
-        let df = spark
-            .clone()
-            .range(None, 1, 1, Some(1))
-            .select(lit(vec![1, 2, 3]));
+        let df = spark.range(None, 1, 1, Some(1)).select(lit(vec![1, 2, 3]));
 
         let row = df.collect().await?;
 
@@ -559,10 +555,7 @@ mod tests {
     async fn test_func_asc() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df_col_asc = spark
-            .clone()
-            .range(Some(1), 3, 1, Some(1))
-            .sort([col("id").asc()]);
+        let df_col_asc = spark.range(Some(1), 3, 1, Some(1)).sort([col("id").asc()]);
 
         let df_func_asc = spark.range(Some(1), 3, 1, Some(1)).sort([asc(col("id"))]);
 
@@ -582,10 +575,7 @@ mod tests {
     async fn test_func_desc() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df_col_asc = spark
-            .clone()
-            .range(Some(1), 3, 1, Some(1))
-            .sort([col("id").desc()]);
+        let df_col_asc = spark.range(Some(1), 3, 1, Some(1)).sort([col("id").desc()]);
 
         let df_func_asc = spark.range(Some(1), 3, 1, Some(1)).sort([desc(col("id"))]);
 
@@ -615,10 +605,10 @@ mod tests {
 
         let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone(), b.clone()])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .withColumn("coalesce", coalesce(["a", "b"]))
+            .with_column("coalesce", coalesce(["a", "b"]))
             .collect()
             .await?;
 
@@ -675,7 +665,7 @@ mod tests {
 
         let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone()])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .select([col("a"), isnull("a").alias("r1")])
@@ -707,7 +697,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("a", a.clone()), ("b", b), ("c", c.clone())])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .select(named_struct([lit("x"), col("a"), lit("y"), col("c")]).alias("struct"))
@@ -751,7 +741,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .select((col("a") + lit(4)).alias("add"))
@@ -774,7 +764,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .select((col("a") - lit(4)).alias("sub"))
@@ -797,7 +787,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("a", a)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .select((col("a") * lit(4)).alias("multi"))
@@ -821,7 +811,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .filter(col("name").contains("e"))
@@ -846,7 +836,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .clone()
@@ -885,7 +875,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("name", name.clone())])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .select([col("name"), expr("length(name)")])
@@ -910,7 +900,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("a", a), ("b", b.clone()), ("c", c)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df.select(greatest(["a", "b", "c"])).collect().await?;
 
@@ -930,7 +920,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("a", a.clone()), ("b", b), ("c", c)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df.select(least(["a", "b", "c"])).collect().await?;
 
@@ -958,7 +948,11 @@ mod tests {
             .alias("struct_col"),
         );
 
-        let df = df.select(col("struct_col").dropFields(["b", "c"]).alias("struct_col"));
+        let df = df.select(
+            col("struct_col")
+                .drop_fields(["b", "c"])
+                .alias("struct_col"),
+        );
 
         let res = df.collect().await?;
 
@@ -984,7 +978,11 @@ mod tests {
             .range(None, 1, 1, None)
             .select(named_struct([lit("a"), lit(1), lit("b"), lit(2)]).alias("struct_col"));
 
-        let df = df.select(col("struct_col").withField("b", lit(4)).alias("struct_col"));
+        let df = df.select(
+            col("struct_col")
+                .with_field("b", lit(4))
+                .alias("struct_col"),
+        );
 
         let res = df.collect().await?;
 
