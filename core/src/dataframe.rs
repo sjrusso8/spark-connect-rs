@@ -1323,11 +1323,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let val = spark
-            .clone()
-            .createDataFrame(&data)?
-            .cov("c1", "c2")
-            .await?;
+        let val = spark.createDataFrame(&data)?.cov("c1", "c2").await?;
 
         assert_eq!(-18.0_f64, val);
 
@@ -1350,7 +1346,6 @@ mod tests {
         let data = mock_data();
 
         spark
-            .clone()
             .createDataFrame(&data)?
             .createOrReplaceGlobalTempView("people")
             .await?;
@@ -1392,7 +1387,7 @@ mod tests {
         let data = RecordBatch::try_from_iter(vec![("name", name.clone()), ("age", age)])?;
         let data2 = RecordBatch::try_from_iter(vec![("name", name), ("height", height)])?;
 
-        let df = spark.clone().createDataFrame(&data)?;
+        let df = spark.createDataFrame(&data)?;
         let df2 = spark.createDataFrame(&data2)?;
 
         let rows = df
@@ -1578,7 +1573,7 @@ mod tests {
 
         let data2 = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let df1 = spark.clone().createDataFrame(&data)?;
+        let df1 = spark.createDataFrame(&data)?;
 
         let df2 = spark.createDataFrame(&data2)?;
 
@@ -1726,7 +1721,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.clone().createDataFrame(&data)?.alias("df1");
+        let df = spark.createDataFrame(&data)?.alias("df1");
         let df2 = spark.createDataFrame(&data)?.alias("df2");
 
         let df = df.join(
@@ -1775,7 +1770,7 @@ mod tests {
 
         let data2 = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let df1 = spark.clone().createDataFrame(&data)?;
+        let df1 = spark.createDataFrame(&data)?;
 
         let df2 = spark.createDataFrame(&data2)?;
 
@@ -1800,7 +1795,7 @@ mod tests {
         let schema = Schema::new(vec![Field::new("record", DataType::Int64, true)]);
         let data = RecordBatch::try_new(Arc::new(schema), vec![records])?;
 
-        let df = spark.clone().createDataFrame(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         assert!(df.isEmpty().await?);
 
@@ -1809,7 +1804,7 @@ mod tests {
         let schema = Schema::new(vec![Field::new("record", DataType::Int64, true)]);
         let data = RecordBatch::try_new(Arc::new(schema), vec![records])?;
 
-        let df = spark.clone().createDataFrame(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         assert!(!df.isEmpty().await?);
 
@@ -1858,9 +1853,9 @@ mod tests {
 
         let data4 = RecordBatch::try_new(Arc::new(schema), vec![name, age, height])?;
 
-        let df1 = spark.clone().createDataFrame(&data1)?.alias("df1");
-        let df2 = spark.clone().createDataFrame(&data2)?.alias("df2");
-        let df3 = spark.clone().createDataFrame(&data3)?.alias("df3");
+        let df1 = spark.createDataFrame(&data1)?.alias("df1");
+        let df2 = spark.createDataFrame(&data2)?.alias("df2");
+        let df3 = spark.createDataFrame(&data3)?.alias("df3");
         let df4 = spark.createDataFrame(&data4)?.alias("df4");
 
         // inner join
@@ -2127,7 +2122,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.clone().createDataFrame(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let val = df.toJSON().await?;
 
@@ -2155,7 +2150,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.clone().createDataFrame(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let df_output = df.toDataFusion(&ctx).await?.collect().await?;
         let df_expected = ctx.read_batch(data)?.collect().await?;
@@ -2163,7 +2158,7 @@ mod tests {
         assert_eq!(df_expected, df_output);
 
         // empty dataframe
-        let df = spark.clone().range(Some(0), 0, 1, None);
+        let df = spark.range(Some(0), 0, 1, None);
 
         let val = df.toDataFusion(&ctx).await?.collect().await?;
 
@@ -2194,7 +2189,7 @@ mod tests {
 
         let df_expected = polars::frame::DataFrame::from_iter(columns);
 
-        let df = spark.clone().createDataFrame(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let df_output = df.toPolars().await?;
 

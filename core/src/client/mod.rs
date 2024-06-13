@@ -453,7 +453,7 @@ where
     }
 
     pub async fn interrupt_request(
-        &mut self,
+        &self,
         interrupt_type: spark::interrupt_request::InterruptType,
         id_or_tag: Option<String>,
     ) -> Result<spark::InterruptResponse, SparkError> {
@@ -532,7 +532,7 @@ where
     }
 
     pub async fn config_request(
-        &mut self,
+        &self,
         operation: spark::config_request::Operation,
     ) -> Result<spark::ConfigResponse, SparkError> {
         let operation = spark::ConfigRequest {
@@ -713,48 +713,74 @@ where
         Ok(data.value(0).to_string())
     }
 
-    pub fn schema(&mut self) -> Result<spark::DataType, SparkError> {
-        Ok(self.analyzer.schema.to_owned().unwrap())
+    pub fn schema(&self) -> Result<spark::DataType, SparkError> {
+        self.analyzer
+            .schema
+            .to_owned()
+            .ok_or_else(|| SparkError::AnalysisException("Schema response is empty".to_string()))
     }
 
-    pub fn explain(&mut self) -> Result<String, SparkError> {
-        Ok(self.analyzer.explain.to_owned().unwrap())
+    pub fn explain(&self) -> Result<String, SparkError> {
+        self.analyzer
+            .explain
+            .to_owned()
+            .ok_or_else(|| SparkError::AnalysisException("Explain response is empty".to_string()))
     }
 
-    pub fn tree_string(&mut self) -> Result<String, SparkError> {
-        Ok(self.analyzer.tree_string.to_owned().unwrap())
+    pub fn tree_string(&self) -> Result<String, SparkError> {
+        self.analyzer.tree_string.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Tree String response is empty".to_string())
+        })
     }
 
-    pub fn is_local(&mut self) -> Result<bool, SparkError> {
-        Ok(self.analyzer.is_local.to_owned().unwrap())
+    pub fn is_local(&self) -> Result<bool, SparkError> {
+        self.analyzer
+            .is_local
+            .to_owned()
+            .ok_or_else(|| SparkError::AnalysisException("Is Local response is empty".to_string()))
     }
 
-    pub fn is_streaming(&mut self) -> Result<bool, SparkError> {
-        Ok(self.analyzer.is_streaming.to_owned().unwrap())
+    pub fn is_streaming(&self) -> Result<bool, SparkError> {
+        self.analyzer.is_streaming.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Is Streaming response is empty".to_string())
+        })
     }
 
-    pub fn input_files(&mut self) -> Result<Vec<String>, SparkError> {
-        Ok(self.analyzer.input_files.to_owned().unwrap())
+    pub fn input_files(&self) -> Result<Vec<String>, SparkError> {
+        self.analyzer.input_files.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Input Files response is empty".to_string())
+        })
     }
 
     pub fn spark_version(&mut self) -> Result<String, SparkError> {
-        Ok(self.analyzer.spark_version.to_owned().unwrap())
+        self.analyzer.spark_version.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Spark Version resonse is empty".to_string())
+        })
     }
 
-    pub fn ddl_parse(&mut self) -> Result<spark::DataType, SparkError> {
-        Ok(self.analyzer.ddl_parse.to_owned().unwrap())
+    pub fn ddl_parse(&self) -> Result<spark::DataType, SparkError> {
+        self.analyzer
+            .ddl_parse
+            .to_owned()
+            .ok_or_else(|| SparkError::AnalysisException("DDL parse response is empty".to_string()))
     }
 
-    pub fn same_semantics(&mut self) -> Result<bool, SparkError> {
-        Ok(self.analyzer.same_semantics.to_owned().unwrap())
+    pub fn same_semantics(&self) -> Result<bool, SparkError> {
+        self.analyzer.same_semantics.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Same Semantics response is empty".to_string())
+        })
     }
 
-    pub fn semantic_hash(&mut self) -> Result<i32, SparkError> {
-        Ok(self.analyzer.semantic_hash.to_owned().unwrap())
+    pub fn semantic_hash(&self) -> Result<i32, SparkError> {
+        self.analyzer.semantic_hash.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Semantic Hash response is empty".to_string())
+        })
     }
 
-    pub fn get_storage_level(&mut self) -> Result<spark::StorageLevel, SparkError> {
-        Ok(self.analyzer.get_storage_level.to_owned().unwrap())
+    pub fn get_storage_level(&self) -> Result<spark::StorageLevel, SparkError> {
+        self.analyzer.get_storage_level.to_owned().ok_or_else(|| {
+            SparkError::AnalysisException("Storage Level response is empty".to_string())
+        })
     }
 }
 

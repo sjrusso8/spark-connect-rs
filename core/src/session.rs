@@ -170,12 +170,16 @@ impl SparkSession {
         }
     }
 
+    pub fn session(&self) -> SparkSession {
+        self.clone()
+    }
+
     /// Create a [DataFrame] with a spingle column named `id`,
     /// containing elements in a range from `start` (default 0) to
     /// `end` (exclusive) with a step value `step`, and control the number
     /// of partitions with `num_partitions`
     pub fn range(
-        self,
+        &self,
         start: Option<i64>,
         end: i64,
         step: i64,
@@ -188,32 +192,32 @@ impl SparkSession {
             num_partitions,
         });
 
-        DataFrame::new(self, LogicalPlanBuilder::from(range_relation))
+        DataFrame::new(self.session(), LogicalPlanBuilder::from(range_relation))
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
-    pub fn read(self) -> DataFrameReader {
-        DataFrameReader::new(self)
+    pub fn read(&self) -> DataFrameReader {
+        DataFrameReader::new(self.session())
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
     #[allow(non_snake_case)]
-    pub fn readStream(self) -> DataStreamReader {
-        DataStreamReader::new(self)
+    pub fn readStream(&self) -> DataStreamReader {
+        DataStreamReader::new(self.session())
     }
 
-    pub fn table(self, name: &str) -> Result<DataFrame, SparkError> {
-        DataFrameReader::new(self).table(name, None)
+    pub fn table(&self, name: &str) -> Result<DataFrame, SparkError> {
+        DataFrameReader::new(self.session()).table(name, None)
     }
 
     /// Interface through which the user may create, drop, alter or query underlying databases,
     /// tables, functions, etc.
-    pub fn catalog(self) -> Catalog {
-        Catalog::new(self)
+    pub fn catalog(&self) -> Catalog {
+        Catalog::new(self.session())
     }
 
     /// Returns a [DataFrame] representing the result of the given query
-    pub async fn sql(self, sql_query: &str) -> Result<DataFrame, SparkError> {
+    pub async fn sql(&self, sql_query: &str) -> Result<DataFrame, SparkError> {
         let sql_cmd = spark::command::CommandType::SqlCommand(spark::SqlCommand {
             sql: sql_query.to_string(),
             args: HashMap::default(),
@@ -232,14 +236,14 @@ impl SparkSession {
 
         let logical_plan = LogicalPlanBuilder::new(relation.unwrap());
 
-        Ok(DataFrame::new(self, logical_plan))
+        Ok(DataFrame::new(self.session(), logical_plan))
     }
 
     #[allow(non_snake_case)]
-    pub fn createDataFrame(self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
+    pub fn createDataFrame(&self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
         let logical_plan = LogicalPlanBuilder::local_relation(data)?;
 
-        Ok(DataFrame::new(self, logical_plan))
+        Ok(DataFrame::new(self.session(), logical_plan))
     }
 
     /// Return the session ID
@@ -260,9 +264,9 @@ impl SparkSession {
 
     /// Interrupt all operations of this session currently running on the connected server.
     #[allow(non_snake_case)]
-    pub async fn interruptAll(self) -> Result<Vec<String>, SparkError> {
+    pub async fn interruptAll(&self) -> Result<Vec<String>, SparkError> {
         let resp = self
-            .client()
+            .client
             .interrupt_request(spark::interrupt_request::InterruptType::All, None)
             .await?;
 
@@ -271,9 +275,9 @@ impl SparkSession {
 
     /// Interrupt all operations of this session with the given operation tag.
     #[allow(non_snake_case)]
-    pub async fn interruptTag(self, tag: &str) -> Result<Vec<String>, SparkError> {
+    pub async fn interruptTag(&self, tag: &str) -> Result<Vec<String>, SparkError> {
         let resp = self
-            .client()
+            .client
             .interrupt_request(
                 spark::interrupt_request::InterruptType::Tag,
                 Some(tag.to_string()),
@@ -285,9 +289,9 @@ impl SparkSession {
 
     /// Interrupt an operation of this session with the given operationId.
     #[allow(non_snake_case)]
-    pub async fn interruptOperation(self, op_id: &str) -> Result<Vec<String>, SparkError> {
+    pub async fn interruptOperation(&self, op_id: &str) -> Result<Vec<String>, SparkError> {
         let resp = self
-            .client()
+            .client
             .interrupt_request(
                 spark::interrupt_request::InterruptType::OperationId,
                 Some(op_id.to_string()),
@@ -322,12 +326,12 @@ impl SparkSession {
     }
 
     /// The version of Spark on which this application is running.
-    pub async fn version(self) -> Result<String, SparkError> {
+    pub async fn version(&self) -> Result<String, SparkError> {
         let version = spark::analyze_plan_request::Analyze::SparkVersion(
             spark::analyze_plan_request::SparkVersion {},
         );
 
-        let mut client = self.client;
+        let mut client = self.client.clone();
 
         client.analyze(version).await?.spark_version()
     }
