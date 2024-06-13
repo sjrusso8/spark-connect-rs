@@ -177,14 +177,13 @@ impl Column {
         Column::from(expression)
     }
 
-    #[allow(non_snake_case)]
-    pub fn dropFields<'a, I>(self, fieldNames: I) -> Column
+    pub fn drop_fields<'a, I>(self, field_names: I) -> Column
     where
         I: IntoIterator<Item = &'a str>,
     {
         let mut parent_col = self.expression;
 
-        for field in fieldNames {
+        for field in field_names {
             parent_col = spark::Expression {
                 expr_type: Some(spark::expression::ExprType::UpdateFields(Box::new(
                     spark::expression::UpdateFields {
@@ -199,13 +198,12 @@ impl Column {
         Column::from(parent_col)
     }
 
-    #[allow(non_snake_case)]
-    pub fn withField(self, fieldName: &str, col: Column) -> Column {
+    pub fn with_field(self, field_name: &str, col: Column) -> Column {
         let update_field = spark::Expression {
             expr_type: Some(spark::expression::ExprType::UpdateFields(Box::new(
                 spark::expression::UpdateFields {
                     struct_expression: Some(Box::new(self.expression)),
-                    field_name: fieldName.to_string(),
+                    field_name: field_name.to_string(),
                     value_expression: Some(Box::new(col.to_literal_expr())),
                 },
             ))),
@@ -214,11 +212,10 @@ impl Column {
         Column::from(update_field)
     }
 
-    #[allow(non_snake_case)]
-    pub fn substr<T: ToExpr>(self, startPos: T, length: T) -> Column {
+    pub fn substr<T: ToExpr>(self, start_pos: T, length: T) -> Column {
         invoke_func(
             "substr",
-            vec![self.to_expr(), startPos.to_expr(), length.to_expr()],
+            vec![self.to_expr(), start_pos.to_expr(), length.to_expr()],
         )
     }
 
@@ -335,19 +332,16 @@ impl Column {
     }
 
     /// A filter expression that evaluates to true is the expression is null
-    #[allow(non_snake_case)]
-    pub fn isNull(self) -> Column {
+    pub fn is_null(self) -> Column {
         invoke_func("isnull", self)
     }
 
     /// A filter expression that evaluates to true is the expression is NOT null
-    #[allow(non_snake_case)]
-    pub fn isNotNull(self) -> Column {
+    pub fn is_not_null(self) -> Column {
         invoke_func("isnotnull", self)
     }
 
-    #[allow(non_snake_case)]
-    pub fn isNaN(self) -> Column {
+    pub fn is_nan(self) -> Column {
         invoke_func("isNaN", self)
     }
 
@@ -360,12 +354,12 @@ impl Column {
     ///
     /// ```
     /// let window = Window::new()
-    ///     .partitionBy(col("name"))
-    ///     .orderBy([col("age")])
-    ///     .rangeBetween(Window::unboundedPreceding(), Window::currentRow());
+    ///     .partition_by(col("name"))
+    ///     .order_by([col("age")])
+    ///     .range_between(Window::unbounded_preceding(), Window::current_row());
     ///
-    /// let df = df.withColumn("rank", rank().over(window.clone()))
-    ///     .withColumn("min", min("age").over(window));
+    /// let df = df.with_column("rank", rank().over(window.clone()))
+    ///     .with_column("min", min("age").over(window));
     /// ```
     pub fn over(self, window: WindowSpec) -> Column {
         let window_expr = spark::expression::Window {

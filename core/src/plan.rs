@@ -326,8 +326,7 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(set_rel)
     }
 
-    #[allow(non_snake_case)]
-    pub fn exceptAll(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
+    pub fn except_all(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
         self.set_operation(
             other,
             SetOpType::Except,
@@ -337,8 +336,7 @@ impl LogicalPlanBuilder {
         )
     }
 
-    #[allow(non_snake_case)]
-    pub fn unionAll(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
+    pub fn union_all(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
         self.set_operation(
             other,
             SetOpType::Union,
@@ -349,11 +347,10 @@ impl LogicalPlanBuilder {
     }
 
     pub fn union(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
-        self.unionAll(other)
+        self.union_all(other)
     }
 
-    #[allow(non_snake_case)]
-    pub fn unionByName(
+    pub fn union_by_name(
         self,
         other: LogicalPlanBuilder,
         allow_missing_columns: Option<bool>,
@@ -387,8 +384,7 @@ impl LogicalPlanBuilder {
         )
     }
 
-    #[allow(non_snake_case)]
-    pub fn intersectAll(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
+    pub fn intersect_all(self, other: LogicalPlanBuilder) -> LogicalPlanBuilder {
         self.set_operation(
             other,
             SetOpType::Intersect,
@@ -407,8 +403,7 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(rel_type)
     }
 
-    #[allow(non_snake_case)]
-    pub fn freqItems<'a, I>(self, cols: I, support: Option<f64>) -> LogicalPlanBuilder
+    pub fn freq_items<'a, I>(self, cols: I, support: Option<f64>) -> LogicalPlanBuilder
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -564,11 +559,10 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(sort_type)
     }
 
-    #[allow(non_snake_case)]
-    pub fn withColumn<T: ToExpr>(self, colName: &str, col: T) -> LogicalPlanBuilder {
+    pub fn with_column<T: ToExpr>(self, col_name: &str, col: T) -> LogicalPlanBuilder {
         let aliases: Vec<spark::expression::Alias> = vec![spark::expression::Alias {
             expr: Some(Box::new(col.to_expr())),
-            name: vec![colName.to_string()],
+            name: vec![col_name.to_string()],
             metadata: None,
         }];
 
@@ -580,14 +574,13 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(with_col)
     }
 
-    #[allow(non_snake_case)]
-    pub fn withColumns<I, K, T>(self, colMap: I) -> LogicalPlanBuilder
+    pub fn with_columns<I, K, T>(self, col_map: I) -> LogicalPlanBuilder
     where
         T: ToExpr,
         K: ToString,
         I: IntoIterator<Item = (K, T)>,
     {
-        let aliases: Vec<spark::expression::Alias> = colMap
+        let aliases: Vec<spark::expression::Alias> = col_map
             .into_iter()
             .map(|(name, col)| spark::expression::Alias {
                 expr: Some(Box::new(col.to_expr())),
@@ -604,8 +597,7 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(with_col)
     }
 
-    #[allow(non_snake_case)]
-    pub fn withColumnsRenamed<I, K, V>(self, cols: I) -> LogicalPlanBuilder
+    pub fn with_columns_renamed<I, K, V>(self, cols: I) -> LogicalPlanBuilder
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,

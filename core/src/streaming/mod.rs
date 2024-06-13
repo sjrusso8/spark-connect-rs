@@ -161,15 +161,13 @@ impl DataStreamWriter {
     /// # Arguments:
     /// - `output_mode`: [OutputMode] enum
     ///
-    #[allow(non_snake_case)]
-    pub fn outputMode(mut self, outputMode: OutputMode) -> Self {
-        self.output_mode = Some(outputMode);
+    pub fn output_mode(mut self, output_mode: OutputMode) -> Self {
+        self.output_mode = Some(output_mode);
         self
     }
 
     /// Partitions the output by the given columns on the file system
-    #[allow(non_snake_case)]
-    pub fn partitionBy<'a, I>(mut self, cols: I) -> Self
+    pub fn partition_by<'a, I>(mut self, cols: I) -> Self
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -198,8 +196,7 @@ impl DataStreamWriter {
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn queryName(mut self, name: &str) -> Self {
+    pub fn query_name(mut self, name: &str) -> Self {
         self.query_name = Some(name.to_string());
         self
     }
@@ -256,10 +253,9 @@ impl DataStreamWriter {
     }
 
     /// Start a streaming job to save the contents of the [StreamingQuery] to a table.
-    #[allow(non_snake_case)]
-    pub async fn toTable(self, tableName: &str) -> Result<StreamingQuery, SparkError> {
+    pub async fn to_table(self, table_name: &str) -> Result<StreamingQuery, SparkError> {
         let sink = Some(
-            spark::write_stream_operation_start::SinkDestination::TableName(tableName.to_string()),
+            spark::write_stream_operation_start::SinkDestination::TableName(table_name.to_string()),
         );
 
         self.start_stream(sink).await
@@ -335,8 +331,7 @@ impl StreamingQuery {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub async fn awaitTermination(self, timeout_ms: Option<i64>) -> Result<bool, SparkError> {
+    pub async fn await_termination(self, timeout_ms: Option<i64>) -> Result<bool, SparkError> {
         let term = spark::streaming_query_command::AwaitTerminationCommand { timeout_ms };
         let cmd =
             spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
@@ -366,8 +361,7 @@ impl StreamingQuery {
         Ok(term?.terminated)
     }
 
-    #[allow(non_snake_case)]
-    pub async fn lastProgress(self) -> Result<serde_json::Value, SparkError> {
+    pub async fn last_progress(self) -> Result<serde_json::Value, SparkError> {
         let cmd =
             spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
                 query_id: Some(self.query_instance),
@@ -396,8 +390,7 @@ impl StreamingQuery {
         to_json_object(progress?.recent_progress_json)
     }
 
-    #[allow(non_snake_case)]
-    pub async fn recentProgress(self) -> Result<serde_json::Value, SparkError> {
+    pub async fn recent_progress(self) -> Result<serde_json::Value, SparkError> {
         let cmd =
             spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
                 query_id: Some(self.query_instance),
@@ -428,8 +421,7 @@ impl StreamingQuery {
         to_json_object(progress?.recent_progress_json)
     }
 
-    #[allow(non_snake_case)]
-    pub async fn isActive(self) -> Result<bool, SparkError> {
+    pub async fn is_active(self) -> Result<bool, SparkError> {
         let status = self.fetch_status().await?;
 
         Ok(status.is_active)
@@ -493,12 +485,12 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .readStream()
+            .read_stream()
             .format("rate")
             .option("rowsPerSecond", "5")
             .load(None)?;
 
-        assert!(df.isStreaming().await?);
+        assert!(df.is_streaming().await?);
         Ok(())
     }
 
@@ -507,21 +499,21 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .readStream()
+            .read_stream()
             .format("rate")
             .option("rowsPerSecond", "5")
             .load(None)?;
 
         let query = df
-            .writeStream()
+            .write_stream()
             .format("console")
-            .queryName("TEST")
-            .outputMode(OutputMode::Append)
+            .query_name("TEST")
+            .output_mode(OutputMode::Append)
             .trigger(Trigger::ProcessingTimeInterval("3 seconds".to_string()))
             .start(None)
             .await?;
 
-        assert!(query.clone().isActive().await?);
+        assert!(query.clone().is_active().await?);
 
         thread::sleep(time::Duration::from_secs(10));
 
@@ -534,16 +526,16 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .readStream()
+            .read_stream()
             .format("rate")
             .option("rowsPerSecond", "5")
             .load(None)?;
 
         let query = df
-            .writeStream()
+            .write_stream()
             .format("console")
-            .queryName("TEST")
-            .outputMode(OutputMode::Append)
+            .query_name("TEST")
+            .output_mode(OutputMode::Append)
             .trigger(Trigger::ProcessingTimeInterval("3 seconds".to_string()))
             .start(None)
             .await?;
@@ -561,23 +553,23 @@ mod tests {
         let spark = setup().await;
 
         let df = spark
-            .readStream()
+            .read_stream()
             .format("rate")
             .option("rowsPerSecond", "5")
             .load(None)?;
 
         let query = df
-            .writeStream()
+            .write_stream()
             .format("console")
-            .queryName("TEST")
-            .outputMode(OutputMode::Append)
+            .query_name("TEST")
+            .output_mode(OutputMode::Append)
             .trigger(Trigger::ProcessingTimeInterval("1 seconds".to_string()))
             .start(None)
             .await?;
 
         thread::sleep(time::Duration::from_secs(5));
 
-        let progress = query.clone().lastProgress().await?;
+        let progress = query.clone().last_progress().await?;
 
         assert!(!progress.is_null());
 

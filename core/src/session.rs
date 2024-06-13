@@ -71,8 +71,7 @@ impl SparkSessionBuilder {
     }
 
     /// Sets a name for the application, which will be shown in the Spark web UI.
-    #[allow(non_snake_case)]
-    pub fn appName(mut self, name: &str) -> Self {
+    pub fn app_name(mut self, name: &str) -> Self {
         self.configs
             .insert("spark.app.name".to_string(), name.into());
         self
@@ -201,8 +200,7 @@ impl SparkSession {
     }
 
     /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
-    #[allow(non_snake_case)]
-    pub fn readStream(&self) -> DataStreamReader {
+    pub fn read_stream(&self) -> DataStreamReader {
         DataStreamReader::new(self.session())
     }
 
@@ -239,8 +237,7 @@ impl SparkSession {
         Ok(DataFrame::new(self.session(), logical_plan))
     }
 
-    #[allow(non_snake_case)]
-    pub fn createDataFrame(&self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
+    pub fn create_dataframe(&self, data: &RecordBatch) -> Result<DataFrame, SparkError> {
         let logical_plan = LogicalPlanBuilder::local_relation(data)?;
 
         Ok(DataFrame::new(self.session(), logical_plan))
@@ -263,8 +260,7 @@ impl SparkSession {
     }
 
     /// Interrupt all operations of this session currently running on the connected server.
-    #[allow(non_snake_case)]
-    pub async fn interruptAll(&self) -> Result<Vec<String>, SparkError> {
+    pub async fn interrupt_all(&self) -> Result<Vec<String>, SparkError> {
         let resp = self
             .client
             .interrupt_request(spark::interrupt_request::InterruptType::All, None)
@@ -274,8 +270,7 @@ impl SparkSession {
     }
 
     /// Interrupt all operations of this session with the given operation tag.
-    #[allow(non_snake_case)]
-    pub async fn interruptTag(&self, tag: &str) -> Result<Vec<String>, SparkError> {
+    pub async fn interrupt_tag(&self, tag: &str) -> Result<Vec<String>, SparkError> {
         let resp = self
             .client
             .interrupt_request(
@@ -288,8 +283,7 @@ impl SparkSession {
     }
 
     /// Interrupt an operation of this session with the given operationId.
-    #[allow(non_snake_case)]
-    pub async fn interruptOperation(&self, op_id: &str) -> Result<Vec<String>, SparkError> {
+    pub async fn interrupt_operation(&self, op_id: &str) -> Result<Vec<String>, SparkError> {
         let resp = self
             .client
             .interrupt_request(
@@ -302,26 +296,22 @@ impl SparkSession {
     }
 
     /// Add a tag to be assigned to all the operations started by this thread in this session.
-    #[allow(non_snake_case)]
-    pub fn addTag(&mut self, tag: &str) -> Result<(), SparkError> {
+    pub fn add_tag(&mut self, tag: &str) -> Result<(), SparkError> {
         self.client.add_tag(tag)
     }
 
     /// Remove a tag previously added to be assigned to all the operations started by this thread in this session.
-    #[allow(non_snake_case)]
-    pub fn removeTag(&mut self, tag: &str) -> Result<(), SparkError> {
+    pub fn remove_tag(&mut self, tag: &str) -> Result<(), SparkError> {
         self.client.remove_tag(tag)
     }
 
     /// Get the tags that are currently set to be assigned to all the operations started by this thread.
-    #[allow(non_snake_case)]
-    pub fn getTags(&mut self) -> &Vec<String> {
+    pub fn get_tags(&mut self) -> &Vec<String> {
         self.client.get_tags()
     }
 
     /// Clear the current thread’s operation tags.
-    #[allow(non_snake_case)]
-    pub fn clearTags(&mut self) {
+    pub fn clear_tags(&mut self) {
         self.client.clear_tags()
     }
 
@@ -346,6 +336,22 @@ impl SparkSession {
 mod tests {
     use super::*;
 
+    use arrow::{
+        array::{ArrayRef, StringArray},
+        record_batch::RecordBatch,
+    };
+
+    async fn setup() -> SparkSession {
+        println!("SparkSession Setup");
+
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_test;session_id=0d2af2a9-cc3c-4d4b-bf27-e2fefeaca233";
+
+        SparkSessionBuilder::remote(connection)
+            .build()
+            .await
+            .unwrap()
+    }
+
     #[test]
     fn test_session_builder() {
         let connection = "sc://myhost.com:443/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
@@ -363,6 +369,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_spark_range() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark.range(None, 100, 1, Some(8));
+
+        let records = df.collect().await?;
+
+        assert_eq!(records.num_rows(), 100);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_spark_create_dataframe() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let a: ArrayRef = Arc::new(StringArray::from(vec!["hello", "world"]));
+
+        let record_batch = RecordBatch::try_from_iter(vec![("a", a)])?;
+
+        let df = spark.create_dataframe(&record_batch)?;
+
+        let rows = df.collect().await?;
+
+        assert_eq!(record_batch, rows);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_spark_session_create() {
         let connection =
             "sc://localhost:15002/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
@@ -376,18 +410,18 @@ mod tests {
     async fn test_session_tags() -> Result<(), SparkError> {
         let mut spark = SparkSessionBuilder::default().build().await?;
 
-        spark.addTag("hello-tag")?;
+        spark.add_tag("hello-tag")?;
 
-        spark.addTag("hello-tag-2")?;
+        spark.add_tag("hello-tag-2")?;
 
         let expected = vec!["hello-tag".to_string(), "hello-tag-2".to_string()];
 
-        let res = spark.getTags();
+        let res = spark.get_tags();
 
         assert_eq!(&expected, res);
 
-        spark.clearTags();
-        let res = spark.getTags();
+        spark.clear_tags();
+        let res = spark.get_tags();
 
         let expected: Vec<String> = vec![];
 
@@ -400,11 +434,11 @@ mod tests {
     async fn test_session_tags_panic() -> Result<(), SparkError> {
         let mut spark = SparkSessionBuilder::default().build().await?;
 
-        assert!(spark.addTag("bad,tag").is_err());
-        assert!(spark.addTag("").is_err());
+        assert!(spark.add_tag("bad,tag").is_err());
+        assert!(spark.add_tag("").is_err());
 
-        assert!(spark.removeTag("bad,tag").is_err());
-        assert!(spark.removeTag("").is_err());
+        assert!(spark.remove_tag("bad,tag").is_err());
+        assert!(spark.remove_tag("").is_err());
 
         Ok(())
     }
@@ -424,7 +458,7 @@ mod tests {
         let value = "rust-test-app";
 
         let spark = SparkSessionBuilder::default()
-            .appName("rust-test-app")
+            .app_name("rust-test-app")
             .build()
             .await?;
 
@@ -457,13 +491,16 @@ mod tests {
         assert_eq!("200", &val);
 
         // not a modifable setting
-        let val = spark.conf().isModifable("spark.executor.instances").await?;
+        let val = spark
+            .conf()
+            .is_modifable("spark.executor.instances")
+            .await?;
         assert!(!val);
 
         // a modifable setting
         let val = spark
             .conf()
-            .isModifable("spark.sql.shuffle.partitions")
+            .is_modifable("spark.sql.shuffle.partitions")
             .await?;
         assert!(val);
 
