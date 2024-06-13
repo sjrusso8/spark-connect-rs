@@ -331,7 +331,7 @@ impl SparkSession {
             spark::analyze_plan_request::SparkVersion {},
         );
 
-        let mut client = self.client.to_owned();
+        let mut client = self.client.clone();
 
         client.analyze(version).await?.spark_version()
     }
