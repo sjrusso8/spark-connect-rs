@@ -91,7 +91,7 @@ The following section outlines some of the larger functionality that are not yet
 |createDataFrame   |![partial]|Partial. Only works for `RecordBatch`  |
 |getActiveSessions |![open]   |                                       |
 |getTags           |![done]   |                                       |
-|interruptAll      |![done]   |                                       |
+|interruptAll      |![done]   |  splitn                                     |
 |interruptOperation|![done]   |                                       |
 |interruptTag      |![done]   |                                       |
 |newSession        |![open]   |                                       |
@@ -132,10 +132,10 @@ The following section outlines some of the larger functionality that are not yet
 |StreamingQuery    |API       |Comment                               |
 |------------------|----------|---------------------------------------|
 |awaitTermination  |![done]   |                                       |
-|exception         |![open]   |                                       |
-|explain           |![open]   |                                       |
-|processAllAvailable|![open]   |                                       |
-|stop              |![open]   |                                       |
+|exception         |![done]   |                                       |
+|explain           |![done]   |                                       |
+|processAllAvailable|![done]   |                                       |
+|stop              |![done]   |                                       |
 |id                |![done]   |                                       |
 |isActive          |![done]   |                                       |
 |lastProgress      |![done]   |                                       |

@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // loop to get multiple progression stats
     for _ in 1..5 {
         thread::sleep(time::Duration::from_secs(5));
-        let val = &query.clone().last_progress().await?;
+        let val = query.last_progress().await?;
         println!("{}", val);
     }
 
