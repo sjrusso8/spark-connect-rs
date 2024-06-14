@@ -515,10 +515,11 @@ impl StreamingQuery {
                 stack_trace: Some(stack_trace),
             } => {
                 let msg = msg
-                    + &format!(
+                    + format!(
                         "\n\nError Class:\n{}\n\nJVM stacktrace:\n{}",
                         error_class, stack_trace
-                    );
+                    )
+                    .as_str();
 
                 Ok(msg)
             }
@@ -527,7 +528,7 @@ impl StreamingQuery {
                 error_class: Some(error_class),
                 stack_trace: None,
             } => {
-                let msg = msg.to_string() + &format!("\n\nError Class:\n{}", error_class);
+                let msg = msg + format!("\n\nError Class:\n{}", error_class).as_str();
                 Ok(msg.to_string())
             }
             spark::streaming_query_command_result::ExceptionResult {
@@ -535,7 +536,7 @@ impl StreamingQuery {
                 error_class: None,
                 stack_trace: Some(stack_trace),
             } => {
-                let msg = msg.to_string() + &format!("\n\nJVM stacktrace:\n{}", stack_trace);
+                let msg = msg + format!("\n\nJVM stacktrace:\n{}", stack_trace).as_str();
                 Ok(msg.to_string())
             }
             _ => Err(SparkError::AnalysisException(
