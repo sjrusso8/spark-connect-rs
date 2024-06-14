@@ -142,7 +142,7 @@ impl DataStreamWriter {
         Self {
             dataframe,
             format: None,
-            output_mode: None,
+            output_mode: Some(OutputMode::Append),
             query_name: None,
             trigger: None,
             partition_by: vec![],
@@ -213,7 +213,7 @@ impl DataStreamWriter {
     ) -> Result<StreamingQuery, SparkError> {
         let ops = spark::WriteStreamOperationStart {
             input: Some(self.dataframe.plan.clone().relation()),
-            format: self.format.unwrap(),
+            format: self.format.unwrap_or("".to_string()),
             options: self.write_options,
             partitioning_column_names: self.partition_by,
             output_mode: self.output_mode.unwrap().as_str_name().to_string(),
@@ -292,6 +292,32 @@ impl StreamingQuery {
         }
     }
 
+    fn streaming_query_cmd() -> spark::StreamingQueryCommand {
+        spark::StreamingQueryCommand {
+            query_id: None,
+            command: None,
+        }
+    }
+
+    async fn execute_query_cmd(
+        &self,
+        command: spark::StreamingQueryCommand,
+    ) -> Result<spark::StreamingQueryCommandResult, SparkError> {
+        let plan = LogicalPlanBuilder::plan_cmd(
+            spark::command::CommandType::StreamingQueryCommand(command),
+        );
+
+        let mut client = self.spark_session.clone().client();
+
+        client
+            .execute_command_and_fetch(plan)
+            .await?
+            .streaming_query_command_result
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result Response is empty".to_string())
+            })
+    }
+
     pub fn id(&self) -> String {
         self.query_id.clone()
     }
@@ -305,150 +331,222 @@ impl StreamingQuery {
     }
 
     async fn fetch_status(
-        self,
+        &self,
     ) -> Result<spark::streaming_query_command_result::StatusResult, SparkError> {
-        let cmd =
-            spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
-                query_id: Some(self.query_instance),
-                command: Some(spark::streaming_query_command::Command::Status(true)),
-            });
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::Status(true));
 
-        let plan = LogicalPlanBuilder::plan_cmd(cmd);
-
-        let mut client = self.spark_session.clone().client();
-
-        let status = client
-            .execute_command_and_fetch(plan)
+        let result_type = self
+            .execute_query_cmd(command)
             .await?
-            .streaming_query_command_result
-            .unwrap();
+            .result_type
+            .ok_or_else(|| SparkError::AnalysisException("Stream status is empty".to_string()))?;
 
-        match status.result_type.unwrap() {
+        match result_type {
             spark::streaming_query_command_result::ResultType::Status(status) => Ok(status),
-            _ => Err(SparkError::NotYetImplemented(
-                "result type not yet implemented".to_string(),
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected result type for stream status".to_string(),
             )),
         }
     }
 
-    pub async fn await_termination(self, timeout_ms: Option<i64>) -> Result<bool, SparkError> {
+    pub async fn await_termination(&self, timeout_ms: Option<i64>) -> Result<bool, SparkError> {
         let term = spark::streaming_query_command::AwaitTerminationCommand { timeout_ms };
-        let cmd =
-            spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
-                query_id: Some(self.query_instance),
-                command: Some(spark::streaming_query_command::Command::AwaitTermination(
-                    term,
-                )),
-            });
 
-        let plan = LogicalPlanBuilder::plan_cmd(cmd);
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::AwaitTermination(
+            term,
+        ));
 
-        let mut client = self.spark_session.clone().client();
-
-        let status = client
-            .execute_command_and_fetch(plan)
+        let result_type = self
+            .execute_query_cmd(command)
             .await?
-            .streaming_query_command_result
-            .unwrap();
+            .result_type
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Stream termination status is empty".to_string())
+            })?;
 
-        let term = match status.result_type.unwrap() {
+        let term = match result_type {
             spark::streaming_query_command_result::ResultType::AwaitTermination(term) => Ok(term),
-            _ => Err(SparkError::NotYetImplemented(
-                "result type not yet implemented".to_string(),
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected result type for termination request".to_string(),
             )),
         };
 
         Ok(term?.terminated)
     }
 
-    pub async fn last_progress(self) -> Result<serde_json::Value, SparkError> {
-        let cmd =
-            spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
-                query_id: Some(self.query_instance),
-                command: Some(spark::streaming_query_command::Command::LastProgress(true)),
-            });
+    pub async fn last_progress(&self) -> Result<serde_json::Value, SparkError> {
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::LastProgress(true));
 
-        let plan = LogicalPlanBuilder::plan_cmd(cmd);
-
-        let mut client = self.spark_session.clone().client();
-
-        let status = client
-            .execute_command_and_fetch(plan)
+        let result_type = self
+            .execute_query_cmd(command)
             .await?
-            .streaming_query_command_result
-            .unwrap();
+            .result_type
+            .ok_or_else(|| SparkError::AnalysisException("Stream progress is empty".to_string()))?;
 
-        let progress = match status.result_type.unwrap() {
+        let progress = match result_type {
             spark::streaming_query_command_result::ResultType::RecentProgress(progress) => {
                 Ok(progress)
             }
-            _ => Err(SparkError::NotYetImplemented(
-                "result type not yet implemented".to_string(),
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected result type for progress request".to_string(),
             )),
         };
 
         to_json_object(progress?.recent_progress_json)
     }
 
-    pub async fn recent_progress(self) -> Result<serde_json::Value, SparkError> {
-        let cmd =
-            spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
-                query_id: Some(self.query_instance),
-                command: Some(spark::streaming_query_command::Command::RecentProgress(
-                    true,
-                )),
-            });
+    pub async fn recent_progress(&self) -> Result<serde_json::Value, SparkError> {
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::RecentProgress(
+            true,
+        ));
 
-        let plan = LogicalPlanBuilder::plan_cmd(cmd);
-
-        let mut client = self.spark_session.clone().client();
-
-        let status = client
-            .execute_command_and_fetch(plan)
+        let result_type = self
+            .execute_query_cmd(command)
             .await?
-            .streaming_query_command_result
-            .unwrap();
+            .result_type
+            .ok_or_else(|| SparkError::AnalysisException("Stream progress is empty".to_string()))?;
 
-        let progress = match status.result_type.unwrap() {
+        let progress = match result_type {
             spark::streaming_query_command_result::ResultType::RecentProgress(progress) => {
                 Ok(progress)
             }
-            _ => Err(SparkError::NotYetImplemented(
-                "result type not yet implemented".to_string(),
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected result type for recent progress request".to_string(),
             )),
         };
 
         to_json_object(progress?.recent_progress_json)
     }
 
-    pub async fn is_active(self) -> Result<bool, SparkError> {
+    pub async fn is_active(&self) -> Result<bool, SparkError> {
         let status = self.fetch_status().await?;
 
         Ok(status.is_active)
     }
 
-    pub async fn stop(self) -> Result<bool, SparkError> {
-        let cmd =
-            spark::command::CommandType::StreamingQueryCommand(spark::StreamingQueryCommand {
-                query_id: Some(self.query_instance),
-                command: Some(spark::streaming_query_command::Command::Stop(true)),
-            });
+    pub async fn stop(&self) -> Result<(), SparkError> {
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::Stop(true));
 
-        let plan = LogicalPlanBuilder::plan_cmd(cmd);
+        let _result_type = self.execute_query_cmd(command).await?;
 
-        let mut client = self.spark_session.clone().client();
+        Ok(())
+    }
 
-        client
-            .execute_command_and_fetch(plan)
+    pub async fn process_all_available(&self) -> Result<(), SparkError> {
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::ProcessAllAvailable(true));
+
+        let _result_type = self.execute_query_cmd(command).await?;
+
+        Ok(())
+    }
+
+    pub async fn explain(&self, extended: Option<bool>) -> Result<(), SparkError> {
+        let extended = match extended {
+            Some(true) => true,
+            Some(false) => false,
+            None => false,
+        };
+
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::Explain(
+            spark::streaming_query_command::ExplainCommand { extended },
+        ));
+
+        let result_type = self
+            .execute_query_cmd(command)
             .await?
-            .streaming_query_command_result
-            .unwrap();
+            .result_type
+            .ok_or_else(|| SparkError::AnalysisException("Stream explain is empty".to_string()))?;
 
-        Ok(true)
+        let explain = match result_type {
+            spark::streaming_query_command_result::ResultType::Explain(explain) => Ok(explain),
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected result type for progress request".to_string(),
+            )),
+        };
+
+        Ok(println!("{}", explain?.result))
+    }
+
+    // !TODO i don't really like the return values on this
+    pub async fn exception(&self) -> Result<String, SparkError> {
+        let mut command = StreamingQuery::streaming_query_cmd();
+        command.query_id = Some(self.query_instance.clone());
+        command.command = Some(spark::streaming_query_command::Command::Exception(true));
+
+        let result_type = self
+            .execute_query_cmd(command)
+            .await?
+            .result_type
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Stream exception is empty".to_string())
+            })?;
+
+        let exception = match result_type {
+            spark::streaming_query_command_result::ResultType::Exception(exception) => {
+                Ok(exception)
+            }
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected result type for recent progress request".to_string(),
+            )),
+        };
+
+        match exception? {
+            spark::streaming_query_command_result::ExceptionResult {
+                exception_message: None,
+                ..
+            } => Ok("No exception captured".to_string()),
+            spark::streaming_query_command_result::ExceptionResult {
+                exception_message: Some(msg),
+                error_class: Some(error_class),
+                stack_trace: Some(stack_trace),
+            } => {
+                let msg = msg
+                    + format!(
+                        "\n\nError Class:\n{}\n\nJVM stacktrace:\n{}",
+                        error_class, stack_trace
+                    )
+                    .as_str();
+
+                Ok(msg)
+            }
+            spark::streaming_query_command_result::ExceptionResult {
+                exception_message: Some(msg),
+                error_class: Some(error_class),
+                stack_trace: None,
+            } => {
+                let msg = msg + format!("\n\nError Class:\n{}", error_class).as_str();
+                Ok(msg.to_string())
+            }
+            spark::streaming_query_command_result::ExceptionResult {
+                exception_message: Some(msg),
+                error_class: None,
+                stack_trace: Some(stack_trace),
+            } => {
+                let msg = msg + format!("\n\nJVM stacktrace:\n{}", stack_trace).as_str();
+                Ok(msg.to_string())
+            }
+            _ => Err(SparkError::AnalysisException(
+                "Unexpected response from server".to_string(),
+            )),
+        }
     }
 
     pub async fn status(
-        self,
+        &self,
     ) -> Result<spark::streaming_query_command_result::StatusResult, SparkError> {
         self.fetch_status().await
     }
@@ -506,18 +604,18 @@ mod tests {
 
         let query = df
             .write_stream()
-            .format("console")
-            .query_name("TEST")
+            .format("memory")
+            .query_name("TEST_ACTIVE")
             .output_mode(OutputMode::Append)
             .trigger(Trigger::ProcessingTimeInterval("3 seconds".to_string()))
             .start(None)
             .await?;
 
-        assert!(query.clone().is_active().await?);
+        assert!(query.is_active().await?);
 
         thread::sleep(time::Duration::from_secs(10));
 
-        assert!(query.stop().await?);
+        query.stop().await?;
         Ok(())
     }
 
@@ -533,14 +631,14 @@ mod tests {
 
         let query = df
             .write_stream()
-            .format("console")
-            .query_name("TEST")
+            .format("memory")
+            .query_name("TEST_STATUS")
             .output_mode(OutputMode::Append)
             .trigger(Trigger::ProcessingTimeInterval("3 seconds".to_string()))
             .start(None)
             .await?;
 
-        let status = query.clone().status().await?;
+        let status = query.status().await?;
 
         assert!(!status.status_message.is_empty());
 
@@ -560,8 +658,8 @@ mod tests {
 
         let query = df
             .write_stream()
-            .format("console")
-            .query_name("TEST")
+            .format("memory")
+            .query_name("TEST_PROGRESS")
             .output_mode(OutputMode::Append)
             .trigger(Trigger::ProcessingTimeInterval("1 seconds".to_string()))
             .start(None)
@@ -569,11 +667,39 @@ mod tests {
 
         thread::sleep(time::Duration::from_secs(5));
 
-        let progress = query.clone().last_progress().await?;
+        let progress = query.last_progress().await?;
 
         assert!(!progress.is_null());
 
-        assert!(query.stop().await?);
+        query.stop().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_explain() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .read_stream()
+            .format("rate")
+            .option("rowsPerSecond", "5")
+            .load(None)?;
+
+        let query = df
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_EXPLAIN")
+            .start(None)
+            .await?;
+
+        thread::sleep(time::Duration::from_secs(3));
+
+        query.process_all_available().await?;
+
+        assert!(query.explain(None).await.is_ok());
+
+        query.stop().await?;
+
         Ok(())
     }
 }
