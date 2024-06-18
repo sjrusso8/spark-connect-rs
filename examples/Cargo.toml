@@ -11,6 +11,10 @@ name = "sql"
 path = "src/sql.rs"
 
 [[bin]]
+name = "unity"
+path = "src/unity.rs"
+
+[[bin]]
 name = "deltalake"
 path = "src/deltalake.rs"
 

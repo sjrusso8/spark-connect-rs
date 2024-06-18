@@ -1,13 +1,18 @@
 version: '3.7'
+
 services:
   spark:
     image: "apache/spark:3.5.1-scala2.12-java11-r-ubuntu"
     command: >
       /opt/spark/sbin/start-connect-server.sh
-      --packages "org.apache.spark:spark-connect_2.12:3.5.1,io.delta:delta-spark_2.12:3.0.0"
+      --packages "org.apache.spark:spark-connect_2.12:3.5.1,io.delta:delta-spark_2.12:3.0.0,org.apache.iceberg:iceberg-spark-extensions-3.5_2.12:1.5.2,org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.2"
       --conf "spark.driver.extraJavaOptions=-Divy.cache.dir=/tmp -Divy.home=/tmp"
-      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension"
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension,org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
       --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+      --conf "spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog"
+      --conf "spark.sql.catalog.iceberg.catalog-impl=org.apache.iceberg.rest.RESTCatalog"
+      --conf "spark.sql.catalog.iceberg.uri=http://unity:8080/api/2.1/unity-catalog/iceberg"
+      --conf "spark.sql.catalog.iceberg.token=not_used"
     environment:
       - SPARK_NO_DAEMONIZE=true
     ports:
@@ -15,3 +20,16 @@ services:
       - "15002:15002"
     volumes:
       - ./datasets:/opt/spark/work-dir/datasets
+      - shared-tmp:/tmp
+    depends_on:
+      - unity
+
+  unity:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - shared-tmp:/tmp
+
+volumes:
+  shared-tmp:
