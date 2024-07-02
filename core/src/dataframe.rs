@@ -1070,7 +1070,7 @@ impl DataFrame {
         }
     }
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
-    pub fn write(self) -> DataFrameWriter {
+    pub fn write(&self) -> DataFrameWriter {
         DataFrameWriter::new(self)
     }
 
