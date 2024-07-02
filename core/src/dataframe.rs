@@ -464,7 +464,7 @@ impl DataFrame {
     }
 
     /// Groups the DataFrame using the specified columns, and returns a [GroupedData] object
-    pub fn group_by<T: ToVecExpr>(self, cols: Option<T>) -> GroupedData {
+    pub fn group_by<T: ToVecExpr>(&self, cols: Option<T>) -> GroupedData {
         let grouping_cols = match cols {
             Some(cols) => cols.to_vec_expr(),
             None => vec![],
@@ -1070,7 +1070,7 @@ impl DataFrame {
         }
     }
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
-    pub fn write(self) -> DataFrameWriter {
+    pub fn write(&self) -> DataFrameWriter {
         DataFrameWriter::new(self)
     }
 
