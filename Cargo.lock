@@ -2469,7 +2469,7 @@ dependencies = [
 
 [[package]]
 name = "spark-connect-core"
-version = "0.0.1-beta.4"
+version = "0.0.1-beta.5"
 dependencies = [
  "arrow",
  "arrow-ipc",
@@ -2493,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "spark-connect-rs"
-version = "0.0.1-beta.4"
+version = "0.0.1-beta.5"
 dependencies = [
  "spark-connect-core",
  "tokio",
