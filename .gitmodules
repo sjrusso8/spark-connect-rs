@@ -1,3 +1,0 @@
-[submodule "core/spark"]
-	path = core/spark
-	url = https://github.com/apache/spark

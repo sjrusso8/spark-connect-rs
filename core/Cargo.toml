@@ -14,7 +14,7 @@ rust-version.workspace = true
 include = [
     "build.rs",
     "src/**/*",
-    "spark/connector/connect/common/src/main/protobuf/spark/**/*",
+    "protobuf/**/*",
 ]
 
 [dependencies]
