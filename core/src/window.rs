@@ -155,7 +155,7 @@ impl Window {
     /// Both start and end are relative from the current row. For example, “0” means “current row”,
     /// while “-1” means one off before the current row, and “5” means the five off after the current row.
     ///
-    /// Recommended to use [Window::unboundedPreceding], [Window::unboundedFollowing], and [Window::currentRow]
+    /// Recommended to use [Window::unbounded_preceding], [Window::unbounded_following], and [Window::current_row]
     /// to specify special boundary values, rather than using integral values directly.
     ///
     /// # Example
@@ -164,7 +164,7 @@ impl Window {
     /// let window = Window::new()
     ///     .partition_by(col("name"))
     ///     .order_by([col("age")])
-    ///     .range_between(Window::unboundedPreceding(), Window::currentRow());
+    ///     .range_between(Window::unbounded_preceding(), Window::current_row());
     ///
     /// let df = df.with_column("rank", rank().over(window.clone()))
     ///     .with_column("min", min("age").over(window));
@@ -180,7 +180,7 @@ impl Window {
     /// Both start and end are relative from the current row. For example, “0” means “current row”,
     /// while “-1” means one off before the current row, and “5” means the five off after the current row.
     ///
-    /// Recommended to use [Window::unboundedPreceding], [Window::unboundedFollowing], and [Window::currentRow]
+    /// Recommended to use [Window::unbounded_preceding], [Window::unbounded_following], and [Window::current_row]
     /// to specify special boundary values, rather than using integral values directly.
     ///
     /// # Example

@@ -87,7 +87,7 @@ pub struct DataFrame {
 
 impl DataFrame {
     /// create default DataFrame based on a spark session and initial logical plan
-    pub fn new(spark_session: SparkSession, plan: LogicalPlanBuilder) -> DataFrame {
+    pub(crate) fn new(spark_session: SparkSession, plan: LogicalPlanBuilder) -> DataFrame {
         DataFrame {
             spark_session: Box::new(spark_session),
             plan,
@@ -104,7 +104,7 @@ impl DataFrame {
         Ok(())
     }
 
-    /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.groupBy().agg()`)
+    /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.group_by().agg()`)
     pub fn agg<T: ToVecExpr>(self, exprs: T) -> DataFrame {
         self.group_by::<Column>(None).agg(exprs)
     }
@@ -119,6 +119,7 @@ impl DataFrame {
         }
     }
 
+    /// Calculates the approximate quantiles of numerical columns of a [DataFrame].
     pub async fn approx_quantile<'a, I, P>(
         self,
         cols: I,
@@ -266,19 +267,22 @@ impl DataFrame {
         Ok(data.value(0))
     }
 
+    /// Creates a global temporary view with this [DataFrame].
     pub async fn create_global_temp_view(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, true, false).await
     }
 
+    /// Creates or replaces a global temporary view using the given name.
     pub async fn create_or_replace_global_temp_view(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, true, true).await
     }
-    /// Creates or replaces a local temporary view with this DataFrame
+
+    /// Creates or replaces a local temporary view with this [DataFrame]
     pub async fn create_or_replace_temp_view(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, false, true).await
     }
 
-    /// Creates a local temporary view with this DataFrame.
+    /// Creates a local temporary view with this [DataFrame]
     pub async fn create_temp_view(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, false, false).await
     }
@@ -325,7 +329,7 @@ impl DataFrame {
         }
     }
 
-    /// Create a multi-dimensional cube for the current DataFrame using the specified columns, so we can run aggregations on them.
+    /// Create a multi-dimensional cube for the current [DataFrame] using the specified columns, so we can run aggregations on them.
     pub fn cube<T: ToVecExpr>(self, cols: T) -> GroupedData {
         GroupedData::new(self, GroupType::Cube, cols.to_vec_expr(), None, None)
     }
@@ -381,7 +385,7 @@ impl DataFrame {
     /// Return a new [DataFrame] with duplicate rows removed,
     /// optionally only considering certain columns, within watermark.
     ///
-    /// This only works with streaming DataFrame, and watermark for the input DataFrame must be set via with_watermark().
+    /// This only works with streaming [DataFrame], and watermark for the input [DataFrame] must be set via `with_watermark()`.
     ///
     pub fn drop_duplicates_within_waterwmark(self, cols: Option<Vec<&str>>) -> DataFrame {
         let plan = self.plan.drop_duplicates(cols, true);
@@ -392,7 +396,7 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new DataFrame omitting rows with null values.
+    /// Returns a new [DataFrame] omitting rows with null values.
     pub fn dropna(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
         let plan = self.plan.dropna(how, threshold, subset);
 
@@ -402,8 +406,8 @@ impl DataFrame {
         }
     }
 
-    /// Returns all column names and their data types as a Vec containing
-    /// the field name as a String and the [spark::data_type::Kind] enum
+    /// Returns all column names and their data types as a `Vec` containing
+    /// the field name as a `String` and the [spark::data_type::Kind] enum
     pub async fn dtypes(self) -> Result<Vec<(String, spark::data_type::Kind)>, SparkError> {
         let schema = self.schema().await?;
 
@@ -426,7 +430,7 @@ impl DataFrame {
         Ok(dtypes)
     }
 
-    /// Return a new DataFrame containing rows in this DataFrame but not in another DataFrame while preserving duplicates.
+    /// Return a new [DataFrame] containing rows in this [DataFrame] but not in another [DataFrame] while preserving duplicates.
     pub fn except_all(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -471,6 +475,7 @@ impl DataFrame {
         Ok(explain)
     }
 
+    /// Replace null values, alias for `df.na().fill()`.
     pub fn fillna<'a, I, T>(self, cols: Option<I>, values: T) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
@@ -519,7 +524,7 @@ impl DataFrame {
         }
     }
 
-    /// Groups the DataFrame using the specified columns, and returns a [GroupedData] object
+    /// Groups the [DataFrame] using the specified columns, and returns a [GroupedData] object
     pub fn group_by<T: ToVecExpr>(self, cols: Option<T>) -> GroupedData {
         let grouping_cols = match cols {
             Some(cols) => cols.to_vec_expr(),
@@ -533,7 +538,7 @@ impl DataFrame {
         self.limit(n.unwrap_or(1)).collect().await
     }
 
-    /// Specifies some hint on the current DataFrame.
+    /// Specifies some hint on the current [DataFrame].
     pub fn hint<T: ToVecExpr>(self, name: &str, parameters: Option<T>) -> DataFrame {
         let plan = self.plan.hint(name, parameters);
 
@@ -543,7 +548,7 @@ impl DataFrame {
         }
     }
 
-    /// Returns a best-effort snapshot of the files that compose this DataFrame
+    /// Returns a best-effort snapshot of the files that compose this [DataFrame]
     pub async fn input_files(self) -> Result<Vec<String>, SparkError> {
         let input_files = spark::analyze_plan_request::Analyze::InputFiles(
             spark::analyze_plan_request::InputFiles {
@@ -556,7 +561,7 @@ impl DataFrame {
         client.analyze(input_files).await?.input_files()
     }
 
-    /// Return a new DataFrame containing rows only in both this DataFrame and another DataFrame.
+    /// Return a new [DataFrame] containing rows only in both this [DataFrame] and another [DataFrame].
     pub fn intersect(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -568,6 +573,7 @@ impl DataFrame {
         }
     }
 
+    /// Return a new [DataFrame] containing rows in both this [DataFrame] and another [DataFrame] while preserving duplicates.
     pub fn intersect_all(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -586,6 +592,7 @@ impl DataFrame {
         Ok(val.num_rows() == 0)
     }
 
+    /// Returns `true` if the `collect()` and `take()` methods can be run locally (without any Spark executors).
     pub async fn is_local(self) -> Result<bool, SparkError> {
         let is_local =
             spark::analyze_plan_request::Analyze::IsLocal(spark::analyze_plan_request::IsLocal {
@@ -597,7 +604,7 @@ impl DataFrame {
         client.analyze(is_local).await?.is_local()
     }
 
-    /// Returns True if this DataFrame contains one or more sources that continuously return data as it arrives.
+    /// Returns `true` if this [DataFrame] contains one or more sources that continuously return data as it arrives.
     pub async fn is_streaming(self) -> Result<bool, SparkError> {
         let is_streaming = spark::analyze_plan_request::Analyze::IsStreaming(
             spark::analyze_plan_request::IsStreaming {
@@ -610,7 +617,7 @@ impl DataFrame {
         client.analyze(is_streaming).await?.is_streaming()
     }
 
-    /// Joins with another DataFrame, using the given join expression.
+    /// Joins with another [DataFrame], using the given join expression.
     ///
     /// # Example:
     /// ```rust
@@ -665,6 +672,7 @@ impl DataFrame {
         self.unpivot(ids, values, variable_column_name, value_column_name)
     }
 
+    /// Returns a [DataFrameNaFunctions] for handling missing values.
     pub fn na(self) -> DataFrameNaFunctions {
         DataFrameNaFunctions::new(self)
     }
@@ -681,6 +689,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn order_by<I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = Column>,
@@ -693,6 +702,7 @@ impl DataFrame {
         }
     }
 
+    /// Sets the storage level to persist the contents of the [DataFrame] across operations after the first time it is computed.
     pub async fn persist(self, storage_level: storage::StorageLevel) -> DataFrame {
         let analyze =
             spark::analyze_plan_request::Analyze::Persist(spark::analyze_plan_request::Persist {
@@ -726,6 +736,7 @@ impl DataFrame {
         client.analyze(tree_string).await?.tree_string()
     }
 
+    /// Randomly splits this [DataFrame] with the provided weights.
     pub fn random_split<I>(self, weights: I, seed: Option<i64>) -> Vec<DataFrame>
     where
         I: IntoIterator<Item = f64> + Clone,
@@ -782,6 +793,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] partitioned by the given partitioning expressions.
     pub fn repartition_by_range<T: ToVecExpr>(
         self,
         num_partitions: Option<i32>,
@@ -795,6 +807,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] replacing a value with another value.
     pub fn replace<'a, I, T>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
@@ -849,6 +862,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a stratified sample without replacement based on the fraction given on each stratum.
     pub fn sample_by<K, I, T>(self, col: T, fractions: I, seed: Option<i64>) -> DataFrame
     where
         K: ToLiteral,
@@ -864,8 +878,9 @@ impl DataFrame {
             plan,
         }
     }
-    /// Returns the schema of this DataFrame as a [spark::DataType]
-    /// which contains the schema of a DataFrame
+
+    /// Returns the schema of this [DataFrame] as a [spark::DataType]
+    /// which contains the schema of a [DataFrame]
     pub async fn schema(self) -> Result<spark::DataType, SparkError> {
         let plan = LogicalPlanBuilder::plan_root(self.plan);
 
@@ -922,6 +937,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a hash code of the logical query plan against this [DataFrame].
     pub async fn semantic_hash(self) -> Result<i32, SparkError> {
         let plan = LogicalPlanBuilder::plan_root(self.plan);
 
@@ -962,6 +978,7 @@ impl DataFrame {
         Ok(pretty::print_batches(&[rows])?)
     }
 
+    /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn sort<I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = Column>,
@@ -974,6 +991,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] with each partition sorted by the specified column(s).
     pub fn sort_within_partitions<I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = Column>,
@@ -985,14 +1003,18 @@ impl DataFrame {
             plan,
         }
     }
+
+    /// Returns Spark session that created this DataFrame.
     pub fn spark_session(self) -> Box<SparkSession> {
         self.spark_session
     }
 
+    /// Returns a DataFrameStatFunctions for statistic functions.
     pub fn stat(self) -> DataFrameStatFunctions {
         DataFrameStatFunctions::new(self)
     }
 
+    /// Get the DataFrame’s current storage level.
     pub async fn storage_level(self) -> Result<storage::StorageLevel, SparkError> {
         let storage_level = spark::analyze_plan_request::Analyze::GetStorageLevel(
             spark::analyze_plan_request::GetStorageLevel {
@@ -1006,6 +1028,7 @@ impl DataFrame {
         Ok(storage?.into())
     }
 
+    /// Return a new [DataFrame] containing rows in this [DataFrame] but not in another [DataFrame].
     pub fn subtract(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -1062,10 +1085,12 @@ impl DataFrame {
         df.collect().await
     }
 
+    /// Returns the first `num` rows as a RecordBatch.
     pub async fn take(self, n: i32) -> Result<RecordBatch, SparkError> {
         self.limit(n).collect().await
     }
 
+    /// Returns a new [DataFrame] that with new specified column names
     pub fn to_df<'a, I>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
@@ -1148,6 +1173,7 @@ impl DataFrame {
         func(self)
     }
 
+    /// Return a new [DataFrame] containing the union of rows in this and another [DataFrame].
     pub fn union(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -1159,6 +1185,7 @@ impl DataFrame {
         }
     }
 
+    /// Return a new [DataFrame] containing the union of rows in this and another [DataFrame].
     pub fn union_all(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -1170,6 +1197,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] containing union of rows in this and another [DataFrame].
     pub fn union_by_name(self, other: DataFrame, allow_missing_columns: Option<bool>) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -1181,6 +1209,7 @@ impl DataFrame {
         }
     }
 
+    /// Marks the [DataFrame] as non-persistent, and remove all blocks for it from memory and disk.
     pub async fn unpersist(self, blocking: Option<bool>) -> DataFrame {
         let unpersist = spark::analyze_plan_request::Analyze::Unpersist(
             spark::analyze_plan_request::Unpersist {
@@ -1225,6 +1254,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] by adding a column or replacing the existing column that has the same name.
     pub fn with_column(self, col_name: &str, col: Column) -> DataFrame {
         let plan = self.plan.with_column(col_name, col);
 
@@ -1234,6 +1264,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] by adding multiple columns or replacing the existing columns that have the same names.
     pub fn with_columns<I, K>(self, col_map: I) -> DataFrame
     where
         I: IntoIterator<Item = (K, Column)>,
@@ -1247,6 +1278,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] by renaming an existing column.
     pub fn with_column_renamed<K, V>(self, existing: K, new: V) -> DataFrame
     where
         K: AsRef<str>,
@@ -1272,6 +1304,7 @@ impl DataFrame {
         }
     }
 
+    /// Returns a new [DataFrame] by updating an existing column with metadata.
     pub fn with_metadata(self, col: &str, metadata: &str) -> DataFrame {
         let col_map = vec![(col, col)];
 
@@ -1283,6 +1316,7 @@ impl DataFrame {
         }
     }
 
+    /// Defines an event time watermark for this [DataFrame].
     pub fn with_watermark(self, event_time: &str, delay_threshold: &str) -> DataFrame {
         let plan = self.plan.with_watermark(event_time, delay_threshold);
 
@@ -1291,6 +1325,7 @@ impl DataFrame {
             plan,
         }
     }
+
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
     pub fn write(self) -> DataFrameWriter {
         DataFrameWriter::new(self)
@@ -1302,11 +1337,14 @@ impl DataFrame {
         DataStreamWriter::new(self)
     }
 
+    /// Create a write configuration builder for v2 sources with [DataFrameWriterV2].
     pub fn write_to(self, table: &str) -> DataFrameWriterV2 {
         DataFrameWriterV2::new(self, table)
     }
 }
 
+/// Functionality for working with missing data in [DataFrame].
+#[derive(Clone, Debug)]
 pub struct DataFrameStatFunctions {
     df: DataFrame,
 }
@@ -1316,6 +1354,7 @@ impl DataFrameStatFunctions {
         DataFrameStatFunctions { df }
     }
 
+    /// Calculates the approximate quantiles of numerical columns of a [DataFrame].
     pub async fn approx_quantile<'a, I, P>(
         self,
         cols: I,
@@ -1331,18 +1370,22 @@ impl DataFrameStatFunctions {
             .await
     }
 
+    /// Calculates the correlation of two columns of a [DataFrame] as a double value.
     pub async fn corr(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
         self.df.corr(col1, col2).await
     }
 
+    /// Calculate the sample covariance for the given columns, specified by their names, as a double value.
     pub async fn cov(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
         self.df.cov(col1, col2).await
     }
 
+    /// Computes a pair-wise frequency table of the given columns.
     pub fn crosstab(self, col1: &str, col2: &str) -> DataFrame {
         self.df.crosstab(col1, col2)
     }
 
+    /// Finding frequent items for columns, possibly with false positives.
     pub fn freq_items<'a, I>(self, cols: I, support: Option<f64>) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
@@ -1350,6 +1393,7 @@ impl DataFrameStatFunctions {
         self.df.freq_items(cols, support)
     }
 
+    /// Returns a stratified sample without replacement based on the fraction given on each stratum.
     pub fn sample_by<K, I, T>(self, col: T, fractions: I, seed: Option<i64>) -> DataFrame
     where
         K: ToLiteral,
@@ -1360,6 +1404,8 @@ impl DataFrameStatFunctions {
     }
 }
 
+/// Functionality for statistic functions with [DataFrame].
+#[derive(Clone, Debug)]
 pub struct DataFrameNaFunctions {
     df: DataFrame,
 }
@@ -1369,10 +1415,12 @@ impl DataFrameNaFunctions {
         DataFrameNaFunctions { df }
     }
 
+    /// Returns a new [DataFrame] omitting rows with null values.
     pub fn drop(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
         self.df.dropna(how, threshold, subset)
     }
 
+    /// Replace null values, alias for `df.na().fill()`.
     pub fn fill<'a, I, T>(self, cols: Option<I>, values: T) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
@@ -1381,6 +1429,7 @@ impl DataFrameNaFunctions {
         self.df.fillna(cols, values)
     }
 
+    /// Returns a new [DataFrame] replacing a value with another value.
     pub fn replace<'a, I, T>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
