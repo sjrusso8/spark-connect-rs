@@ -16,11 +16,11 @@ The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://
 ## Project Layout
 
 ```
-├── core       <- core implementation in Rust
-│   └─ spark   <- git submodule for apache/spark
-├── rust       <- shim for 'spark-connect-rs' from core
-├── examples   <- examples of using different aspects of the crate
-├── datasets   <- sample files from the main spark repo
+├── core         <- core implementation in Rust
+│   └─ protobuf  <- connect protobuf for apache/spark
+├── rust         <- shim for 'spark-connect-rs' from core
+├── examples     <- examples of using different aspects of the crate
+├── datasets     <- sample files from the main spark repo
 ```
 
 Future state would be to have additional bindings for other languages along side the top level `rust` folder.
@@ -37,7 +37,6 @@ This section explains how run Spark Connect Rust locally starting from 0.
 
 ```bash
 git clone https://github.com/sjrusso8/spark-connect-rs.git
-git submodule update --init --recursive
 
 cargo build
 ```
@@ -266,13 +265,13 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 |-------------------------------|---------|------------------------------------------------------------|
 | agg                           | ![done] |                                                            |
 | alias                         | ![done] |                                                            |
-| approxQuantile                | ![open] |                                                            |
+| approxQuantile                | ![done] |                                                            |
 | cache                         | ![done] |                                                            |
-| checkpoint                    | ![open] |                                                            |
+| checkpoint                    | ![open] | Not part of Spark Connect                                  |
 | coalesce                      | ![done] |                                                            |
 | colRegex                      | ![done] |                                                            |
 | collect                       | ![done] |                                                            |
-| columns                       | ![done] |                                                           |
+| columns                       | ![done] |                                                            |
 | corr                          | ![done] |                                                            |
 | count                         | ![done] |                                                            |
 | cov                           | ![done] |                                                            |
@@ -287,13 +286,13 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | distinct                      | ![done] |                                                            |
 | drop                          | ![done] |                                                            |
 | dropDuplicates                | ![done] |                                                            |
-| dropDuplicatesWithinWatermark | ![open] | Windowing functions are currently in progress              |
+| dropDuplicatesWithinWatermark | ![done] |                                                            |
 | drop_duplicates               | ![done] |                                                            |
 | dropna                        | ![done] |                                                            |
 | dtypes                        | ![done] |                                                            |
 | exceptAll                     | ![done] |                                                            |
 | explain                       | ![done] |                                                            |
-| fillna                        | ![open] |                                                            |
+| fillna                        | ![done] |                                                            |
 | filter                        | ![done] |                                                            |
 | first                         | ![done] |                                                            |
 | foreach                       | ![open] |                                                            |
@@ -306,29 +305,29 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | intersect                     | ![done] |                                                            |
 | intersectAll                  | ![done] |                                                            |
 | isEmpty                       | ![done] |                                                            |
-| isLocal                       | ![open] |                                                            |
+| isLocal                       | ![done] |                                                            |
 | isStreaming                   | ![done] |                                                            |
 | join                          | ![done] |                                                            |
 | limit                         | ![done] |                                                            |
-| localCheckpoint               | ![open] |                                                            |
+| localCheckpoint               | ![open] | Not part of Spark Connect                                  |
 | mapInPandas                   | ![open] | TBD on this exact implementation                           |
 | mapInArrow                    | ![open] | TBD on this exact implementation                           |
 | melt                          | ![done] |                                                            |
-| na                            | ![open] |                                                            |
+| na                            | ![done] |                                                            |
 | observe                       | ![open] |                                                            |
 | offset                        | ![done] |                                                            |
 | orderBy                       | ![done] |                                                            |
 | persist                       | ![done] |                                                            |
 | printSchema                   | ![done] |                                                            |
-| randomSplit                   | ![open] |                                                            |
-| registerTempTable             | ![open] |                                                            |
+| randomSplit                   | ![done] |                                                            |
+| registerTempTable             | ![done] |                                                            |
 | repartition                   | ![done] |                                                            |
-| repartitionByRange            | ![open] |                                                            |
-| replace                       | ![open] |                                                            |
+| repartitionByRange            | ![done] |                                                            |
+| replace                       | ![done] |                                                            |
 | rollup                        | ![done] |                                                            |
 | sameSemantics                 | ![done] |                                                            |
 | sample                        | ![done] |                                                            |
-| sampleBy                      | ![open] |                                                            |
+| sampleBy                      | ![done] |                                                            |
 | schema                        | ![done] |                                                            |
 | select                        | ![done] |                                                            |
 | selectExpr                    | ![done] |                                                            |
@@ -340,7 +339,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | stat                          | ![done] |                                                            |
 | storageLevel                  | ![done] |                                                            |
 | subtract                      | ![done] |                                                            |
-| summary                       | ![open] |                                                            |
+| summary                       | ![done] |                                                            |
 | tail                          | ![done] |                                                            |
 | take                          | ![done] |                                                            |
 | to                            | ![done] |                                                            |
@@ -358,10 +357,10 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | where                         | ![done] | use `filter` instead, `where` is a keyword for rust        |
 | withColumn                    | ![done] |                                                            |
 | withColumns                   | ![done] |                                                            |
-| withColumnRenamed             | ![open] |                                                            |
+| withColumnRenamed             | ![done] |                                                            |
 | withColumnsRenamed            | ![done] |                                                            |
-| withMetadata                  | ![open] |                                                            |
-| withWatermark                 | ![open] |                                                            |
+| withMetadata                  | ![done] |                                                            |
+| withWatermark                 | ![done] |                                                            |
 | write                         | ![done] |                                                            |
 | writeStream                   | ![done] |                                                            |
 | writeTo                       | ![done] |                                                            |
