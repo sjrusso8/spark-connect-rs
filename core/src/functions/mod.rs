@@ -251,7 +251,7 @@ pub fn asc<T: ToLiteralExpr>(col: T) -> Column {
 }
 
 pub fn asc_nulls_first<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).asc_nulls_first()
+    Column::from(col.to_literal_expr()).asc_nulls_first() 
 }
 
 pub fn asc_nulls_last<T: ToLiteralExpr>(col: T) -> Column {
@@ -569,6 +569,13 @@ mod tests {
         assert_eq!(&expected, &rows_col_asc);
         assert_eq!(&expected, &rows_func_asc);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_asc_nulls_first() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        todo!()
     }
 
     #[tokio::test]
