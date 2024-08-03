@@ -251,7 +251,7 @@ pub fn asc<T: ToLiteralExpr>(col: T) -> Column {
 }
 
 pub fn asc_nulls_first<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).asc_nulls_first() 
+    Column::from(col.to_literal_expr()).asc_nulls_first()
 }
 
 pub fn asc_nulls_last<T: ToLiteralExpr>(col: T) -> Column {
@@ -592,6 +592,35 @@ mod tests {
         let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
 
         let b: ArrayRef = Arc::new(Int64Array::from(vec![None, None, Some(1)]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![b.clone()])?;
+
+        assert_eq!(expected, res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_asc_nulls_last() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![None, None, Some(1)]));
+
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone()])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("a")])
+            .sort([col("a").asc_nulls_last()])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None, None]));
 
         let expected = RecordBatch::try_new(Arc::new(schema), vec![b.clone()])?;
 
