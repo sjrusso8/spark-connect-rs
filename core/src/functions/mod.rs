@@ -650,6 +650,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_func_desc_nulls_first() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![
+            Some(1),
+            Some(2),
+            Some(3),
+            None,
+            None,
+        ]));
+
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone()])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("a")])
+            .sort([col("a").desc_nulls_first()])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![
+            None,
+            None,
+            Some(3),
+            Some(2),
+            Some(1),
+        ]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![b.clone()])?;
+
+        assert_eq!(expected, res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_desc_nulls_last() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![
+            Some(1),
+            Some(2),
+            Some(3),
+            None,
+            None,
+        ]));
+
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone()])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("a")])
+            .sort([col("a").desc_nulls_last()])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![
+            Some(3),
+            Some(2),
+            Some(1),
+            None,
+            None,
+        ]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![b.clone()])?;
+
+        assert_eq!(expected, res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_func_coalesce() -> Result<(), SparkError> {
         let spark = setup().await;
 
