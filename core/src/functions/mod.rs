@@ -1139,4 +1139,9 @@ mod tests {
         assert_eq!(expected, res);
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_func_startswith() -> Result<(), SparkError> {
+        todo!()
+    }
 }
