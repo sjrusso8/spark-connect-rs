@@ -978,7 +978,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").startswith("A"))
+            .filter(col("name").startswith("Al"))
             .select("name")
             .collect()
             .await?;
@@ -1002,7 +1002,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").endswith("e"))
+            .filter(col("name").endswith("ice"))
             .select("name")
             .collect()
             .await?;
@@ -1027,6 +1027,30 @@ mod tests {
 
         let res = df
             .filter(col("name").like("Alice"))
+            .select("name")
+            .collect()
+            .await?;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice"]));
+
+        let expected = RecordBatch::try_from_iter(vec![("name", name)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_ilike() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+
+        let data = RecordBatch::try_from_iter(vec![("name", name)])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .filter(col("name").ilike("%Ice"))
             .select("name")
             .collect()
             .await?;
