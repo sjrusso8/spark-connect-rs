@@ -1064,6 +1064,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_func_rlike() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+
+        let data = RecordBatch::try_from_iter(vec![("name", name)])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .filter(col("name").rlike("ice$"))
+            .select("name")
+            .collect()
+            .await?;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice"]));
+
+        let expected = RecordBatch::try_from_iter(vec![("name", name)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_eq() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        todo!();
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_func_col_isin() -> Result<(), SparkError> {
         let spark = setup().await;
 
@@ -1099,7 +1131,6 @@ mod tests {
         let expected = RecordBatch::try_from_iter(vec![("name", name)])?;
 
         assert_eq!(expected, res);
-
         Ok(())
     }
 
