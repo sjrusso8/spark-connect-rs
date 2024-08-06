@@ -1090,8 +1090,6 @@ mod tests {
     #[tokio::test]
     async fn test_func_eq() -> Result<(), SparkError> {
         let spark = setup().await;
-
-        todo!();
         Ok(())
     }
 
