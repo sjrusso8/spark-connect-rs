@@ -1109,6 +1109,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_func_and() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
+        let gender: ArrayRef = Arc::new(StringArray::from(vec!["M", "F", "M"]));
+
+        let data =
+            RecordBatch::try_from_iter(vec![("name", name), ("age", age), ("gender", gender)])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .filter(col("age").eq(lit(23)).and(col("gender").eq(lit("F"))))
+            .select(vec!["name", "gender"])
+            .collect()
+            .await?;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice"]));
+        let gender: ArrayRef = Arc::new(StringArray::from(vec!["F"]));
+
+        let expected = RecordBatch::try_from_iter(vec![("name", name), ("gender", gender)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_or() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
+        let gender: ArrayRef = Arc::new(StringArray::from(vec!["M", "F", "M"]));
+
+        let data =
+            RecordBatch::try_from_iter(vec![("name", name), ("age", age), ("gender", gender)])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .filter(col("age").eq(lit(23)).or(col("age").eq(lit(16))))
+            .select(vec!["name", "age"])
+            .collect()
+            .await?;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![23, 16]));
+
+        let expected = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_func_col_isin() -> Result<(), SparkError> {
         let spark = setup().await;
 
