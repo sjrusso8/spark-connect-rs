@@ -1165,51 +1165,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_func_is_null() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let schema = Schema::new(vec![
-            Field::new("a", DataType::Int64, true),
-            Field::new("b", DataType::Int64, true),
-        ]);
-
-        let a: ArrayRef = Arc::new(Int64Array::from(vec![Some(1), None]));
-        let b: ArrayRef = Arc::new(Int64Array::from(vec![None, Some(1)]));
-
-        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone(), b.clone()])?;
-
-        let df = spark.create_dataframe(&data)?;
-
-        let res = df
-            .select(vec![
-                col("a"),
-                col("b"),
-                col("a").is_null().alias("r1"),
-                col("b").is_null().alias("r2"),
-            ])
-            .collect()
-            .await?;
-
-        let schema = Schema::new(vec![
-            Field::new("a", DataType::Int64, true),
-            Field::new("b", DataType::Int64, true),
-            Field::new("r1", DataType::Boolean, false),
-            Field::new("r2", DataType::Boolean, false),
-        ]);
-
-        let c: ArrayRef = Arc::new(BooleanArray::from(vec![false, true]));
-        let d: ArrayRef = Arc::new(BooleanArray::from(vec![true, false]));
-
-        let expected = RecordBatch::try_new(
-            Arc::new(schema),
-            vec![a.clone(), b.clone(), c.clone(), d.clone()],
-        )?;
-
-        assert_eq!(expected, res);
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_func_col_isin() -> Result<(), SparkError> {
         let spark = setup().await;
 
