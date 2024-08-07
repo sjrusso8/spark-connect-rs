@@ -1090,6 +1090,21 @@ mod tests {
     #[tokio::test]
     async fn test_func_eq() -> Result<(), SparkError> {
         let spark = setup().await;
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3]));
+        let b: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 4]));
+
+        let data = RecordBatch::try_from_iter(vec![("a", a), ("b", b)])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df.select(col("a").eq("b")).collect().await?;
+
+        let a: ArrayRef = Arc::new(BooleanArray::from(vec![true, true, false]));
+
+        let expected = RecordBatch::try_from_iter(vec![("(a = b)", a)])?;
+
+        assert_eq!(expected, res);
         Ok(())
     }
 
