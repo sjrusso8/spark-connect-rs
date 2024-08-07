@@ -340,6 +340,7 @@ generate_functions!(
 generate_functions!(
     one_col: isnan,
     isnull,
+    isnotnull,
     sqrt,
     abs,
     bin,
@@ -465,7 +466,6 @@ generate_functions!(
 generate_functions!(
     two_cols: nvl,
     nullif,
-    isnotnull,
     ifnull,
     equal_null,
     array_except,
@@ -1161,6 +1161,37 @@ mod tests {
         let expected = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
 
         assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_is_not_null() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let schema = Schema::new(vec![Field::new("a", DataType::Int64, true)]);
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![None, Some(1)]));
+
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone()])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("a"), isnotnull("a").alias("r1")])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("r1", DataType::Boolean, false),
+        ]);
+
+        let a: ArrayRef = Arc::new(Int64Array::from(vec![None, Some(1)]));
+        let r1: ArrayRef = Arc::new(BooleanArray::from(vec![false, true]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![a.clone(), r1])?;
+
+        assert_eq!(res, expected);
         Ok(())
     }
 
