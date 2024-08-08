@@ -928,7 +928,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_func_substract() -> Result<(), SparkError> {
+    async fn test_func_subtract() -> Result<(), SparkError> {
         let spark = setup().await;
 
         let a: ArrayRef = Arc::new(Int64Array::from(vec![4, 5, 6]));
