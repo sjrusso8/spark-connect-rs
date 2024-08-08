@@ -502,6 +502,7 @@ mod tests {
 
     use super::*;
 
+    use core::f64;
     use std::sync::Arc;
 
     use arrow::{
@@ -512,7 +513,7 @@ mod tests {
         record_batch::RecordBatch,
     };
 
-    use crate::errors::SparkError;
+    use crate::{errors::SparkError, window::Window};
     use crate::{SparkSession, SparkSessionBuilder};
 
     async fn setup() -> SparkSession {
@@ -1196,6 +1197,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_func_isnan() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Float64, true),
+            Field::new("b", DataType::Float64, true),
+        ]);
+
+        let a: ArrayRef = Arc::new(Float64Array::from(vec![Some(1.0), Some(f64::NAN)]));
+        let b: ArrayRef = Arc::new(Float64Array::from(vec![Some(f64::NAN), Some(1.0)]));
+
+        let data = RecordBatch::try_new(Arc::new(schema), vec![a.clone(), b.clone()])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select(vec![
+                col("a"),
+                col("b"),
+                isnan("a").alias("r1"),
+                isnan("b").alias("r2"),
+            ])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Float64, true),
+            Field::new("b", DataType::Float64, true),
+            Field::new("r1", DataType::Boolean, false),
+            Field::new("r2", DataType::Boolean, false),
+        ]);
+
+        let r1: ArrayRef = Arc::new(BooleanArray::from(vec![false, true]));
+        let r2: ArrayRef = Arc::new(BooleanArray::from(vec![true, false]));
+
+        let expected = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![a.clone(), b.clone(), r1.clone(), r2.clone()],
+        )?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_func_col_isin() -> Result<(), SparkError> {
         let spark = setup().await;
 
@@ -1362,6 +1408,47 @@ mod tests {
         ]));
 
         let expected = RecordBatch::try_from_iter(vec![("struct_col", struct_array)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_over() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let window = Window::new()
+            .partition_by(col("name"))
+            .order_by([col("age")])
+            .rows_between(Window::unbounded_preceding(), Window::current_row());
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![2, 5]));
+
+        let data = RecordBatch::try_from_iter(vec![("age", age.clone()), ("name", name.clone())])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .with_column("rank", rank().over(window.clone()))
+            .with_column("min", min("age").over(window))
+            .sort([col("age").desc()])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![
+            Field::new("age", DataType::Int64, false),
+            Field::new("name", DataType::Utf8, false),
+            Field::new("rank", DataType::Int32, false),
+            Field::new("min", DataType::Int64, true),
+        ]);
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Bob", "Alice"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![5, 2]));
+        let rank: ArrayRef = Arc::new(Int32Array::from(vec![1, 1]));
+        let min: ArrayRef = Arc::new(Int64Array::from(vec![5, 2]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![age, name, rank, min])?;
 
         assert_eq!(expected, res);
         Ok(())
