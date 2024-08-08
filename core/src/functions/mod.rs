@@ -528,6 +528,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_func_alias() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![2, 5]));
+
+        let data = RecordBatch::try_from_iter(vec![("name", name.clone()), ("age", age.clone())])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("name").alias("new_name"), col("age").alias("new_age")])
+            .collect()
+            .await?;
+
+        let schema = Schema::new(vec![
+            Field::new("new_name", DataType::Utf8, false),
+            Field::new("new_age", DataType::Int64, false),
+        ]);
+
+        let new_name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+        let new_age: ArrayRef = Arc::new(Int64Array::from(vec![2, 5]));
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![new_name, new_age])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_func_lit() -> Result<(), SparkError> {
         let spark = setup().await;
 
@@ -1408,6 +1438,58 @@ mod tests {
         ]));
 
         let expected = RecordBatch::try_from_iter(vec![("struct_col", struct_array)])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_substr() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![2, 5]));
+
+        let data = RecordBatch::try_from_iter(vec![("age", age.clone()), ("name", name.clone())])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("name").substr(lit(1), lit(3)).alias("col")])
+            .collect()
+            .await?;
+
+        let col: ArrayRef = Arc::new(StringArray::from(vec!["Ali", "Bob"]));
+
+        let schema = Schema::new(vec![Field::new("col", DataType::Utf8, false)]);
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![col])?;
+
+        assert_eq!(expected, res);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_func_cast() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![2, 5]));
+
+        let data = RecordBatch::try_from_iter(vec![("age", age.clone()), ("name", name.clone())])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        let res = df
+            .select([col("age").cast("string").alias("ages")])
+            .collect()
+            .await?;
+
+        let ages: ArrayRef = Arc::new(StringArray::from(vec!["2", "5"]));
+
+        let schema = Schema::new(vec![Field::new("ages", DataType::Utf8, false)]);
+
+        let expected = RecordBatch::try_new(Arc::new(schema), vec![ages])?;
 
         assert_eq!(expected, res);
         Ok(())
