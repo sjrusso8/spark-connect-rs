@@ -18,7 +18,7 @@ jobs:
             echo "Cargo metadata has version set to ${CURR_VER}, but got pushed tag ${PUSHED_TAG}."
             exit 1
           fi
-        working-directory: ./core
+        # working-directory: ./core
   # To do 
   # release-crate:
   #   needs: validate-release-tag
