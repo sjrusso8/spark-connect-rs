@@ -19,36 +19,36 @@ jobs:
             exit 1
           fi
 
-  release-crate:
-    needs: validate-release-tag
-    name: Release crate
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v4
+  # release-crate:
+  #   needs: validate-release-tag
+  #   name: Release crate
+  #   runs-on: ubuntu-20.04
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: stable
+  #         override: true
 
-      - name: install protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: 23.x
+  #     - name: install protoc
+  #       uses: arduino/setup-protoc@v2
+  #       with:
+  #         version: 23.x
 
-      - name: cargo publish core
-        uses: actions-rs/cargo@v1
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        with:
-          command: publish
-          args: --token "${CARGO_REGISTRY_TOKEN}" --package spark-connect-core --manifest-path ./Cargo.toml
+  #     - name: cargo publish core
+  #       uses: actions-rs/cargo@v1
+  #       env:
+  #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  #       with:
+  #         command: publish
+  #         args: --token "${CARGO_REGISTRY_TOKEN}" --package spark-connect-core --manifest-path ./Cargo.toml
 
-      - name: cargo publish rust
-        uses: actions-rs/cargo@v1
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        with:
-          command: publish
-          args: --token "${CARGO_REGISTRY_TOKEN}" --package spark-connect-rs --manifest-path ./Cargo.toml
+  #     - name: cargo publish rust
+  #       uses: actions-rs/cargo@v1
+  #       env:
+  #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  #       with:
+  #         command: publish
+  #         args: --token "${CARGO_REGISTRY_TOKEN}" --package spark-connect-rs --manifest-path ./Cargo.toml
