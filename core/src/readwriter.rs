@@ -47,6 +47,8 @@ pub trait ConfigOpts {
     fn to_options(&self) -> HashMap<String, String>;
 }
 
+/// CsvOptions represents options for configuring
+/// CSV file parsing
 pub struct CsvOptions {
     pub header: Option<bool>,
     pub delimiter: Option<u8>,
