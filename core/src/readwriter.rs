@@ -39,6 +39,65 @@ impl ToSchema for &str {
     }
 }
 
+/// A trait used to handle individual options via [option]
+/// and bulk options via [options]
+/// 
+/// This sets multiple options at once using a HashMap
+pub trait ConfigOpts {
+    fn to_options(&self) -> HashMap<String, String>;
+}
+
+pub struct CsvOptions {
+    pub header: Option<bool>,
+    pub delimiter: Option<u8>,
+    pub null_value: Option<String>,
+}
+
+impl CsvOptions {
+    pub fn new() -> Self {
+        Self {
+            header: None,
+            delimiter: None,
+            null_value: None,
+        }
+    }
+
+    pub fn header(mut self, value: bool) -> Self {
+        self.header = Some(value);
+        self
+    }
+
+    pub fn delimiter(mut self, value: u8) -> Self {
+        self.delimiter = Some(value);
+        self
+    }
+
+    pub fn null_value(mut self, value: &str) -> Self {
+        self.null_value = Some(value.to_string());
+        self
+    }
+}
+
+impl ConfigOpts for CsvOptions {
+    fn to_options(&self) -> HashMap<String, String> {
+        let mut options: HashMap<String, String> = HashMap::new();
+
+        if let Some(header) = self.header {
+            options.insert("header".to_string(), header.to_string());
+        }
+
+        if let Some(delimiter) = self.delimiter {
+            options.insert("delimiter".to_string(), (delimiter as char).to_string());
+        }
+
+        if let Some(null_value) = &self.null_value {
+            options.insert("null_value".to_string(), null_value.to_string());
+        }
+
+        options
+    }
+}
+
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
@@ -89,6 +148,11 @@ impl DataFrameReader {
             .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
             .collect();
 
+        self
+    }
+
+    pub fn with_config<C: ConfigOpts>(mut self, config: C) -> Self {
+        self.read_options.extend(config.to_options());
         self
     }
 
@@ -159,6 +223,12 @@ impl DataFrameReader {
         let logical_plan = LogicalPlanBuilder::new(relation);
 
         Ok(DataFrame::new(self.spark_session, logical_plan))
+    }
+
+    pub fn csv<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<DataFrame, SparkError> {
+        self.format = Some("csv".to_string());
+        self.read_options.extend(config.to_options());
+        self.load(vec![path])
     }
 }
 
