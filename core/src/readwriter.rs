@@ -41,7 +41,7 @@ impl ToSchema for &str {
 
 /// A trait used to handle individual options via [option]
 /// and bulk options via [options]
-/// 
+///
 /// This sets multiple options at once using a HashMap
 pub trait ConfigOpts {
     fn to_options(&self) -> HashMap<String, String>;
@@ -539,6 +539,26 @@ mod tests {
 
         let rows = df.collect().await?;
 
+        assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read_csv_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = "/opt/spark/work-dir/datasets/people.csv";
+
+        let mut opts = CsvOptions::new();
+
+        opts.header = Some(true);
+        opts.delimiter = Some(b';');
+        opts.null_value = Some("NULL".to_string());
+
+        let df = spark.read().csv(path, opts)?;
+
+        let rows = df.clone().collect().await?;
+    
         assert_eq!(rows.num_rows(), 2);
         Ok(())
     }
