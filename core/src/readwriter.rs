@@ -100,11 +100,197 @@ impl ConfigOpts for CsvOptions {
     }
 }
 
-/// JsonOptions represents options for configuring
-/// JSON file parsing
-// pub struct JsonOptions {
+/// Configuration options for reading JSON files as a `DataFrame`.
+///
+/// By default, this supports `JSON Lines` (newline-delimited JSON).
+/// For single-record-per-file JSON, set the `multi_line` option to `true`.
+///
+/// If the `schema` option is not specified, the input schema is inferred from the data.
+///
+/// # Options
+///
+/// - `schema`: An optional schema for the JSON data, either as a `StructType` or a DDL string.
+/// - `primitives_as_string`: Treat primitive types as strings.
+/// - `multi_line`: Read multiline JSON files.
+/// - `allow_comments`: Allow comments in JSON files.
+/// - `date_format`: Custom date format.
+/// - `timestamp_format`: Custom timestamp format.
+/// - `encoding`: Character encoding (default is UTF-8).
+/// - `path_glob_filter`: A glob pattern to filter files by their path.
+///
+/// # Example
+///
+/// ```
+/// let options = JsonOptions::new()
+///     .schema("col0 INT, col1 STRING")
+///     .multi_line(true)
+///     .allow_comments(true);
+///
+/// let df = spark.read().json("/path/to/json", options)?;
+/// ```
+pub struct JsonOptions {
+    pub schema: Option<String>,
+    pub primitives_as_string: Option<bool>,
+    pub prefers_decimal: Option<bool>,
+    pub allow_comments: Option<bool>,
+    pub allow_unquoted_field_names: Option<bool>,
+    pub allow_single_quotes: Option<bool>,
+    pub allow_numeric_leading_zero: Option<bool>,
+    pub allow_backslash_escaping_any_character: Option<bool>,
+    pub mode: Option<String>,
+    pub column_name_of_corrupt_record: Option<String>,
+    pub date_format: Option<String>,
+    pub timestamp_format: Option<String>,
+    pub multi_line: Option<bool>,
+    pub allow_unquoted_control_chars: Option<bool>,
+    pub line_sep: Option<String>,
+    pub sampling_ratio: Option<f64>,
+    pub drop_field_if_all_null: Option<bool>,
+    pub encoding: Option<String>,
+    pub locale: Option<String>,
+    pub path_glob_filter: Option<bool>,
+    pub recursive_file_lookup: Option<bool>,
+    pub allow_non_numeric_numbers: Option<bool>,
+}
 
-// }
+impl JsonOptions {
+    pub fn new() -> Self {
+        Self {
+            schema: None,
+            primitives_as_string: None,
+            prefers_decimal: None,
+            allow_comments: None,
+            allow_unquoted_field_names: None,
+            allow_single_quotes: None,
+            allow_numeric_leading_zero: None,
+            allow_backslash_escaping_any_character: None,
+            mode: None,
+            column_name_of_corrupt_record: None,
+            date_format: None,
+            timestamp_format: None,
+            multi_line: None,
+            allow_unquoted_control_chars: None,
+            line_sep: None,
+            sampling_ratio: None,
+            drop_field_if_all_null: None,
+            encoding: None,
+            locale: None,
+            path_glob_filter: None,
+            recursive_file_lookup: None,
+            allow_non_numeric_numbers: None,
+        }
+    }
+
+    pub fn schema(mut self, value: &str) -> Self {
+        self.schema = Some(value.to_string());
+        self
+    }
+
+    pub fn primitives_as_string(mut self, value: bool) -> Self {
+        self.primitives_as_string = Some(value);
+        self
+    }
+
+    pub fn prefers_decimal(mut self, value: bool) -> Self {
+        self.prefers_decimal = Some(value);
+        self
+    }
+
+    pub fn allow_comments(mut self, value: bool) -> Self {
+        self.allow_comments = Some(value);
+        self
+    }
+
+    pub fn allow_unquoted_field_names(mut self, value: bool) -> Self {
+        self.allow_unquoted_field_names = Some(value);
+        self
+    }
+
+    pub fn allow_single_quotes(mut self, value: bool) -> Self {
+        self.allow_single_quotes = Some(value);
+        self
+    }
+
+    pub fn allow_numeric_leading_zero(mut self, value: bool) -> Self {
+        self.allow_numeric_leading_zero = Some(value);
+        self
+    }
+
+    pub fn allow_backslash_escaping_any_character(mut self, value: bool) -> Self {
+        self.allow_backslash_escaping_any_character = Some(value);
+        self
+    }
+
+    pub fn mode(mut self, value: &str) -> Self {
+        self.mode = Some(value.to_string());
+        self
+    }
+
+    pub fn column_name_of_corrupt_record(mut self, value: &str) -> Self {
+        self.column_name_of_corrupt_record = Some(value.to_string());
+        self
+    }
+
+    pub fn date_format(mut self, value: &str) -> Self {
+        self.date_format = Some(value.to_string());
+        self
+    }
+
+    pub fn timestamp_format(mut self, value: &str) -> Self {
+        self.timestamp_format = Some(value.to_string());
+        self
+    }
+
+    pub fn multi_line(mut self, value: bool) -> Self {
+        self.multi_line = Some(value);
+        self
+    }
+
+    pub fn allow_unquoted_control_chars(mut self, value: bool) -> Self {
+        self.allow_unquoted_control_chars = Some(value);
+        self
+    }
+
+    pub fn line_sep(mut self, value: &str) -> Self {
+        self.line_sep = Some(value.to_string());
+        self
+    }
+
+    pub fn sampling_ratio(mut self, value: f64) -> Self {
+        self.sampling_ratio = Some(value);
+        self
+    }
+
+    pub fn drop_field_if_all_null(mut self, value: bool) -> Self {
+        self.drop_field_if_all_null = Some(value);
+        self
+    }
+
+    pub fn encoding(mut self, value: &str) -> Self {
+        self.encoding = Some(value.to_string());
+        self
+    }
+
+    pub fn locale(mut self, value: &str) -> Self {
+        self.locale = Some(value.to_string());
+        self
+    }
+
+    pub fn path_glob_filter(mut self, value: bool) -> Self {
+        self.path_glob_filter = Some(value);
+        self
+    }
+
+    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
+        self.recursive_file_lookup = Some(value);
+        self
+    }
+
+    pub fn allow_non_numeric_numbers(mut self, value: bool) -> Self {
+        self.allow_non_numeric_numbers = Some(value);
+        self
+    }
+}
 
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
@@ -570,6 +756,17 @@ mod tests {
         let rows = df.clone().collect().await?;
 
         assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read_json_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = ["/opt/spark/work-dir/datasets/employees.json"];
+
+        println!("{:?}", path);
+
         Ok(())
     }
 
