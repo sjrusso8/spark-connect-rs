@@ -100,6 +100,12 @@ impl ConfigOpts for CsvOptions {
     }
 }
 
+/// JsonOptions represents options for configuring
+/// JSON file parsing
+// pub struct JsonOptions {
+
+// }
+
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
@@ -227,10 +233,14 @@ impl DataFrameReader {
         Ok(DataFrame::new(self.spark_session, logical_plan))
     }
 
-    pub fn csv<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<DataFrame, SparkError> {
+    pub fn csv<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
+    where
+        C: ConfigOpts,
+        I: IntoIterator<Item = &'a str>,
+    {
         self.format = Some("csv".to_string());
         self.read_options.extend(config.to_options());
-        self.load(vec![path])
+        self.load(paths)
     }
 }
 
@@ -547,7 +557,7 @@ mod tests {
     async fn test_dataframe_read_csv_with_options() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let path = "/opt/spark/work-dir/datasets/people.csv";
+        let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
         let mut opts = CsvOptions::new();
 
@@ -558,7 +568,7 @@ mod tests {
         let df = spark.read().csv(path, opts)?;
 
         let rows = df.clone().collect().await?;
-    
+
         assert_eq!(rows.num_rows(), 2);
         Ok(())
     }
