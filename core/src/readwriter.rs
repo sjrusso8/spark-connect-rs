@@ -47,8 +47,8 @@ pub trait ConfigOpts {
     fn to_options(&self) -> HashMap<String, String>;
 }
 
-/// CsvOptions represents options for configuring
-/// CSV file parsing
+/// A struct represents options for configuring
+/// CsvOptions for CSV file parsing
 pub struct CsvOptions {
     pub header: Option<bool>,
     pub delimiter: Option<u8>,
@@ -100,7 +100,7 @@ impl ConfigOpts for CsvOptions {
     }
 }
 
-/// Configuration options for reading JSON files as a `DataFrame`.
+/// A struct that represents options for configuring JSON file parsing.
 ///
 /// By default, this supports `JSON Lines` (newline-delimited JSON).
 /// For single-record-per-file JSON, set the `multi_line` option to `true`.
@@ -110,24 +110,39 @@ impl ConfigOpts for CsvOptions {
 /// # Options
 ///
 /// - `schema`: An optional schema for the JSON data, either as a `StructType` or a DDL string.
-/// - `primitives_as_string`: Treat primitive types as strings.
-/// - `multi_line`: Read multiline JSON files.
-/// - `allow_comments`: Allow comments in JSON files.
-/// - `date_format`: Custom date format.
-/// - `timestamp_format`: Custom timestamp format.
-/// - `encoding`: Character encoding (default is UTF-8).
+/// - `primitives_as_string`: Treat primitive types (e.g., integers, booleans) as strings.
+/// - `prefers_decimal`: Prefer parsing numbers as decimals rather than floating points.
+/// - `allow_comments`: Allow comments in JSON files (e.g., lines starting with `//` or `/* */`).
+/// - `allow_unquoted_field_names`: Allow field names without quotes.
+/// - `allow_single_quotes`: Allow the use of single quotes instead of double quotes for strings.
+/// - `allow_numeric_leading_zero`: Allow numbers to have leading zeros (e.g., `007`).
+/// - `allow_backslash_escaping_any_character`: Allow backslashes to escape any character.
+/// - `mode`: The parsing mode (e.g., `PERMISSIVE`, `DROPMALFORMED`, `FAILFAST`).
+/// - `column_name_of_corrupt_record`: Name of the column where corrupted records are placed.
+/// - `date_format`: Custom date format (e.g., `yyyy-MM-dd`).
+/// - `timestamp_format`: Custom timestamp format (e.g., `yyyy-MM-dd HH:mm:ss`).
+/// - `multi_line`: Read multiline JSON files (e.g., when a single JSON object spans multiple lines).
+/// - `allow_unquoted_control_chars`: Allow unquoted control characters in JSON (e.g., ASCII control characters).
+/// - `line_sep`: Custom line separator (default is `\n`).
+/// - `sampling_ratio`: Fraction of the data used for schema inference (e.g., `0.1` for 10%).
+/// - `drop_field_if_all_null`: Drop fields that are `NULL` in all rows.
+/// - `encoding`: Character encoding (default is `UTF-8`).
+/// - `locale`: Locale for parsing dates and numbers (e.g., `en-US`).
 /// - `path_glob_filter`: A glob pattern to filter files by their path.
+/// - `recursive_file_lookup`: Enable recursive search for files in directories.
+/// - `allow_non_numeric_numbers`: Allow special non-numeric numbers (e.g., `NaN`, `Infinity`).
 ///
 /// # Example
-///
 /// ```
 /// let options = JsonOptions::new()
-///     .schema("col0 INT, col1 STRING")
+///     .schema("name STRING, salary INT")
 ///     .multi_line(true)
-///     .allow_comments(true);
+///     .allow_comments(true)
+///     .encoding("UTF-8".to_string());
 ///
 /// let df = spark.read().json("/path/to/json", options)?;
 /// ```
+#[derive(Debug)]
 pub struct JsonOptions {
     pub schema: Option<String>,
     pub primitives_as_string: Option<bool>,
@@ -292,6 +307,134 @@ impl JsonOptions {
     }
 }
 
+impl ConfigOpts for JsonOptions {
+    fn to_options(&self) -> HashMap<String, String> {
+        let mut options: HashMap<String, String> = HashMap::new();
+
+        if let Some(schema) = &self.schema {
+            options.insert("schema".to_string(), schema.clone());
+        }
+
+        if let Some(primitives_as_string) = self.primitives_as_string {
+            options.insert(
+                "primitives_as_string".to_string(),
+                primitives_as_string.to_string(),
+            );
+        }
+
+        if let Some(prefers_decimal) = self.prefers_decimal {
+            options.insert("prefers_decimal".to_string(), prefers_decimal.to_string());
+        }
+
+        if let Some(allow_comments) = self.allow_comments {
+            options.insert("allow_comments".to_string(), allow_comments.to_string());
+        }
+
+        if let Some(allow_unquoted_field_names) = self.allow_unquoted_field_names {
+            options.insert(
+                "allow_unquoted_field_names".to_string(),
+                allow_unquoted_field_names.to_string(),
+            );
+        }
+
+        if let Some(allow_single_quotes) = self.allow_single_quotes {
+            options.insert(
+                "allow_single_quotes".to_string(),
+                allow_single_quotes.to_string(),
+            );
+        }
+
+        if let Some(allow_numeric_leading_zero) = self.allow_numeric_leading_zero {
+            options.insert(
+                "allow_numeric_leading_zero".to_string(),
+                allow_numeric_leading_zero.to_string(),
+            );
+        }
+
+        if let Some(allow_backslash_escaping_any_character) =
+            self.allow_backslash_escaping_any_character
+        {
+            options.insert(
+                "allow_backslash_escaping_any_character".to_string(),
+                allow_backslash_escaping_any_character.to_string(),
+            );
+        }
+
+        if let Some(mode) = &self.mode {
+            options.insert("mode".to_string(), mode.clone());
+        }
+
+        if let Some(column_name_of_corrupt_record) = &self.column_name_of_corrupt_record {
+            options.insert(
+                "column_name_of_corrupt_record".to_string(),
+                column_name_of_corrupt_record.clone(),
+            );
+        }
+
+        if let Some(date_format) = &self.date_format {
+            options.insert("date_format".to_string(), date_format.clone());
+        }
+
+        if let Some(timestamp_format) = &self.timestamp_format {
+            options.insert("timestamp_format".to_string(), timestamp_format.clone());
+        }
+
+        if let Some(multi_line) = self.multi_line {
+            options.insert("multi_line".to_string(), multi_line.to_string());
+        }
+
+        if let Some(allow_unquoted_control_chars) = self.allow_unquoted_control_chars {
+            options.insert(
+                "allow_unquoted_control_chars".to_string(),
+                allow_unquoted_control_chars.to_string(),
+            );
+        }
+
+        if let Some(line_sep) = &self.line_sep {
+            options.insert("line_sep".to_string(), line_sep.clone());
+        }
+
+        if let Some(sampling_ratio) = self.sampling_ratio {
+            options.insert("sampling_ratio".to_string(), sampling_ratio.to_string());
+        }
+
+        if let Some(drop_field_if_all_null) = self.drop_field_if_all_null {
+            options.insert(
+                "drop_field_if_all_null".to_string(),
+                drop_field_if_all_null.to_string(),
+            );
+        }
+
+        if let Some(encoding) = &self.encoding {
+            options.insert("encoding".to_string(), encoding.clone());
+        }
+
+        if let Some(locale) = &self.locale {
+            options.insert("locale".to_string(), locale.clone());
+        }
+
+        if let Some(path_glob_filter) = self.path_glob_filter {
+            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+        }
+
+        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
+            options.insert(
+                "recursive_file_lookup".to_string(),
+                recursive_file_lookup.to_string(),
+            );
+        }
+
+        if let Some(allow_non_numeric_numbers) = self.allow_non_numeric_numbers {
+            options.insert(
+                "allow_non_numeric_numbers".to_string(),
+                allow_non_numeric_numbers.to_string(),
+            );
+        }
+
+        options
+    }
+}
+
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
@@ -342,11 +485,6 @@ impl DataFrameReader {
             .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
             .collect();
 
-        self
-    }
-
-    pub fn with_config<C: ConfigOpts>(mut self, config: C) -> Self {
-        self.read_options.extend(config.to_options());
         self
     }
 
@@ -425,6 +563,16 @@ impl DataFrameReader {
         I: IntoIterator<Item = &'a str>,
     {
         self.format = Some("csv".to_string());
+        self.read_options.extend(config.to_options());
+        self.load(paths)
+    }
+
+    pub fn json<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
+    where
+        C: ConfigOpts,
+        I: IntoIterator<Item = &'a str>,
+    {
+        self.format = Some("json".to_string());
         self.read_options.extend(config.to_options());
         self.load(paths)
     }
@@ -765,7 +913,17 @@ mod tests {
 
         let path = ["/opt/spark/work-dir/datasets/employees.json"];
 
-        println!("{:?}", path);
+        let mut opts = JsonOptions::new();
+
+        opts.schema = Some("name STRING, salary INT".to_string());
+        opts.multi_line = Some(true);
+        opts.allow_comments = Some(false);
+        opts.allow_unquoted_field_names = Some(false);
+        opts.primitives_as_string = Some(false);
+
+        let df = spark.read().json(path, opts)?;
+
+        df.show(Some(10), None, None).await?;
 
         Ok(())
     }
