@@ -887,6 +887,7 @@ impl DataFrameReader {
         Ok(DataFrame::new(self.spark_session, logical_plan))
     }
 
+    /// Reads data from CSV files with the specified options.
     pub fn csv<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
     where
         C: ConfigOpts,
@@ -897,6 +898,7 @@ impl DataFrameReader {
         self.load(paths)
     }
 
+    /// Reads data from JSON files with the specified options.
     pub fn json<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
     where
         C: ConfigOpts,
@@ -907,6 +909,7 @@ impl DataFrameReader {
         self.load(paths)
     }
 
+    /// Reads data from ORC files with the specified options.
     pub fn orc<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
     where
         C: ConfigOpts,
@@ -917,6 +920,7 @@ impl DataFrameReader {
         self.load(paths)
     }
 
+    /// Reads data from Parquet files with the specified options.
     pub fn parquet<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
     where
         C: ConfigOpts,
@@ -927,6 +931,7 @@ impl DataFrameReader {
         self.load(paths)
     }
 
+    /// Reads data from text files with the specified options.
     pub fn text<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
     where
         C: ConfigOpts,
@@ -1108,30 +1113,35 @@ impl DataFrameWriter {
         self.save_table(table_name, 2).await
     }
 
+    /// Writes the DataFrame to a CSV file with the specified options.
     pub async fn csv<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
         self.format = Some("csv".to_string());
         self.write_options.extend(config.to_options());
         self.save(path).await
     }
 
+    /// Writes the DataFrame to a JSON file with the specified options.
     pub async fn json<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
         self.format = Some("json".to_string());
         self.write_options.extend(config.to_options());
         self.save(path).await
     }
 
+    /// Writes the DataFrame to an ORC file with the specified options.
     pub async fn orc<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
         self.format = Some("orc".to_string());
         self.write_options.extend(config.to_options());
         self.save(path).await
     }
 
+    /// Writes the DataFrame to a Parquet file with the specified options.
     pub async fn parquet<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
         self.format = Some("parquet".to_string());
         self.write_options.extend(config.to_options());
         self.save(path).await
     }
 
+    /// Writes the DataFrame to a text file with the specified options.
     pub async fn text<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
         self.format = Some("text".to_string());
         self.write_options.extend(config.to_options());
@@ -1241,6 +1251,7 @@ impl DataFrameWriterV2 {
 mod tests {
 
     use super::*;
+
     use std::sync::Arc;
 
     use crate::errors::SparkError;
@@ -1470,7 +1481,6 @@ mod tests {
         let records = df.select(vec![col("range_id")]).collect().await?;
 
         assert_eq!(records.num_rows(), 1000);
-
         Ok(())
     }
 
