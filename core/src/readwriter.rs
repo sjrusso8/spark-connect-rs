@@ -531,6 +531,132 @@ impl ConfigOpts for OrcOptions {
     }
 }
 
+/// A struct that represents options for configuring Parquet file parsing.
+///
+/// # Options
+///
+/// - `merge_schema`: Merge schemas from all Parquet files.
+/// - `path_glob_filter`: A glob pattern to filter files by their path.
+/// - `recursive_file_lookup`: Enable recursive search for files in directories.
+/// - `modified_before`: Only include files modified before a given timestamp.
+/// - `modified_after`: Only include files modified after a given timestamp.
+/// - `datetime_rebase_mode`: Controls how Spark handles rebase of datetime fields.
+/// - `int96_rebase_mode`: Controls how Spark handles rebase of INT96 fields.
+///
+/// # Example
+/// ```
+/// let options = ParquetOptions::new()
+///     .merge_schema(true)
+///     .path_glob_filter("*.parquet".to_string())
+///     .recursive_file_lookup(true);
+///
+/// let df = spark.read().parquet("/path/to/parquet", options)?;
+/// ```
+#[derive(Debug)]
+pub struct ParquetOptions {
+    pub merge_schema: Option<bool>,
+    pub path_glob_filter: Option<String>,
+    pub recursive_file_lookup: Option<bool>,
+    pub modified_before: Option<String>,
+    pub modified_after: Option<String>,
+    pub datetime_rebase_mode: Option<String>,
+    pub int96_rebase_mode: Option<String>,
+}
+
+impl ParquetOptions {
+    pub fn new() -> Self {
+        Self {
+            merge_schema: None,
+            path_glob_filter: None,
+            recursive_file_lookup: None,
+            modified_before: None,
+            modified_after: None,
+            datetime_rebase_mode: None,
+            int96_rebase_mode: None,
+        }
+    }
+
+    pub fn merge_schema(mut self, value: bool) -> Self {
+        self.merge_schema = Some(value);
+        self
+    }
+
+    pub fn path_glob_filter(mut self, value: &str) -> Self {
+        self.path_glob_filter = Some(value.to_string());
+        self
+    }
+
+    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
+        self.recursive_file_lookup = Some(value);
+        self
+    }
+
+    pub fn modified_before(mut self, value: &str) -> Self {
+        self.modified_before = Some(value.to_string());
+        self
+    }
+
+    pub fn modified_after(mut self, value: &str) -> Self {
+        self.modified_after = Some(value.to_string());
+        self
+    }
+
+    pub fn datetime_rebase_mode(mut self, value: &str) -> Self {
+        self.datetime_rebase_mode = Some(value.to_string());
+        self
+    }
+
+    pub fn int96_rebase_mode(mut self, value: &str) -> Self {
+        self.int96_rebase_mode = Some(value.to_string());
+        self
+    }
+}
+
+impl ConfigOpts for ParquetOptions {
+    fn to_options(&self) -> HashMap<String, String> {
+        let mut options: HashMap<String, String> = HashMap::new();
+
+        if let Some(merge_schema) = self.merge_schema {
+            options.insert("merge_schema".to_string(), merge_schema.to_string());
+        }
+
+        if let Some(path_glob_filter) = &self.path_glob_filter {
+            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+        }
+
+        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
+            options.insert(
+                "recursive_file_lookup".to_string(),
+                recursive_file_lookup.to_string(),
+            );
+        }
+
+        if let Some(modified_before) = &self.modified_before {
+            options.insert("modified_before".to_string(), modified_before.to_string());
+        }
+
+        if let Some(modified_after) = &self.modified_after {
+            options.insert("modified_after".to_string(), modified_after.to_string());
+        }
+
+        if let Some(datetime_rebase_mode) = &self.datetime_rebase_mode {
+            options.insert(
+                "datetime_rebase_mode".to_string(),
+                datetime_rebase_mode.to_string(),
+            );
+        }
+
+        if let Some(int96_rebase_mode) = &self.int96_rebase_mode {
+            options.insert(
+                "int96_rebase_mode".to_string(),
+                int96_rebase_mode.to_string(),
+            );
+        }
+
+        options
+    }
+}
+
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
@@ -679,6 +805,16 @@ impl DataFrameReader {
         I: IntoIterator<Item = &'a str>,
     {
         self.format = Some("orc".to_string());
+        self.read_options.extend(config.to_options());
+        self.load(paths)
+    }
+
+    pub fn parquet<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
+    where
+        C: ConfigOpts,
+        I: IntoIterator<Item = &'a str>,
+    {
+        self.format = Some("parquet".to_string());
         self.read_options.extend(config.to_options());
         self.load(paths)
     }
@@ -1048,6 +1184,26 @@ mod tests {
         opts.recursive_file_lookup = Some(true);
 
         let df = spark.read().orc(path, opts)?;
+
+        let rows = df.clone().collect().await?;
+
+        assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read_parquet_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = ["/opt/spark/work-dir/datasets/users.parquet"];
+
+        let mut opts = ParquetOptions::new();
+
+        opts.merge_schema = Some(true);
+        opts.path_glob_filter = Some("*.parquet".to_string());
+        opts.recursive_file_lookup = Some(true);
+
+        let df = spark.read().parquet(path, opts)?;
 
         let rows = df.clone().collect().await?;
 
