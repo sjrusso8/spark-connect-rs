@@ -1107,6 +1107,36 @@ impl DataFrameWriter {
     pub async fn insert_tnto(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
     }
+
+    pub async fn csv<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
+        self.format = Some("csv".to_string());
+        self.write_options.extend(config.to_options());
+        self.save(path).await
+    }
+
+    pub async fn json<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
+        self.format = Some("json".to_string());
+        self.write_options.extend(config.to_options());
+        self.save(path).await
+    }
+
+    pub async fn orc<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
+        self.format = Some("orc".to_string());
+        self.write_options.extend(config.to_options());
+        self.save(path).await
+    }
+
+    pub async fn parquet<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
+        self.format = Some("parquet".to_string());
+        self.write_options.extend(config.to_options());
+        self.save(path).await
+    }
+
+    pub async fn text<C: ConfigOpts>(mut self, path: &str, config: C) -> Result<(), SparkError> {
+        self.format = Some("text".to_string());
+        self.write_options.extend(config.to_options());
+        self.save(path).await
+    }
 }
 
 pub struct DataFrameWriterV2 {
@@ -1211,11 +1241,17 @@ impl DataFrameWriterV2 {
 mod tests {
 
     use super::*;
+    use std::sync::Arc;
 
     use crate::errors::SparkError;
     use crate::functions::*;
     use crate::types::{DataType, StructField, StructType};
     use crate::SparkSessionBuilder;
+
+    use arrow::{
+        array::{ArrayRef, StringArray},
+        record_batch::RecordBatch,
+    };
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
@@ -1343,7 +1379,7 @@ mod tests {
         opts.recursive_file_lookup = Some(true);
 
         let df = spark.read().text(path, opts)?;
-        
+
         let rows = df.clone().collect().await?;
 
         assert_eq!(rows.num_rows(), 3);
@@ -1455,6 +1491,193 @@ mod tests {
         let records = df.select(vec![col("range_id")]).collect().await?;
 
         assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_csv_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .range(None, 1000, 1, Some(16))
+            .select_expr(vec!["id AS range_id"]);
+
+        let path = "/tmp/range_id/";
+
+        let mut write_opts = CsvOptions::new();
+
+        write_opts.header = Some(true);
+        write_opts.null_value = Some("NULL".to_string());
+
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .csv(path, write_opts)
+            .await;
+
+        let path = ["/tmp/range_id/"];
+
+        let mut read_opts = CsvOptions::new();
+
+        read_opts.header = Some(true);
+
+        let df = spark.read().csv(path, read_opts)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_json_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .range(None, 1000, 1, Some(16))
+            .select_expr(vec!["id AS range_id"]);
+
+        let path = "/tmp/range_id/";
+
+        let mut write_opts = JsonOptions::new();
+
+        write_opts.multi_line = Some(true);
+        write_opts.allow_comments = Some(false);
+        write_opts.allow_unquoted_field_names = Some(false);
+        write_opts.primitives_as_string = Some(false);
+
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .json(path, write_opts)
+            .await;
+
+        let path = ["/tmp/range_id/"];
+
+        let read_opts = JsonOptions::new();
+
+        let df = spark.read().json(path, read_opts)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_orc_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .range(None, 1000, 1, Some(16))
+            .select_expr(vec!["id AS range_id"]);
+
+        let path = "/tmp/range_id/";
+
+        let write_opts = OrcOptions::new();
+
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .orc(path, write_opts)
+            .await;
+
+        let path = ["/tmp/range_id/"];
+
+        let mut read_opts = OrcOptions::new();
+
+        read_opts.merge_schema = Some(true);
+        read_opts.path_glob_filter = Some("*.orc".to_string());
+        read_opts.recursive_file_lookup = Some(true);
+
+        let df = spark.read().orc(path, read_opts)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_parquet_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .range(None, 1000, 1, Some(16))
+            .select_expr(vec!["id AS range_id"]);
+
+        let path = "/tmp/range_id/";
+
+        let mut write_opts = ParquetOptions::new();
+
+        // Configure datetime rebase mode (options could be "EXCEPTION", "LEGACY", or "CORRECTED").
+        write_opts.datetime_rebase_mode = Some("CORRECTED".to_string());
+
+        // Configure int96 rebase mode (options could be "EXCEPTION", "LEGACY", or "CORRECTED").
+        write_opts.int96_rebase_mode = Some("LEGACY".to_string());
+
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .parquet(path, write_opts)
+            .await;
+
+        let path = ["/tmp/range_id/"];
+
+        let mut read_opts = ParquetOptions::new();
+
+        read_opts.merge_schema = Some(true);
+        read_opts.path_glob_filter = Some("*.parquet".to_string());
+        read_opts.recursive_file_lookup = Some(true);
+
+        let df = spark.read().parquet(path, read_opts)?;
+
+        let records = df.select(vec![col("range_id")]).collect().await?;
+
+        assert_eq!(records.num_rows(), 1000);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_write_text_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let names: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("Michael"),
+            Some("Andy"),
+            Some("Justin"),
+        ]));
+
+        let data = RecordBatch::try_from_iter(vec![("names", names)])?;
+
+        let df = spark.create_dataframe(&data)?;
+
+        df.clone().show(Some(100), None, None).await;
+
+        let path = "/tmp/text_data/";
+
+        let mut write_opts = TextOptions::new();
+
+        write_opts.whole_text = Some(true);
+
+        // Note that, in order to use write.text(), the dataframe
+        // must have only one column else it will throw error.
+        // Hence you need to covert all columns into single column.
+        df.write()
+            .mode(SaveMode::Overwrite)
+            .text(path, write_opts)
+            .await;
+
+        let path = ["/tmp/text_data/"];
+
+        let mut read_opts = TextOptions::new();
+
+        read_opts.whole_text = Some(true);
+        read_opts.line_sep = Some("\n".to_string());
+        read_opts.path_glob_filter = Some("*.txt".to_string());
+        read_opts.recursive_file_lookup = Some(true);
+
+        let df = spark.read().text(path, read_opts)?;
+
+        let rows = df.clone().collect().await?;
+
+        assert_eq!(rows.num_rows(), 3);
         Ok(())
     }
 }
