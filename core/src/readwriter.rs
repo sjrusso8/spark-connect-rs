@@ -657,6 +657,114 @@ impl ConfigOpts for ParquetOptions {
     }
 }
 
+/// A struct that represents options for configuring text file parsing.
+///
+/// # Options
+///
+/// - `whole_text`: Read the entire file as a single string.
+/// - `line_sep`: Define the line separator (default is `\n`).
+/// - `path_glob_filter`: A glob pattern to filter files by their path.
+/// - `recursive_file_lookup`: Enable recursive search for files in directories.
+/// - `modified_before`: Only include files modified before a given timestamp.
+/// - `modified_after`: Only include files modified after a given timestamp.
+///
+/// # Example
+/// ```
+/// let options = TextOptions::new()
+///     .whole_text(true)
+///     .line_sep("\n".to_string())
+///     .path_glob_filter("*.txt".to_string());
+///
+/// let df = spark.read().text("/path/to/text", options)?;
+/// ```
+#[derive(Debug)]
+pub struct TextOptions {
+    pub whole_text: Option<bool>,
+    pub line_sep: Option<String>,
+    pub path_glob_filter: Option<String>,
+    pub recursive_file_lookup: Option<bool>,
+    pub modified_before: Option<String>,
+    pub modified_after: Option<String>,
+}
+
+impl TextOptions {
+    pub fn new() -> Self {
+        Self {
+            whole_text: None,
+            line_sep: None,
+            path_glob_filter: None,
+            recursive_file_lookup: None,
+            modified_before: None,
+            modified_after: None,
+        }
+    }
+
+    pub fn whole_text(mut self, value: bool) -> Self {
+        self.whole_text = Some(value);
+        self
+    }
+
+    pub fn line_sep(mut self, value: &str) -> Self {
+        self.line_sep = Some(value.to_string());
+        self
+    }
+
+    pub fn path_glob_filter(mut self, value: &str) -> Self {
+        self.path_glob_filter = Some(value.to_string());
+        self
+    }
+
+    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
+        self.recursive_file_lookup = Some(value);
+        self
+    }
+
+    pub fn modified_before(mut self, value: &str) -> Self {
+        self.modified_before = Some(value.to_string());
+        self
+    }
+
+    pub fn modified_after(mut self, value: &str) -> Self {
+        self.modified_after = Some(value.to_string());
+        self
+    }
+}
+
+impl ConfigOpts for TextOptions {
+    fn to_options(&self) -> HashMap<String, String> {
+        let mut options: HashMap<String, String> = HashMap::new();
+
+        if let Some(whole_text) = self.whole_text {
+            options.insert("whole_text".to_string(), whole_text.to_string());
+        }
+
+        if let Some(line_sep) = &self.line_sep {
+            options.insert("line_sep".to_string(), line_sep.to_string());
+        }
+
+        if let Some(path_glob_filter) = &self.path_glob_filter {
+            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+        }
+
+        if let Some(recursive_file_lookup) = &self.recursive_file_lookup {
+            options.insert(
+                "recursive_file_lookup".to_string(),
+                recursive_file_lookup.to_string(),
+            );
+        }
+
+        if let Some(modified_before) = &self.modified_before {
+            options.insert("modified_before".to_string(), modified_before.to_string());
+        }
+
+        if let Some(modified_after) = &self.modified_after {
+            options.insert("modified_after".to_string(), modified_after.to_string());
+        }
+
+        options
+    }
+}
+
 /// DataFrameReader represents the entrypoint to create a DataFrame
 /// from a specific file format.
 #[derive(Clone, Debug)]
@@ -815,6 +923,16 @@ impl DataFrameReader {
         I: IntoIterator<Item = &'a str>,
     {
         self.format = Some("parquet".to_string());
+        self.read_options.extend(config.to_options());
+        self.load(paths)
+    }
+
+    pub fn text<'a, C, I>(mut self, paths: I, config: C) -> Result<DataFrame, SparkError>
+    where
+        C: ConfigOpts,
+        I: IntoIterator<Item = &'a str>,
+    {
+        self.format = Some("text".to_string());
         self.read_options.extend(config.to_options());
         self.load(paths)
     }
@@ -1208,6 +1326,27 @@ mod tests {
         let rows = df.clone().collect().await?;
 
         assert_eq!(rows.num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dataframe_read_text_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let path = ["/opt/spark/work-dir/datasets/people.txt"];
+
+        let mut opts = TextOptions::new();
+
+        opts.whole_text = Some(true);
+        opts.line_sep = Some("\n".to_string());
+        opts.path_glob_filter = Some("*.txt".to_string());
+        opts.recursive_file_lookup = Some(true);
+
+        let df = spark.read().text(path, opts)?;
+        
+        let rows = df.clone().collect().await?;
+
+        assert_eq!(rows.num_rows(), 3);
         Ok(())
     }
 
