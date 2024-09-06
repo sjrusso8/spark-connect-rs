@@ -1512,19 +1512,20 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/range_id/";
+        let path = "/tmp/csv_with_options_rande_id/";
 
         let mut write_opts = CsvOptions::new();
 
         write_opts.header = Some(true);
         write_opts.null_value = Some("NULL".to_string());
 
-        df.write()
+        let _ = df
+            .write()
             .mode(SaveMode::Overwrite)
             .csv(path, write_opts)
             .await;
 
-        let path = ["/tmp/range_id/"];
+        let path = ["/tmp/csv_with_options_rande_id/"];
 
         let mut read_opts = CsvOptions::new();
 
@@ -1546,7 +1547,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/range_id/";
+        let path = "/tmp/json_with_options_rande_id/";
 
         let mut write_opts = JsonOptions::new();
 
@@ -1555,12 +1556,13 @@ mod tests {
         write_opts.allow_unquoted_field_names = Some(false);
         write_opts.primitives_as_string = Some(false);
 
-        df.write()
+        let _ = df
+            .write()
             .mode(SaveMode::Overwrite)
             .json(path, write_opts)
             .await;
 
-        let path = ["/tmp/range_id/"];
+        let path = ["/tmp/json_with_options_rande_id/"];
 
         let read_opts = JsonOptions::new();
 
@@ -1580,16 +1582,17 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/range_id/";
+        let path = "/tmp/orc_with_options_rande_id/";
 
         let write_opts = OrcOptions::new();
 
-        df.write()
+        let _ = df
+            .write()
             .mode(SaveMode::Overwrite)
             .orc(path, write_opts)
             .await;
 
-        let path = ["/tmp/range_id/"];
+        let path = ["/tmp/orc_with_options_rande_id/"];
 
         let mut read_opts = OrcOptions::new();
 
@@ -1613,7 +1616,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/range_id/";
+        let path = "/tmp/parquet_with_options_rande_id/";
 
         let mut write_opts = ParquetOptions::new();
 
@@ -1623,12 +1626,13 @@ mod tests {
         // Configure int96 rebase mode (options could be "EXCEPTION", "LEGACY", or "CORRECTED").
         write_opts.int96_rebase_mode = Some("LEGACY".to_string());
 
-        df.write()
+        let _ = df
+            .write()
             .mode(SaveMode::Overwrite)
             .parquet(path, write_opts)
             .await;
 
-        let path = ["/tmp/range_id/"];
+        let path = ["/tmp/parquet_with_options_rande_id/"];
 
         let mut read_opts = ParquetOptions::new();
 
@@ -1658,9 +1662,7 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        df.clone().show(Some(100), None, None).await;
-
-        let path = "/tmp/text_data/";
+        let path = "/tmp/text_with_options_rande_id/";
 
         let mut write_opts = TextOptions::new();
 
@@ -1669,12 +1671,13 @@ mod tests {
         // Note that, in order to use write.text(), the dataframe
         // must have only one column else it will throw error.
         // Hence you need to covert all columns into single column.
-        df.write()
+        let _ = df
+            .write()
             .mode(SaveMode::Overwrite)
             .text(path, write_opts)
             .await;
 
-        let path = ["/tmp/text_data/"];
+        let path = ["/tmp/text_with_options_rande_id/"];
 
         let mut read_opts = TextOptions::new();
 
