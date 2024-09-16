@@ -49,33 +49,93 @@ pub trait ConfigOpts {
 
 /// A struct that represents options for configuring
 /// CsvOptions for CSV file parsing
+#[derive(Debug, Clone)]
 pub struct CsvOptions {
+    pub path: Option<String>,
+    pub schema: Option<String>,
+    pub sep: Option<String>,
+    pub encoding: Option<String>,
+    pub quote: Option<String>,
+    pub escape: Option<String>,
+    pub comment: Option<String>,
     pub header: Option<bool>,
-    pub delimiter: Option<u8>,
+    pub infer_schema: Option<bool>,
+    pub ignore_leading_white_space: Option<bool>,
+    pub ignore_trailing_white_space: Option<bool>,
     pub null_value: Option<String>,
+    pub nan_value: Option<String>,
+    pub positive_inf: Option<String>,
+    pub negative_inf: Option<String>,
+    pub date_format: Option<String>,
+    pub timestamp_format: Option<String>,
+    pub max_columns: Option<i32>,
+    pub max_chars_per_column: Option<i32>,
+    pub max_malformed_log_per_partition: Option<i32>,
+    pub mode: Option<String>,
+    pub column_name_of_corrupt_record: Option<String>,
+    pub multi_line: Option<bool>,
+    pub char_to_escape_quote_escaping: Option<String>,
+    pub sampling_ratio: Option<f64>,
+    pub enforce_schema: Option<bool>,
+    pub empty_value: Option<String>,
+    pub locale: Option<String>,
+    pub line_sep: Option<String>,
+    pub path_glob_filter: Option<bool>,
+    pub recursive_file_lookup: Option<bool>,
+    pub modified_before: Option<String>,
+    pub modified_after: Option<String>,
+    pub unescaped_quote_handling: Option<String>,
 }
 
 impl CsvOptions {
     pub fn new() -> Self {
         Self {
+            path: None,
+            schema: None,
+            sep: None,
+            encoding: None,
+            quote: None,
+            escape: None,
+            comment: None,
             header: None,
-            delimiter: None,
+            infer_schema: None,
+            ignore_leading_white_space: None,
+            ignore_trailing_white_space: None,
             null_value: None,
+            nan_value: None,
+            positive_inf: None,
+            negative_inf: None,
+            date_format: None,
+            timestamp_format: None,
+            max_columns: None,
+            max_chars_per_column: None,
+            max_malformed_log_per_partition: None,
+            mode: None,
+            column_name_of_corrupt_record: None,
+            multi_line: None,
+            char_to_escape_quote_escaping: None,
+            sampling_ratio: None,
+            enforce_schema: None,
+            empty_value: None,
+            locale: None,
+            line_sep: None,
+            path_glob_filter: None,
+            recursive_file_lookup: None,
+            modified_before: None,
+            modified_after: None,
+            unescaped_quote_handling: None,
         }
     }
+
+    // Missing delimeter option?
 
     pub fn header(mut self, value: bool) -> Self {
         self.header = Some(value);
         self
     }
 
-    pub fn delimiter(mut self, value: u8) -> Self {
-        self.delimiter = Some(value);
-        self
-    }
-
     pub fn null_value(mut self, value: &str) -> Self {
-        self.null_value = Some(value.to_string());
+        self.null_value = Some(value.to_strinNone);
         self
     }
 }
