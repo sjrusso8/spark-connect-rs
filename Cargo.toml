@@ -15,20 +15,20 @@ repository = "https://github.com/sjrusso8/spark-connect-rs"
 rust-version = "1.76"
 
 [workspace.dependencies]
-tonic = { version ="0.11", default-features = false }
+tonic = { version ="0.12", default-features = false }
 tonic-web-wasm-client = { version = "0.5" }
 
 tokio = { version = "1.37", default-features = false, features = ["macros", "rt-multi-thread"] }
 
-arrow = { version = "52", features = ["prettyprint"] }
-arrow-ipc = { version = "52" }
+arrow = { version = "53", features = ["prettyprint"] }
+arrow-ipc = { version = "53" }
 
 serde_json = { version = "1" }
 
 parking_lot = { version = "0.12", features = ["send_guard"]}
 
-prost = { version = "0.12" }
-prost-types = { version = "0.12" }
+prost = { version = "0.13" }
+prost-types = { version = "0.13" }
 
 rand = { version = "0.8" }
 uuid = { version = "1.8", features = ["v4"] }
@@ -38,6 +38,6 @@ chrono = { version = "0.4" }
 
 getrandom = { version = "0.2" }
 
-datafusion = { version = "38.0", default-features = false }
+datafusion = { version = "42.0", default-features = false }
 polars = { version = "0.40", default-features = false }
 polars-arrow = { version = "0.40", default-features = false, features = ["arrow_rs"]  }

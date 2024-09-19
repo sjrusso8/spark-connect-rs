@@ -5,3 +5,5 @@
 
 /spark-warehouse
 /artifacts
+
+.DS_Store
