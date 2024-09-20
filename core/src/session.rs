@@ -19,7 +19,7 @@ use arrow::record_batch::RecordBatch;
 use parking_lot::RwLock;
 
 #[cfg(not(feature = "wasm"))]
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
 #[cfg(feature = "wasm")]
 use tonic_web_wasm_client::Client;
@@ -81,10 +81,15 @@ impl SparkSessionBuilder {
 
     #[cfg(not(feature = "wasm"))]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
-        let channel = Endpoint::from_shared(self.channel_builder.endpoint())
-            .expect("Failed to create endpoint")
-            .connect()
-            .await?;
+        let mut endpoint = Endpoint::from_shared(self.channel_builder.endpoint())
+            .expect("Failed to create endpoint");
+
+        #[cfg(feature = "tls")]
+        if self.channel_builder.use_ssl() {
+            endpoint = endpoint.tls_config(ClientTlsConfig::new().with_native_roots())?;
+        }
+
+        let channel = endpoint.connect().await?;
 
         let service_client = SparkConnectServiceClient::with_interceptor(
             channel,

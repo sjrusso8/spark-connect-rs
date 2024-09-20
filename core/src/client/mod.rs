@@ -70,6 +70,10 @@ impl ChannelBuilder {
         format!("http://{}:{}", self.host, self.port)
     }
 
+    pub fn use_ssl(&self) -> bool {
+        self.use_ssl
+    }
+
     pub fn token(&self) -> Option<String> {
         self.token.to_owned()
     }
