@@ -47,6 +47,71 @@ pub trait ConfigOpts {
     fn to_options(&self) -> HashMap<String, String>;
 }
 
+/// Common file options.
+#[derive(Debug, Clone)]
+pub struct CommonFileOptions {
+    pub path_glob_filter: Option<String>,
+    pub recursive_file_lookup: Option<bool>,
+    pub modified_before: Option<String>,
+    pub modified_after: Option<String>,
+    pub ignore_corrupt_files: Option<bool>,
+    pub ignore_missing_files: Option<bool>,
+}
+
+impl CommonFileOptions {
+    pub fn new() -> Self {
+        Self {
+            path_glob_filter: None,
+            recursive_file_lookup: Some(false),
+            modified_before: None,
+            modified_after: None,
+            ignore_corrupt_files: None,
+            ignore_missing_files: None,
+        }
+    }
+}
+
+impl ConfigOpts for CommonFileOptions {
+    fn to_options(&self) -> HashMap<String, String> {
+        let mut options = HashMap::new();
+
+        if let Some(path_glob_filter) = &self.path_glob_filter {
+            options.insert("pathGlobFilter".to_string(), path_glob_filter.clone());
+        }
+
+        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
+            options.insert(
+                "recursiveFileLookup".to_string(),
+                recursive_file_lookup.to_string(),
+            );
+        }
+
+        if let Some(modified_before) = &self.modified_before {
+            options.insert("modifiedBefore".to_string(), modified_before.clone());
+        }
+
+        if let Some(modified_after) = &self.modified_after {
+            options.insert("modifiedAfter".to_string(), modified_after.clone());
+        }
+
+        if let Some(ignore_corrupt_files) = self.ignore_corrupt_files {
+            options.insert(
+                "ignoreCorruptFiles".to_string(),
+                ignore_corrupt_files.to_string(),
+            );
+        }
+
+        if let Some(ignore_missing_files) = self.ignore_missing_files {
+            options.insert(
+                "ignoreMissingFiles".to_string(),
+                ignore_missing_files.to_string(),
+            );
+        }
+
+        options
+    }
+}
+
 /// A struct that represents options for configuring CSV file parsing.
 ///
 /// `CsvOptions` provides various settings to customize the reading of CSV files.
@@ -129,11 +194,8 @@ pub struct CsvOptions {
     pub empty_value: Option<String>,
     pub locale: Option<String>,
     pub line_sep: Option<String>,
-    pub path_glob_filter: Option<String>,
-    pub recursive_file_lookup: Option<bool>,
-    pub modified_before: Option<String>,
-    pub modified_after: Option<String>,
     pub unescaped_quote_handling: Option<String>,
+    pub common: CommonFileOptions,
 }
 
 impl CsvOptions {
@@ -172,12 +234,9 @@ impl CsvOptions {
             empty_value: None,
             locale: None,
             line_sep: None,
-            path_glob_filter: None,
-            recursive_file_lookup: None,
-            modified_before: None,
-            modified_after: None,
             unescaped_quote_handling: None,
             escape_quotes: None,
+            common: CommonFileOptions::new(),
         }
     }
 
@@ -343,26 +402,6 @@ impl CsvOptions {
 
     pub fn line_sep(mut self, value: &str) -> Self {
         self.line_sep = Some(value.to_string());
-        self
-    }
-
-    pub fn path_glob_filter(mut self, value: &str) -> Self {
-        self.path_glob_filter = Some(value.to_string());
-        self
-    }
-
-    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
-        self.recursive_file_lookup = Some(value);
-        self
-    }
-
-    pub fn modified_before(mut self, value: &str) -> Self {
-        self.modified_before = Some(value.to_string());
-        self
-    }
-
-    pub fn modified_after(mut self, value: &str) -> Self {
-        self.modified_after = Some(value.to_string());
         self
     }
 
@@ -537,25 +576,6 @@ impl ConfigOpts for CsvOptions {
             options.insert("lineSep".to_string(), line_sep.to_string());
         }
 
-        if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
-        }
-
-        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
-            options.insert(
-                "recursiveFileLookup".to_string(),
-                recursive_file_lookup.to_string(),
-            );
-        }
-
-        if let Some(modified_before) = &self.modified_before {
-            options.insert("modifiedBefore".to_string(), modified_before.to_string());
-        }
-
-        if let Some(modified_after) = &self.modified_after {
-            options.insert("modifiedAfter".to_string(), modified_after.to_string());
-        }
-
         if let Some(unescaped_quote_handling) = &self.unescaped_quote_handling {
             options.insert(
                 "unescapedQuoteHandling".to_string(),
@@ -566,6 +586,8 @@ impl ConfigOpts for CsvOptions {
         if let Some(escape_quotes) = self.escape_quotes {
             options.insert("escapeQuotes".to_string(), escape_quotes.to_string());
         }
+
+        options.extend(self.common.to_options());
 
         options
     }
@@ -642,13 +664,12 @@ pub struct JsonOptions {
     pub drop_field_if_all_null: Option<bool>,
     pub encoding: Option<String>,
     pub locale: Option<String>,
-    pub path_glob_filter: Option<String>,
-    pub recursive_file_lookup: Option<bool>,
     pub allow_non_numeric_numbers: Option<bool>,
     pub time_zone: Option<String>,
     pub timestamp_ntz_format: Option<String>,
     pub enable_datetime_parsing_fallback: Option<bool>,
     pub ignore_null_fields: Option<bool>,
+    pub common: CommonFileOptions,
 }
 
 impl JsonOptions {
@@ -674,13 +695,12 @@ impl JsonOptions {
             drop_field_if_all_null: None,
             encoding: None,
             locale: None,
-            path_glob_filter: None,
-            recursive_file_lookup: None,
             allow_non_numeric_numbers: None,
             time_zone: None,
             timestamp_ntz_format: None,
             enable_datetime_parsing_fallback: None,
             ignore_null_fields: None,
+            common: CommonFileOptions::new(),
         }
     }
 
@@ -776,16 +796,6 @@ impl JsonOptions {
 
     pub fn locale(mut self, value: &str) -> Self {
         self.locale = Some(value.to_string());
-        self
-    }
-
-    pub fn path_glob_filter(mut self, value: &str) -> Self {
-        self.path_glob_filter = Some(value.to_string());
-        self
-    }
-
-    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
-        self.recursive_file_lookup = Some(value);
         self
     }
 
@@ -930,17 +940,6 @@ impl ConfigOpts for JsonOptions {
             options.insert("locale".to_string(), locale.clone());
         }
 
-        if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
-        }
-
-        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
-            options.insert(
-                "recursiveFileLookup".to_string(),
-                recursive_file_lookup.to_string(),
-            );
-        }
-
         if let Some(allow_non_numeric_numbers) = self.allow_non_numeric_numbers {
             options.insert(
                 "allowNonNumericNumbers".to_string(),
@@ -973,6 +972,8 @@ impl ConfigOpts for JsonOptions {
             );
         }
 
+        options.extend(self.common.to_options());
+
         options
     }
 }
@@ -1000,10 +1001,7 @@ impl ConfigOpts for JsonOptions {
 pub struct OrcOptions {
     pub compression: Option<String>,
     pub merge_schema: Option<bool>,
-    pub path_glob_filter: Option<String>,
-    pub recursive_file_lookup: Option<bool>,
-    pub modified_before: Option<String>,
-    pub modified_after: Option<String>,
+    pub common: CommonFileOptions,
 }
 
 impl OrcOptions {
@@ -1011,10 +1009,7 @@ impl OrcOptions {
         OrcOptions {
             compression: Some("snappy".to_string()),
             merge_schema: None,
-            path_glob_filter: None,
-            recursive_file_lookup: None,
-            modified_before: None,
-            modified_after: None,
+            common: CommonFileOptions::new(),
         }
     }
 
@@ -1025,26 +1020,6 @@ impl OrcOptions {
 
     pub fn merge_schema(mut self, value: bool) -> Self {
         self.merge_schema = Some(value);
-        self
-    }
-
-    pub fn path_glob_filter(mut self, value: &str) -> Self {
-        self.path_glob_filter = Some(value.to_string());
-        self
-    }
-
-    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
-        self.recursive_file_lookup = Some(value);
-        self
-    }
-
-    pub fn modified_before(mut self, value: &str) -> Self {
-        self.modified_before = Some(value.to_string());
-        self
-    }
-
-    pub fn modified_after(mut self, value: &str) -> Self {
-        self.modified_after = Some(value.to_string());
         self
     }
 }
@@ -1061,24 +1036,7 @@ impl ConfigOpts for OrcOptions {
             options.insert("mergeSchema".to_string(), merge_schema.to_string());
         }
 
-        if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
-        }
-
-        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
-            options.insert(
-                "recursiveFileLookup".to_string(),
-                recursive_file_lookup.to_string(),
-            );
-        }
-
-        if let Some(modified_before) = &self.modified_before {
-            options.insert("modifiedBefore".to_string(), modified_before.to_string());
-        }
-
-        if let Some(modified_after) = &self.modified_after {
-            options.insert("modifiedAfter".to_string(), modified_after.to_string());
-        }
+        options.extend(self.common.to_options());
 
         options
     }
@@ -1109,12 +1067,9 @@ impl ConfigOpts for OrcOptions {
 pub struct ParquetOptions {
     pub compression: Option<String>,
     pub merge_schema: Option<bool>,
-    pub path_glob_filter: Option<String>,
-    pub recursive_file_lookup: Option<bool>,
-    pub modified_before: Option<String>,
-    pub modified_after: Option<String>,
     pub datetime_rebase_mode: Option<String>,
     pub int96_rebase_mode: Option<String>,
+    pub common: CommonFileOptions,
 }
 
 impl ParquetOptions {
@@ -1122,12 +1077,9 @@ impl ParquetOptions {
         Self {
             compression: Some("snappy".to_string()),
             merge_schema: None,
-            path_glob_filter: None,
-            recursive_file_lookup: None,
-            modified_before: None,
-            modified_after: None,
             datetime_rebase_mode: None,
             int96_rebase_mode: None,
+            common: CommonFileOptions::new(),
         }
     }
 
@@ -1138,26 +1090,6 @@ impl ParquetOptions {
 
     pub fn merge_schema(mut self, value: bool) -> Self {
         self.merge_schema = Some(value);
-        self
-    }
-
-    pub fn path_glob_filter(mut self, value: &str) -> Self {
-        self.path_glob_filter = Some(value.to_string());
-        self
-    }
-
-    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
-        self.recursive_file_lookup = Some(value);
-        self
-    }
-
-    pub fn modified_before(mut self, value: &str) -> Self {
-        self.modified_before = Some(value.to_string());
-        self
-    }
-
-    pub fn modified_after(mut self, value: &str) -> Self {
-        self.modified_after = Some(value.to_string());
         self
     }
 
@@ -1184,25 +1116,6 @@ impl ConfigOpts for ParquetOptions {
             options.insert("mergeSchema".to_string(), merge_schema.to_string());
         }
 
-        if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
-        }
-
-        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
-            options.insert(
-                "recursiveFileLookup".to_string(),
-                recursive_file_lookup.to_string(),
-            );
-        }
-
-        if let Some(modified_before) = &self.modified_before {
-            options.insert("modifiedBefore".to_string(), modified_before.to_string());
-        }
-
-        if let Some(modified_after) = &self.modified_after {
-            options.insert("modifiedAfter".to_string(), modified_after.to_string());
-        }
-
         if let Some(datetime_rebase_mode) = &self.datetime_rebase_mode {
             options.insert(
                 "datetimeRebaseMode".to_string(),
@@ -1213,6 +1126,8 @@ impl ConfigOpts for ParquetOptions {
         if let Some(int96_rebase_mode) = &self.int96_rebase_mode {
             options.insert("int96RebaseMode".to_string(), int96_rebase_mode.to_string());
         }
+
+        options.extend(self.common.to_options());
 
         options
     }
@@ -1242,10 +1157,7 @@ impl ConfigOpts for ParquetOptions {
 pub struct TextOptions {
     pub whole_text: Option<bool>,
     pub line_sep: Option<String>,
-    pub path_glob_filter: Option<String>,
-    pub recursive_file_lookup: Option<bool>,
-    pub modified_before: Option<String>,
-    pub modified_after: Option<String>,
+    pub common: CommonFileOptions,
 }
 
 impl TextOptions {
@@ -1253,10 +1165,7 @@ impl TextOptions {
         Self {
             whole_text: None,
             line_sep: None,
-            path_glob_filter: None,
-            recursive_file_lookup: None,
-            modified_before: None,
-            modified_after: None,
+            common: CommonFileOptions::new(),
         }
     }
 
@@ -1267,26 +1176,6 @@ impl TextOptions {
 
     pub fn line_sep(mut self, value: &str) -> Self {
         self.line_sep = Some(value.to_string());
-        self
-    }
-
-    pub fn path_glob_filter(mut self, value: &str) -> Self {
-        self.path_glob_filter = Some(value.to_string());
-        self
-    }
-
-    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
-        self.recursive_file_lookup = Some(value);
-        self
-    }
-
-    pub fn modified_before(mut self, value: &str) -> Self {
-        self.modified_before = Some(value.to_string());
-        self
-    }
-
-    pub fn modified_after(mut self, value: &str) -> Self {
-        self.modified_after = Some(value.to_string());
         self
     }
 }
@@ -1303,24 +1192,7 @@ impl ConfigOpts for TextOptions {
             options.insert("lineSep".to_string(), line_sep.to_string());
         }
 
-        if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
-        }
-
-        if let Some(recursive_file_lookup) = &self.recursive_file_lookup {
-            options.insert(
-                "recursiveFileLookup".to_string(),
-                recursive_file_lookup.to_string(),
-            );
-        }
-
-        if let Some(modified_before) = &self.modified_before {
-            options.insert("modifiedBefore".to_string(), modified_before.to_string());
-        }
-
-        if let Some(modified_after) = &self.modified_after {
-            options.insert("modifiedAfter".to_string(), modified_after.to_string());
-        }
+        options.extend(self.common.to_options());
 
         options
     }
@@ -1919,8 +1791,8 @@ mod tests {
 
         opts.compression = Some("snappy".to_string());
         opts.merge_schema = Some(true);
-        opts.path_glob_filter = Some("*.orc".to_string());
-        opts.recursive_file_lookup = Some(true);
+        opts.common.path_glob_filter = Some("*.orc".to_string());
+        opts.common.recursive_file_lookup = Some(true);
 
         let df = spark.read().orc(path, opts)?;
 
@@ -1939,8 +1811,8 @@ mod tests {
         let mut opts = ParquetOptions::new();
 
         opts.compression = Some("snappy".to_string());
-        opts.path_glob_filter = Some("*.parquet".to_string());
-        opts.recursive_file_lookup = Some(true);
+        opts.common.path_glob_filter = Some("*.parquet".to_string());
+        opts.common.recursive_file_lookup = Some(true);
 
         let df = spark.read().parquet(path, opts)?;
 
@@ -1961,8 +1833,8 @@ mod tests {
         // If true, read each file from input path(s) as a single row.
         opts.whole_text = Some(false);
         opts.line_sep = Some("\n".to_string());
-        opts.path_glob_filter = Some("*.txt".to_string());
-        opts.recursive_file_lookup = Some(true);
+        opts.common.path_glob_filter = Some("*.txt".to_string());
+        opts.common.recursive_file_lookup = Some(true);
 
         let df = spark.read().text(path, opts)?;
 
@@ -2172,8 +2044,8 @@ mod tests {
         let mut read_opts = OrcOptions::new();
 
         read_opts.merge_schema = Some(true);
-        read_opts.path_glob_filter = Some("*.orc".to_string());
-        read_opts.recursive_file_lookup = Some(true);
+        read_opts.common.path_glob_filter = Some("*.orc".to_string());
+        read_opts.common.recursive_file_lookup = Some(true);
 
         let df = spark.read().orc(path, read_opts)?;
 
@@ -2212,8 +2084,8 @@ mod tests {
         let mut read_opts = ParquetOptions::new();
 
         read_opts.merge_schema = Some(false);
-        read_opts.path_glob_filter = Some("*.parquet".to_string());
-        read_opts.recursive_file_lookup = Some(true);
+        read_opts.common.path_glob_filter = Some("*.parquet".to_string());
+        read_opts.common.recursive_file_lookup = Some(true);
 
         let df = spark.read().parquet(path, read_opts)?;
 
@@ -2258,8 +2130,8 @@ mod tests {
 
         read_opts.whole_text = Some(true);
         read_opts.line_sep = Some("\n".to_string());
-        read_opts.path_glob_filter = Some("*.txt".to_string());
-        read_opts.recursive_file_lookup = Some(true);
+        read_opts.common.path_glob_filter = Some("*.txt".to_string());
+        read_opts.common.recursive_file_lookup = Some(true);
 
         let df = spark.read().text(path, read_opts)?;
 
