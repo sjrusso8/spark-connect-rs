@@ -1070,8 +1070,8 @@ impl ConfigOpts for OrcOptions {
 /// - `merge_schema`: Merge schemas from all Parquet files.
 /// - `datetime_rebase_mode`: Controls how Spark handles rebase of datetime fields.
 /// - `int96_rebase_mode`: Controls how Spark handles rebase of INT96 fields.
-/// - `common` - Common file options that are shared across multiple file formats.
-/// 
+/// - `common`: Common file options that are shared across multiple file formats.
+///
 /// # Example
 /// ```
 /// let options = ParquetOptions::new()
