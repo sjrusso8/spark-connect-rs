@@ -47,7 +47,34 @@ pub trait ConfigOpts {
     fn to_options(&self) -> HashMap<String, String>;
 }
 
-/// Common file options.
+/// Common file options that are shared across multiple file formats
+/// (e.g., CSV, JSON, ORC, Parquet, Text).
+///
+/// These options allow for file filtering and error handling during
+/// file discovery and processing.
+///
+/// # Fields
+///
+/// - `path_glob_filter`: Optional glob pattern to filter files by path.
+///   This can be used to select specific files within a directory.
+///
+/// - `recursive_file_lookup`: Whether to recursively search for files in
+///   subdirectories. If set to `true`, the reader will search all subdirectories
+///   for matching files.
+///
+/// - `modified_before`: An optional string specifying a cutoff date for filtering
+///   files. Files modified after this date will not be included.
+///
+/// - `modified_after`: An optional string specifying a start date for filtering
+///   files. Only files modified after this date will be included.
+///
+/// - `ignore_corrupt_files`: If set to `true`, the reader will skip corrupt files
+///   instead of throwing an error. This is useful in scenarios where some files
+///   may be malformed.
+///
+/// - `ignore_missing_files`: If set to `true`, missing files (e.g., those filtered out by
+///   the glob pattern) will be ignored instead of causing an error. This is useful when
+///   running in environments where files may be missing intermittently.
 #[derive(Debug, Clone)]
 pub struct CommonFileOptions {
     pub path_glob_filter: Option<String>,
@@ -153,11 +180,8 @@ impl ConfigOpts for CommonFileOptions {
 /// - `empty_value`: Representation of an empty value in the CSV file.
 /// - `locale`: Locale of the CSV file, used for number formatting.
 /// - `line_sep`: Line separator character in the CSV file.
-/// - `path_glob_filter`: Whether to filter files using a glob pattern based on path.
-/// - `recursive_file_lookup`: Whether to recursively look for files in the directory.
-/// - `modified_before`: Filter files modified before this date.
-/// - `modified_after`: Filter files modified after this date.
 /// - `unescaped_quote_handling`: How to handle unescaped quotes in quoted fields. Options are "STOP_AT_CLOSING_QUOTE" and "BACK_TO_DELIMITER".
+/// - `common` - Common file options that are shared across multiple file formats.
 #[derive(Debug, Clone)]
 pub struct CsvOptions {
     pub schema: Option<String>,
@@ -622,13 +646,12 @@ impl ConfigOpts for CsvOptions {
 /// - `drop_field_if_all_null`: Drop fields that are `NULL` in all rows.
 /// - `encoding`: Character encoding (default is `UTF-8`).
 /// - `locale`: Locale for parsing dates and numbers (e.g., `en-US`).
-/// - `path_glob_filter`: A glob pattern to filter files by their path.
-/// - `recursive_file_lookup`: Enable recursive search for files in directories.
 /// - `allow_non_numeric_numbers`: Allow special non-numeric numbers (e.g., `NaN`, `Infinity`).
 /// - `time_zone`: Time zone used for parsing dates and timestamps (e.g., `UTC`, `America/Los_Angeles`).
 /// - `timestamp_ntz_format`: Format for parsing timestamp without time zone (NTZ) values (e.g., `yyyy-MM-dd'T'HH:mm:ss`).
 /// - `enable_datetime_parsing_fallback`: Enable fallback mechanism for datetime parsing if the initial parsing fails.
 /// - `ignore_null_fields`: Ignore `NULL` fields in the JSON structure, treating them as absent.
+/// - `common` - Common file options that are shared across multiple file formats.
 ///
 /// # Example
 /// ```
@@ -984,16 +1007,14 @@ impl ConfigOpts for JsonOptions {
 ///
 /// - `merge_schema`: Merge schemas from all ORC files.
 /// - `path_glob_filter`: A glob pattern to filter files by their path.
-/// - `recursive_file_lookup`: Enable recursive search for files in directories.
-/// - `modified_before`: Only include files modified before a given timestamp.
-/// - `modified_after`: Only include files modified after a given timestamp.
+/// - `common` - Common file options that are shared across multiple file formats.
 ///
 /// # Example
 /// ```
 /// let options = OrcOptions::new()
 ///     .merge_schema(true)
-///     .path_glob_filter("*.orc".to_string())
-///     .recursive_file_lookup(true);
+///     .common.path_glob_filter("*.orc".to_string())
+///     .common.recursive_file_lookup(true);
 ///
 /// let df = spark.read().orc(["/path/to/orc"], options)?;
 /// ```
@@ -1047,19 +1068,16 @@ impl ConfigOpts for OrcOptions {
 /// # Options
 ///
 /// - `merge_schema`: Merge schemas from all Parquet files.
-/// - `path_glob_filter`: A glob pattern to filter files by their path.
-/// - `recursive_file_lookup`: Enable recursive search for files in directories.
-/// - `modified_before`: Only include files modified before a given timestamp.
-/// - `modified_after`: Only include files modified after a given timestamp.
 /// - `datetime_rebase_mode`: Controls how Spark handles rebase of datetime fields.
 /// - `int96_rebase_mode`: Controls how Spark handles rebase of INT96 fields.
-///
+/// - `common` - Common file options that are shared across multiple file formats.
+/// 
 /// # Example
 /// ```
 /// let options = ParquetOptions::new()
 ///     .merge_schema(true)
-///     .path_glob_filter("*.parquet".to_string())
-///     .recursive_file_lookup(true);
+///     .common.path_glob_filter("*.parquet".to_string())
+///     .common.recursive_file_lookup(true);
 ///
 /// let df = spark.read().parquet(["/path/to/parquet"], options)?;
 /// ```
@@ -1139,17 +1157,14 @@ impl ConfigOpts for ParquetOptions {
 ///
 /// - `whole_text`: Read the entire file as a single string.
 /// - `line_sep`: Define the line separator (default is `\n`).
-/// - `path_glob_filter`: A glob pattern to filter files by their path.
-/// - `recursive_file_lookup`: Enable recursive search for files in directories.
-/// - `modified_before`: Only include files modified before a given timestamp.
-/// - `modified_after`: Only include files modified after a given timestamp.
+/// - `common` - Common file options that are shared across multiple file formats.
 ///
 /// # Example
 /// ```
 /// let options = TextOptions::new()
 ///     .whole_text(true)
 ///     .line_sep("\n".to_string())
-///     .path_glob_filter("*.txt".to_string());
+///     .common.path_glob_filter("*.txt".to_string());
 ///
 /// let df = spark.read().text(["/path/to/text"], options)?;
 /// ```
