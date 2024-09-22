@@ -47,16 +47,62 @@ pub trait ConfigOpts {
     fn to_options(&self) -> HashMap<String, String>;
 }
 
-/// A struct that represents options for configuring
-/// CsvOptions for CSV file parsing
+/// A struct that represents options for configuring CSV file parsing.
+///
+/// `CsvOptions` provides various settings to customize the reading of CSV files.
+/// It allows users to define the format, schema inference, handling of null values,
+/// and many other parsing behaviors. These options are used by the Spark DataFrame reader
+/// to correctly interpret and load CSV files into a DataFrame.
+///
+/// # Fields
+/// - `path`: Specifies the file path or directory path to the CSV file(s).
+/// - `schema`: Defines the schema for the CSV data. If not provided, schema will be inferred based on the data.
+/// - `sep`: Character used to separate fields in the CSV file. Default is a comma (`,`).
+/// - `delimiter`: Alternative character used to separate fields in the CSV file.
+/// - `encoding`: Character encoding used for the CSV file. Default is `UTF-8`.
+/// - `quote`: Character used for quoting strings. Default is a double quote (`"`).
+/// - `quote_all`: Whether to quote all fields or only those containing special characters.
+/// - `escape`: Character used to escape quotes inside quoted strings. Default is a backslash (`\`).
+/// - `comment`: Character that denotes the start of a comment line in the file.
+/// - `header`: Whether the first line of the CSV file is a header that contains column names. Default is `false`.
+/// - `infer_schema`: Whether to infer the schema from the CSV data. Default is `false`.
+/// - `ignore_leading_white_space`: Whether to ignore leading white space in fields. Default is `false`.
+/// - `ignore_trailing_white_space`: Whether to ignore trailing white space in fields. Default is `false`.
+/// - `null_value`: String representation of a null value in the CSV file.
+/// - `nan_value`: String representation of a NaN value in the CSV file.
+/// - `positive_inf`: String representation of positive infinity in the CSV file.
+/// - `negative_inf`: String representation of negative infinity in the CSV file.
+/// - `date_format`: Format for parsing date fields in the CSV file.
+/// - `timestamp_format`: Format for parsing timestamp fields in the CSV file.
+/// - `timestamp_ntz_format`: Format for parsing timestamp fields without timezone information.
+/// - `enable_datetime_parsing_fallback`: Whether to enable fallback parsing for date and time formats.
+/// - `max_columns`: Maximum number of columns allowed in the CSV file.
+/// - `max_chars_per_column`: Maximum number of characters allowed per column.
+/// - `max_malformed_log_per_partition`: Maximum number of malformed rows logged per partition.
+/// - `mode`: Handling mode for corrupt/malformed records. Options are "PERMISSIVE", "DROPMALFORMED", and "FAILFAST".
+/// - `column_name_of_corrupt_record`: Name of the column to store malformed records.
+/// - `multi_line`: Whether to treat a row as spanning multiple lines. Default is `false`.
+/// - `char_to_escape_quote_escaping`: Sets a character for escaping quotes inside a quoted field.
+/// - `sampling_ratio`: Fraction of rows used for schema inference.
+/// - `enforce_schema`: Whether to force schema on the CSV file.
+/// - `empty_value`: Representation of an empty value in the CSV file.
+/// - `locale`: Locale of the CSV file, used for number formatting.
+/// - `line_sep`: Line separator character in the CSV file.
+/// - `path_glob_filter`: Whether to filter files using a glob pattern based on path.
+/// - `recursive_file_lookup`: Whether to recursively look for files in the directory.
+/// - `modified_before`: Filter files modified before this date.
+/// - `modified_after`: Filter files modified after this date.
+/// - `unescaped_quote_handling`: How to handle unescaped quotes in quoted fields. Options are "STOP_AT_CLOSING_QUOTE" and "BACK_TO_DELIMITER".
 #[derive(Debug, Clone)]
 pub struct CsvOptions {
-    pub path: Option<String>,
     pub schema: Option<String>,
     pub sep: Option<String>,
+    pub delimiter: Option<String>,
     pub encoding: Option<String>,
     pub quote: Option<String>,
+    pub quote_all: Option<bool>,
     pub escape: Option<String>,
+    pub escape_quotes: Option<bool>,
     pub comment: Option<String>,
     pub header: Option<bool>,
     pub infer_schema: Option<bool>,
@@ -68,6 +114,8 @@ pub struct CsvOptions {
     pub negative_inf: Option<String>,
     pub date_format: Option<String>,
     pub timestamp_format: Option<String>,
+    pub timestamp_ntz_format: Option<String>,
+    pub enable_datetime_parsing_fallback: Option<bool>,
     pub max_columns: Option<i32>,
     pub max_chars_per_column: Option<i32>,
     pub max_malformed_log_per_partition: Option<i32>,
@@ -76,11 +124,12 @@ pub struct CsvOptions {
     pub multi_line: Option<bool>,
     pub char_to_escape_quote_escaping: Option<String>,
     pub sampling_ratio: Option<f64>,
+    pub prefer_date: Option<bool>,
     pub enforce_schema: Option<bool>,
     pub empty_value: Option<String>,
     pub locale: Option<String>,
     pub line_sep: Option<String>,
-    pub path_glob_filter: Option<bool>,
+    pub path_glob_filter: Option<String>,
     pub recursive_file_lookup: Option<bool>,
     pub modified_before: Option<String>,
     pub modified_after: Option<String>,
@@ -90,11 +139,12 @@ pub struct CsvOptions {
 impl CsvOptions {
     pub fn new() -> Self {
         Self {
-            path: None,
             schema: None,
             sep: None,
+            delimiter: None,
             encoding: None,
             quote: None,
+            quote_all: None,
             escape: None,
             comment: None,
             header: None,
@@ -107,6 +157,8 @@ impl CsvOptions {
             negative_inf: None,
             date_format: None,
             timestamp_format: None,
+            timestamp_ntz_format: None,
+            enable_datetime_parsing_fallback: None,
             max_columns: None,
             max_chars_per_column: None,
             max_malformed_log_per_partition: None,
@@ -115,6 +167,7 @@ impl CsvOptions {
             multi_line: None,
             char_to_escape_quote_escaping: None,
             sampling_ratio: None,
+            prefer_date: None,
             enforce_schema: None,
             empty_value: None,
             locale: None,
@@ -124,18 +177,202 @@ impl CsvOptions {
             modified_before: None,
             modified_after: None,
             unescaped_quote_handling: None,
+            escape_quotes: None,
         }
     }
 
-    // Missing delimeter option?
+    pub fn schema(mut self, value: &str) -> Self {
+        self.schema = Some(value.to_string());
+        self
+    }
+
+    pub fn sep(mut self, value: &str) -> Self {
+        self.sep = Some(value.to_string());
+        self
+    }
+
+    pub fn delimiter(mut self, value: &str) -> Self {
+        self.delimiter = Some(value.to_string());
+        self
+    }
+
+    pub fn encoding(mut self, value: &str) -> Self {
+        self.encoding = Some(value.to_string());
+        self
+    }
+
+    pub fn quote(mut self, value: &str) -> Self {
+        self.quote = Some(value.to_string());
+        self
+    }
+
+    pub fn quote_all(mut self, value: bool) -> Self {
+        self.quote_all = Some(value);
+        self
+    }
+
+    pub fn escape(mut self, value: &str) -> Self {
+        self.escape = Some(value.to_string());
+        self
+    }
+
+    pub fn comment(mut self, value: &str) -> Self {
+        self.comment = Some(value.to_string());
+        self
+    }
 
     pub fn header(mut self, value: bool) -> Self {
         self.header = Some(value);
         self
     }
 
+    pub fn infer_schema(mut self, value: bool) -> Self {
+        self.infer_schema = Some(value);
+        self
+    }
+
+    pub fn ignore_leading_white_space(mut self, value: bool) -> Self {
+        self.ignore_leading_white_space = Some(value);
+        self
+    }
+
+    pub fn ignore_trailing_white_space(mut self, value: bool) -> Self {
+        self.ignore_trailing_white_space = Some(value);
+        self
+    }
+
     pub fn null_value(mut self, value: &str) -> Self {
-        self.null_value = Some(value.to_strinNone);
+        self.null_value = Some(value.to_string());
+        self
+    }
+
+    pub fn nan_value(mut self, value: &str) -> Self {
+        self.nan_value = Some(value.to_string());
+        self
+    }
+
+    pub fn positive_inf(mut self, value: &str) -> Self {
+        self.positive_inf = Some(value.to_string());
+        self
+    }
+
+    pub fn negative_inf(mut self, value: &str) -> Self {
+        self.negative_inf = Some(value.to_string());
+        self
+    }
+
+    pub fn date_format(mut self, value: &str) -> Self {
+        self.date_format = Some(value.to_string());
+        self
+    }
+
+    pub fn timestamp_format(mut self, value: &str) -> Self {
+        self.timestamp_format = Some(value.to_string());
+        self
+    }
+
+    pub fn timestamp_ntz_format(mut self, value: &str) -> Self {
+        self.timestamp_ntz_format = Some(value.to_string());
+        self
+    }
+
+    pub fn enable_datetime_parsing_fallback(mut self, value: bool) -> Self {
+        self.enable_datetime_parsing_fallback = Some(value);
+        self
+    }
+
+    pub fn max_columns(mut self, value: i32) -> Self {
+        self.max_columns = Some(value);
+        self
+    }
+
+    pub fn max_chars_per_column(mut self, value: i32) -> Self {
+        self.max_chars_per_column = Some(value);
+        self
+    }
+
+    pub fn max_malformed_log_per_partition(mut self, value: i32) -> Self {
+        self.max_malformed_log_per_partition = Some(value);
+        self
+    }
+
+    pub fn mode(mut self, value: &str) -> Self {
+        self.mode = Some(value.to_string());
+        self
+    }
+
+    pub fn column_name_of_corrupt_record(mut self, value: &str) -> Self {
+        self.column_name_of_corrupt_record = Some(value.to_string());
+        self
+    }
+
+    pub fn multi_line(mut self, value: bool) -> Self {
+        self.multi_line = Some(value);
+        self
+    }
+
+    pub fn char_to_escape_quote_escaping(mut self, value: &str) -> Self {
+        self.char_to_escape_quote_escaping = Some(value.to_string());
+        self
+    }
+
+    pub fn sampling_ratio(mut self, value: f64) -> Self {
+        self.sampling_ratio = Some(value);
+        self
+    }
+
+    pub fn prefer_date(mut self, value: bool) -> Self {
+        self.prefer_date = Some(value);
+        self
+    }
+
+    pub fn enforce_schema(mut self, value: bool) -> Self {
+        self.enforce_schema = Some(value);
+        self
+    }
+
+    pub fn empty_value(mut self, value: &str) -> Self {
+        self.empty_value = Some(value.to_string());
+        self
+    }
+
+    pub fn locale(mut self, value: &str) -> Self {
+        self.locale = Some(value.to_string());
+        self
+    }
+
+    pub fn line_sep(mut self, value: &str) -> Self {
+        self.line_sep = Some(value.to_string());
+        self
+    }
+
+    pub fn path_glob_filter(mut self, value: &str) -> Self {
+        self.path_glob_filter = Some(value.to_string());
+        self
+    }
+
+    pub fn recursive_file_lookup(mut self, value: bool) -> Self {
+        self.recursive_file_lookup = Some(value);
+        self
+    }
+
+    pub fn modified_before(mut self, value: &str) -> Self {
+        self.modified_before = Some(value.to_string());
+        self
+    }
+
+    pub fn modified_after(mut self, value: &str) -> Self {
+        self.modified_after = Some(value.to_string());
+        self
+    }
+
+    pub fn unescaped_quote_handling(mut self, value: &str) -> Self {
+        self.unescaped_quote_handling = Some(value.to_string());
+        self
+    }
+
+    pub fn escape_quotes(mut self, value: bool) -> Self {
+        self.escape_quotes = Some(value);
         self
     }
 }
@@ -144,16 +381,190 @@ impl ConfigOpts for CsvOptions {
     fn to_options(&self) -> HashMap<String, String> {
         let mut options: HashMap<String, String> = HashMap::new();
 
+        if let Some(schema) = &self.schema {
+            options.insert("schema".to_string(), schema.to_string());
+        }
+
+        if let Some(sep) = &self.sep {
+            options.insert("sep".to_string(), sep.to_string());
+        }
+
+        if let Some(delimiter) = &self.delimiter {
+            options.insert("delimiter".to_string(), delimiter.to_string());
+        }
+
+        if let Some(encoding) = &self.encoding {
+            options.insert("encoding".to_string(), encoding.to_string());
+        }
+
+        if let Some(quote) = &self.quote {
+            options.insert("quote".to_string(), quote.to_string());
+        }
+
+        if let Some(quote_all) = self.quote_all {
+            options.insert("quoteAll".to_string(), quote_all.to_string());
+        }
+
+        if let Some(escape) = &self.escape {
+            options.insert("escape".to_string(), escape.to_string());
+        }
+
+        if let Some(comment) = &self.comment {
+            options.insert("comment".to_string(), comment.to_string());
+        }
+
         if let Some(header) = self.header {
             options.insert("header".to_string(), header.to_string());
         }
 
-        if let Some(delimiter) = self.delimiter {
-            options.insert("delimiter".to_string(), (delimiter as char).to_string());
+        if let Some(infer_schema) = self.infer_schema {
+            options.insert("inferSchema".to_string(), infer_schema.to_string());
+        }
+
+        if let Some(ignore_leading_white_space) = self.ignore_leading_white_space {
+            options.insert(
+                "ignoreLeadingWhiteSpace".to_string(),
+                ignore_leading_white_space.to_string(),
+            );
+        }
+
+        if let Some(ignore_trailing_white_space) = self.ignore_trailing_white_space {
+            options.insert(
+                "ignoreTrailingWhiteSpace".to_string(),
+                ignore_trailing_white_space.to_string(),
+            );
         }
 
         if let Some(null_value) = &self.null_value {
-            options.insert("null_value".to_string(), null_value.to_string());
+            options.insert("nullValue".to_string(), null_value.to_string());
+        }
+
+        if let Some(nan_value) = &self.nan_value {
+            options.insert("nanValue".to_string(), nan_value.to_string());
+        }
+
+        if let Some(positive_inf) = &self.positive_inf {
+            options.insert("positiveInf".to_string(), positive_inf.to_string());
+        }
+
+        if let Some(negative_inf) = &self.negative_inf {
+            options.insert("negativeInf".to_string(), negative_inf.to_string());
+        }
+
+        if let Some(date_format) = &self.date_format {
+            options.insert("dateFormat".to_string(), date_format.to_string());
+        }
+
+        if let Some(timestamp_format) = &self.timestamp_format {
+            options.insert("timestampFormat".to_string(), timestamp_format.to_string());
+        }
+
+        if let Some(timestamp_ntz_format) = &self.timestamp_ntz_format {
+            options.insert(
+                "timestampNTZFormat".to_string(),
+                timestamp_ntz_format.to_string(),
+            );
+        }
+
+        if let Some(enable_datetime_parsing_fallback) = self.enable_datetime_parsing_fallback {
+            options.insert(
+                "enableDatetimeParsingFallback".to_string(),
+                enable_datetime_parsing_fallback.to_string(),
+            );
+        }
+
+        if let Some(max_columns) = self.max_columns {
+            options.insert("maxColumns".to_string(), max_columns.to_string());
+        }
+
+        if let Some(max_chars_per_column) = self.max_chars_per_column {
+            options.insert(
+                "maxCharsPerColumn".to_string(),
+                max_chars_per_column.to_string(),
+            );
+        }
+
+        if let Some(max_malformed_log_per_partition) = self.max_malformed_log_per_partition {
+            options.insert(
+                "maxMalformedLogPerPartition".to_string(),
+                max_malformed_log_per_partition.to_string(),
+            );
+        }
+
+        if let Some(mode) = &self.mode {
+            options.insert("mode".to_string(), mode.to_string());
+        }
+
+        if let Some(column_name_of_corrupt_record) = &self.column_name_of_corrupt_record {
+            options.insert(
+                "columnNameOfCorruptRecord".to_string(),
+                column_name_of_corrupt_record.to_string(),
+            );
+        }
+
+        if let Some(multi_line) = self.multi_line {
+            options.insert("multiLine".to_string(), multi_line.to_string());
+        }
+
+        if let Some(char_to_escape_quote_escaping) = &self.char_to_escape_quote_escaping {
+            options.insert(
+                "charToEscapeQuoteEscaping".to_string(),
+                char_to_escape_quote_escaping.to_string(),
+            );
+        }
+
+        if let Some(sampling_ratio) = self.sampling_ratio {
+            options.insert("samplingRatio".to_string(), sampling_ratio.to_string());
+        }
+
+        if let Some(prefer_date) = self.prefer_date {
+            options.insert("preferDate".to_string(), prefer_date.to_string());
+        }
+
+        if let Some(enforce_schema) = self.enforce_schema {
+            options.insert("enforceSchema".to_string(), enforce_schema.to_string());
+        }
+
+        if let Some(empty_value) = &self.empty_value {
+            options.insert("emptyValue".to_string(), empty_value.to_string());
+        }
+
+        if let Some(locale) = &self.locale {
+            options.insert("locale".to_string(), locale.to_string());
+        }
+
+        if let Some(line_sep) = &self.line_sep {
+            options.insert("lineSep".to_string(), line_sep.to_string());
+        }
+
+        if let Some(path_glob_filter) = &self.path_glob_filter {
+            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
+        }
+
+        if let Some(recursive_file_lookup) = self.recursive_file_lookup {
+            options.insert(
+                "recursiveFileLookup".to_string(),
+                recursive_file_lookup.to_string(),
+            );
+        }
+
+        if let Some(modified_before) = &self.modified_before {
+            options.insert("modifiedBefore".to_string(), modified_before.to_string());
+        }
+
+        if let Some(modified_after) = &self.modified_after {
+            options.insert("modifiedAfter".to_string(), modified_after.to_string());
+        }
+
+        if let Some(unescaped_quote_handling) = &self.unescaped_quote_handling {
+            options.insert(
+                "unescapedQuoteHandling".to_string(),
+                unescaped_quote_handling.to_string(),
+            );
+        }
+
+        if let Some(escape_quotes) = self.escape_quotes {
+            options.insert("escapeQuotes".to_string(), escape_quotes.to_string());
         }
 
         options
@@ -170,12 +581,13 @@ impl ConfigOpts for CsvOptions {
 /// # Options
 ///
 /// - `schema`: An optional schema for the JSON data, either as a `StructType` or a DDL string.
+/// - `compression`: Compression codec to use when reading JSON files (e.g., `gzip`, `bzip2`).
 /// - `primitives_as_string`: Treat primitive types (e.g., integers, booleans) as strings.
 /// - `prefers_decimal`: Prefer parsing numbers as decimals rather than floating points.
 /// - `allow_comments`: Allow comments in JSON files (e.g., lines starting with `//` or `/* */`).
 /// - `allow_unquoted_field_names`: Allow field names without quotes.
 /// - `allow_single_quotes`: Allow the use of single quotes instead of double quotes for strings.
-/// - `allow_numeric_leading_zero`: Allow numbers to have leading zeros (e.g., `007`).
+/// - `allow_numeric_leading_zeros`: Allow numbers to have leading zeros (e.g., `007`).
 /// - `allow_backslash_escaping_any_character`: Allow backslashes to escape any character.
 /// - `mode`: The parsing mode (e.g., `PERMISSIVE`, `DROPMALFORMED`, `FAILFAST`).
 /// - `column_name_of_corrupt_record`: Name of the column where corrupted records are placed.
@@ -191,6 +603,10 @@ impl ConfigOpts for CsvOptions {
 /// - `path_glob_filter`: A glob pattern to filter files by their path.
 /// - `recursive_file_lookup`: Enable recursive search for files in directories.
 /// - `allow_non_numeric_numbers`: Allow special non-numeric numbers (e.g., `NaN`, `Infinity`).
+/// - `time_zone`: Time zone used for parsing dates and timestamps (e.g., `UTC`, `America/Los_Angeles`).
+/// - `timestamp_ntz_format`: Format for parsing timestamp without time zone (NTZ) values (e.g., `yyyy-MM-dd'T'HH:mm:ss`).
+/// - `enable_datetime_parsing_fallback`: Enable fallback mechanism for datetime parsing if the initial parsing fails.
+/// - `ignore_null_fields`: Ignore `NULL` fields in the JSON structure, treating them as absent.
 ///
 /// # Example
 /// ```
@@ -198,19 +614,22 @@ impl ConfigOpts for CsvOptions {
 ///     .schema("name STRING, salary INT")
 ///     .multi_line(true)
 ///     .allow_comments(true)
-///     .encoding("UTF-8".to_string());
+///     .encoding("UTF-8")
+///     .time_zone("UTC")
+///     .compression("gzip");
 ///
-/// let df = spark.read().json("/path/to/json", options)?;
+/// let df = spark.read().json(["/path/to/json"], options)?;
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JsonOptions {
     pub schema: Option<String>,
+    pub compression: Option<String>,
     pub primitives_as_string: Option<bool>,
     pub prefers_decimal: Option<bool>,
     pub allow_comments: Option<bool>,
     pub allow_unquoted_field_names: Option<bool>,
     pub allow_single_quotes: Option<bool>,
-    pub allow_numeric_leading_zero: Option<bool>,
+    pub allow_numeric_leading_zeros: Option<bool>,
     pub allow_backslash_escaping_any_character: Option<bool>,
     pub mode: Option<String>,
     pub column_name_of_corrupt_record: Option<String>,
@@ -223,21 +642,26 @@ pub struct JsonOptions {
     pub drop_field_if_all_null: Option<bool>,
     pub encoding: Option<String>,
     pub locale: Option<String>,
-    pub path_glob_filter: Option<bool>,
+    pub path_glob_filter: Option<String>,
     pub recursive_file_lookup: Option<bool>,
     pub allow_non_numeric_numbers: Option<bool>,
+    pub time_zone: Option<String>,
+    pub timestamp_ntz_format: Option<String>,
+    pub enable_datetime_parsing_fallback: Option<bool>,
+    pub ignore_null_fields: Option<bool>,
 }
 
 impl JsonOptions {
     pub fn new() -> Self {
         Self {
             schema: None,
+            compression: Some("gzip".to_string()),
             primitives_as_string: None,
             prefers_decimal: None,
             allow_comments: None,
             allow_unquoted_field_names: None,
             allow_single_quotes: None,
-            allow_numeric_leading_zero: None,
+            allow_numeric_leading_zeros: None,
             allow_backslash_escaping_any_character: None,
             mode: None,
             column_name_of_corrupt_record: None,
@@ -253,6 +677,10 @@ impl JsonOptions {
             path_glob_filter: None,
             recursive_file_lookup: None,
             allow_non_numeric_numbers: None,
+            time_zone: None,
+            timestamp_ntz_format: None,
+            enable_datetime_parsing_fallback: None,
+            ignore_null_fields: None,
         }
     }
 
@@ -286,8 +714,8 @@ impl JsonOptions {
         self
     }
 
-    pub fn allow_numeric_leading_zero(mut self, value: bool) -> Self {
-        self.allow_numeric_leading_zero = Some(value);
+    pub fn allow_numeric_leading_zeros(mut self, value: bool) -> Self {
+        self.allow_numeric_leading_zeros = Some(value);
         self
     }
 
@@ -351,8 +779,8 @@ impl JsonOptions {
         self
     }
 
-    pub fn path_glob_filter(mut self, value: bool) -> Self {
-        self.path_glob_filter = Some(value);
+    pub fn path_glob_filter(mut self, value: &str) -> Self {
+        self.path_glob_filter = Some(value.to_string());
         self
     }
 
@@ -365,6 +793,31 @@ impl JsonOptions {
         self.allow_non_numeric_numbers = Some(value);
         self
     }
+
+    pub fn time_zone(mut self, value: &str) -> Self {
+        self.time_zone = Some(value.to_string());
+        self
+    }
+
+    pub fn timestamp_ntz_format(mut self, value: &str) -> Self {
+        self.timestamp_ntz_format = Some(value.to_string());
+        self
+    }
+
+    pub fn enable_datetime_parsing_fallback(mut self, value: bool) -> Self {
+        self.enable_datetime_parsing_fallback = Some(value);
+        self
+    }
+
+    pub fn compression(mut self, value: &str) -> Self {
+        self.compression = Some(value.to_string());
+        self
+    }
+
+    pub fn ignore_null_fields(mut self, value: bool) -> Self {
+        self.ignore_null_fields = Some(value);
+        self
+    }
 }
 
 impl ConfigOpts for JsonOptions {
@@ -372,42 +825,46 @@ impl ConfigOpts for JsonOptions {
         let mut options: HashMap<String, String> = HashMap::new();
 
         if let Some(schema) = &self.schema {
-            options.insert("schema".to_string(), schema.clone());
+            options.insert("schema".to_string(), schema.to_string());
+        }
+
+        if let Some(compression) = &self.compression {
+            options.insert("compression".to_string(), compression.clone());
         }
 
         if let Some(primitives_as_string) = self.primitives_as_string {
             options.insert(
-                "primitives_as_string".to_string(),
+                "primitivesAsString".to_string(),
                 primitives_as_string.to_string(),
             );
         }
 
         if let Some(prefers_decimal) = self.prefers_decimal {
-            options.insert("prefers_decimal".to_string(), prefers_decimal.to_string());
+            options.insert("prefersDecimal".to_string(), prefers_decimal.to_string());
         }
 
         if let Some(allow_comments) = self.allow_comments {
-            options.insert("allow_comments".to_string(), allow_comments.to_string());
+            options.insert("allowComments".to_string(), allow_comments.to_string());
         }
 
         if let Some(allow_unquoted_field_names) = self.allow_unquoted_field_names {
             options.insert(
-                "allow_unquoted_field_names".to_string(),
+                "allowUnquotedFieldNames".to_string(),
                 allow_unquoted_field_names.to_string(),
             );
         }
 
         if let Some(allow_single_quotes) = self.allow_single_quotes {
             options.insert(
-                "allow_single_quotes".to_string(),
+                "allowSingleQuotes".to_string(),
                 allow_single_quotes.to_string(),
             );
         }
 
-        if let Some(allow_numeric_leading_zero) = self.allow_numeric_leading_zero {
+        if let Some(allow_numeric_leading_zeros) = self.allow_numeric_leading_zeros {
             options.insert(
-                "allow_numeric_leading_zero".to_string(),
-                allow_numeric_leading_zero.to_string(),
+                "allowNumericLeadingZero".to_string(),
+                allow_numeric_leading_zeros.to_string(),
             );
         }
 
@@ -415,7 +872,7 @@ impl ConfigOpts for JsonOptions {
             self.allow_backslash_escaping_any_character
         {
             options.insert(
-                "allow_backslash_escaping_any_character".to_string(),
+                "allowBackslashEscapingAnyCharacter".to_string(),
                 allow_backslash_escaping_any_character.to_string(),
             );
         }
@@ -426,41 +883,41 @@ impl ConfigOpts for JsonOptions {
 
         if let Some(column_name_of_corrupt_record) = &self.column_name_of_corrupt_record {
             options.insert(
-                "column_name_of_corrupt_record".to_string(),
+                "columnNameOfCorruptRecord".to_string(),
                 column_name_of_corrupt_record.clone(),
             );
         }
 
         if let Some(date_format) = &self.date_format {
-            options.insert("date_format".to_string(), date_format.clone());
+            options.insert("dateFormat".to_string(), date_format.clone());
         }
 
         if let Some(timestamp_format) = &self.timestamp_format {
-            options.insert("timestamp_format".to_string(), timestamp_format.clone());
+            options.insert("timestampFormat".to_string(), timestamp_format.clone());
         }
 
         if let Some(multi_line) = self.multi_line {
-            options.insert("multi_line".to_string(), multi_line.to_string());
+            options.insert("multiLine".to_string(), multi_line.to_string());
         }
 
         if let Some(allow_unquoted_control_chars) = self.allow_unquoted_control_chars {
             options.insert(
-                "allow_unquoted_control_chars".to_string(),
+                "allowUnquotedControlChars".to_string(),
                 allow_unquoted_control_chars.to_string(),
             );
         }
 
         if let Some(line_sep) = &self.line_sep {
-            options.insert("line_sep".to_string(), line_sep.clone());
+            options.insert("lineSep".to_string(), line_sep.clone());
         }
 
         if let Some(sampling_ratio) = self.sampling_ratio {
-            options.insert("sampling_ratio".to_string(), sampling_ratio.to_string());
+            options.insert("samplingRatio".to_string(), sampling_ratio.to_string());
         }
 
         if let Some(drop_field_if_all_null) = self.drop_field_if_all_null {
             options.insert(
-                "drop_field_if_all_null".to_string(),
+                "dropFieldIfAllNull".to_string(),
                 drop_field_if_all_null.to_string(),
             );
         }
@@ -473,21 +930,46 @@ impl ConfigOpts for JsonOptions {
             options.insert("locale".to_string(), locale.clone());
         }
 
-        if let Some(path_glob_filter) = self.path_glob_filter {
-            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+        if let Some(path_glob_filter) = &self.path_glob_filter {
+            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
         }
 
         if let Some(recursive_file_lookup) = self.recursive_file_lookup {
             options.insert(
-                "recursive_file_lookup".to_string(),
+                "recursiveFileLookup".to_string(),
                 recursive_file_lookup.to_string(),
             );
         }
 
         if let Some(allow_non_numeric_numbers) = self.allow_non_numeric_numbers {
             options.insert(
-                "allow_non_numeric_numbers".to_string(),
+                "allowNonNumericNumbers".to_string(),
                 allow_non_numeric_numbers.to_string(),
+            );
+        }
+
+        if let Some(time_zone) = &self.time_zone {
+            options.insert("timeZone".to_string(), time_zone.clone());
+        }
+
+        if let Some(timestamp_ntz_format) = &self.timestamp_ntz_format {
+            options.insert(
+                "timestampNTZFormat".to_string(),
+                timestamp_ntz_format.clone(),
+            );
+        }
+
+        if let Some(enable_datetime_parsing_fallback) = self.enable_datetime_parsing_fallback {
+            options.insert(
+                "enableDatetimeParsingFallback".to_string(),
+                enable_datetime_parsing_fallback.to_string(),
+            );
+        }
+
+        if let Some(ignore_null_fields) = self.ignore_null_fields {
+            options.insert(
+                "ignoreNullFields".to_string(),
+                ignore_null_fields.to_string(),
             );
         }
 
@@ -512,10 +994,11 @@ impl ConfigOpts for JsonOptions {
 ///     .path_glob_filter("*.orc".to_string())
 ///     .recursive_file_lookup(true);
 ///
-/// let df = spark.read().orc("/path/to/orc", options)?;
+/// let df = spark.read().orc(["/path/to/orc"], options)?;
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrcOptions {
+    pub compression: Option<String>,
     pub merge_schema: Option<bool>,
     pub path_glob_filter: Option<String>,
     pub recursive_file_lookup: Option<bool>,
@@ -526,12 +1009,18 @@ pub struct OrcOptions {
 impl OrcOptions {
     pub fn new() -> Self {
         OrcOptions {
+            compression: Some("snappy".to_string()),
             merge_schema: None,
             path_glob_filter: None,
             recursive_file_lookup: None,
             modified_before: None,
             modified_after: None,
         }
+    }
+
+    pub fn compression(mut self, value: &str) -> Self {
+        self.compression = Some(value.to_string());
+        self
     }
 
     pub fn merge_schema(mut self, value: bool) -> Self {
@@ -564,27 +1053,31 @@ impl ConfigOpts for OrcOptions {
     fn to_options(&self) -> HashMap<String, String> {
         let mut options: HashMap<String, String> = HashMap::new();
 
+        if let Some(compression) = &self.compression {
+            options.insert("compression".to_string(), compression.to_string());
+        }
+
         if let Some(merge_schema) = self.merge_schema {
-            options.insert("merge_schema".to_string(), merge_schema.to_string());
+            options.insert("mergeSchema".to_string(), merge_schema.to_string());
         }
 
         if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
         }
 
         if let Some(recursive_file_lookup) = self.recursive_file_lookup {
             options.insert(
-                "recursive_file_lookup".to_string(),
+                "recursiveFileLookup".to_string(),
                 recursive_file_lookup.to_string(),
             );
         }
 
         if let Some(modified_before) = &self.modified_before {
-            options.insert("modified_before".to_string(), modified_before.to_string());
+            options.insert("modifiedBefore".to_string(), modified_before.to_string());
         }
 
         if let Some(modified_after) = &self.modified_after {
-            options.insert("modified_after".to_string(), modified_after.to_string());
+            options.insert("modifiedAfter".to_string(), modified_after.to_string());
         }
 
         options
@@ -610,10 +1103,11 @@ impl ConfigOpts for OrcOptions {
 ///     .path_glob_filter("*.parquet".to_string())
 ///     .recursive_file_lookup(true);
 ///
-/// let df = spark.read().parquet("/path/to/parquet", options)?;
+/// let df = spark.read().parquet(["/path/to/parquet"], options)?;
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParquetOptions {
+    pub compression: Option<String>,
     pub merge_schema: Option<bool>,
     pub path_glob_filter: Option<String>,
     pub recursive_file_lookup: Option<bool>,
@@ -626,6 +1120,7 @@ pub struct ParquetOptions {
 impl ParquetOptions {
     pub fn new() -> Self {
         Self {
+            compression: Some("snappy".to_string()),
             merge_schema: None,
             path_glob_filter: None,
             recursive_file_lookup: None,
@@ -634,6 +1129,11 @@ impl ParquetOptions {
             datetime_rebase_mode: None,
             int96_rebase_mode: None,
         }
+    }
+
+    pub fn compression(mut self, value: &str) -> Self {
+        self.compression = Some(value.to_string());
+        self
     }
 
     pub fn merge_schema(mut self, value: bool) -> Self {
@@ -676,41 +1176,42 @@ impl ConfigOpts for ParquetOptions {
     fn to_options(&self) -> HashMap<String, String> {
         let mut options: HashMap<String, String> = HashMap::new();
 
+        if let Some(compression) = &self.compression {
+            options.insert("compression".to_string(), compression.to_string());
+        }
+
         if let Some(merge_schema) = self.merge_schema {
-            options.insert("merge_schema".to_string(), merge_schema.to_string());
+            options.insert("mergeSchema".to_string(), merge_schema.to_string());
         }
 
         if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
         }
 
         if let Some(recursive_file_lookup) = self.recursive_file_lookup {
             options.insert(
-                "recursive_file_lookup".to_string(),
+                "recursiveFileLookup".to_string(),
                 recursive_file_lookup.to_string(),
             );
         }
 
         if let Some(modified_before) = &self.modified_before {
-            options.insert("modified_before".to_string(), modified_before.to_string());
+            options.insert("modifiedBefore".to_string(), modified_before.to_string());
         }
 
         if let Some(modified_after) = &self.modified_after {
-            options.insert("modified_after".to_string(), modified_after.to_string());
+            options.insert("modifiedAfter".to_string(), modified_after.to_string());
         }
 
         if let Some(datetime_rebase_mode) = &self.datetime_rebase_mode {
             options.insert(
-                "datetime_rebase_mode".to_string(),
+                "datetimeRebaseMode".to_string(),
                 datetime_rebase_mode.to_string(),
             );
         }
 
         if let Some(int96_rebase_mode) = &self.int96_rebase_mode {
-            options.insert(
-                "int96_rebase_mode".to_string(),
-                int96_rebase_mode.to_string(),
-            );
+            options.insert("int96RebaseMode".to_string(), int96_rebase_mode.to_string());
         }
 
         options
@@ -735,9 +1236,9 @@ impl ConfigOpts for ParquetOptions {
 ///     .line_sep("\n".to_string())
 ///     .path_glob_filter("*.txt".to_string());
 ///
-/// let df = spark.read().text("/path/to/text", options)?;
+/// let df = spark.read().text(["/path/to/text"], options)?;
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TextOptions {
     pub whole_text: Option<bool>,
     pub line_sep: Option<String>,
@@ -795,30 +1296,30 @@ impl ConfigOpts for TextOptions {
         let mut options: HashMap<String, String> = HashMap::new();
 
         if let Some(whole_text) = self.whole_text {
-            options.insert("whole_text".to_string(), whole_text.to_string());
+            options.insert("wholeText".to_string(), whole_text.to_string());
         }
 
         if let Some(line_sep) = &self.line_sep {
-            options.insert("line_sep".to_string(), line_sep.to_string());
+            options.insert("lineSep".to_string(), line_sep.to_string());
         }
 
         if let Some(path_glob_filter) = &self.path_glob_filter {
-            options.insert("path_glob_filter".to_string(), path_glob_filter.to_string());
+            options.insert("pathGlobFilter".to_string(), path_glob_filter.to_string());
         }
 
         if let Some(recursive_file_lookup) = &self.recursive_file_lookup {
             options.insert(
-                "recursive_file_lookup".to_string(),
+                "recursiveFileLookup".to_string(),
                 recursive_file_lookup.to_string(),
             );
         }
 
         if let Some(modified_before) = &self.modified_before {
-            options.insert("modified_before".to_string(), modified_before.to_string());
+            options.insert("modifiedBefore".to_string(), modified_before.to_string());
         }
 
         if let Some(modified_after) = &self.modified_after {
-            options.insert("modified_after".to_string(), modified_after.to_string());
+            options.insert("modifiedAfter".to_string(), modified_after.to_string());
         }
 
         options
@@ -1363,8 +1864,18 @@ mod tests {
         let mut opts = CsvOptions::new();
 
         opts.header = Some(true);
-        opts.delimiter = Some(b';');
         opts.null_value = Some("NULL".to_string());
+        opts.sep = Some(";".to_string());
+        opts.infer_schema = Some(true);
+        opts.encoding = Some("UTF-8".to_string());
+        opts.quote = Some("\"".to_string());
+        opts.escape = Some("\\".to_string());
+        opts.multi_line = Some(false);
+        opts.date_format = Some("yyyy-MM-dd".to_string());
+        opts.timestamp_format = Some("yyyy-MM-dd'T'HH:mm:ss".to_string());
+        opts.ignore_leading_white_space = Some(true);
+        opts.ignore_trailing_white_space = Some(true);
+        opts.mode = Some("DROPMALFORMED".to_string());
 
         let df = spark.read().csv(path, opts)?;
 
@@ -1383,10 +1894,12 @@ mod tests {
         let mut opts = JsonOptions::new();
 
         opts.schema = Some("name STRING, salary INT".to_string());
-        opts.multi_line = Some(true);
+        opts.multi_line = Some(false);
         opts.allow_comments = Some(false);
         opts.allow_unquoted_field_names = Some(false);
         opts.primitives_as_string = Some(false);
+        opts.compression = Some("gzip".to_string());
+        opts.ignore_null_fields = Some(true);
 
         let df = spark.read().json(path, opts)?;
 
@@ -1404,6 +1917,7 @@ mod tests {
 
         let mut opts = OrcOptions::new();
 
+        opts.compression = Some("snappy".to_string());
         opts.merge_schema = Some(true);
         opts.path_glob_filter = Some("*.orc".to_string());
         opts.recursive_file_lookup = Some(true);
@@ -1424,7 +1938,7 @@ mod tests {
 
         let mut opts = ParquetOptions::new();
 
-        opts.merge_schema = Some(true);
+        opts.compression = Some("snappy".to_string());
         opts.path_glob_filter = Some("*.parquet".to_string());
         opts.recursive_file_lookup = Some(true);
 
@@ -1444,7 +1958,8 @@ mod tests {
 
         let mut opts = TextOptions::new();
 
-        opts.whole_text = Some(true);
+        // If true, read each file from input path(s) as a single row.
+        opts.whole_text = Some(false);
         opts.line_sep = Some("\n".to_string());
         opts.path_glob_filter = Some("*.txt".to_string());
         opts.recursive_file_lookup = Some(true);
@@ -1696,7 +2211,7 @@ mod tests {
 
         let mut read_opts = ParquetOptions::new();
 
-        read_opts.merge_schema = Some(true);
+        read_opts.merge_schema = Some(false);
         read_opts.path_glob_filter = Some("*.parquet".to_string());
         read_opts.recursive_file_lookup = Some(true);
 
