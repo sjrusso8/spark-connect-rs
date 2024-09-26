@@ -1130,7 +1130,7 @@ impl DataFrame {
         self,
         ctx: &SessionContext,
     ) -> Result<datafusion::dataframe::DataFrame, SparkError> {
-        let batch = self.collect().await?;
+        let batch: RecordBatch = self.collect().await?;
 
         Ok(ctx.read_batch(batch)?)
     }

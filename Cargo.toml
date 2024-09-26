@@ -15,18 +15,18 @@ repository = "https://github.com/sjrusso8/spark-connect-rs"
 rust-version = "1.76"
 
 [workspace.dependencies]
-tonic = { version ="0.11", default-features = false }
-tonic-web-wasm-client = { version = "0.5" }
+tonic = { version ="0.12", default-features = false }
+tonic-web-wasm-client = { version = "0.6" }
 
-tokio = { version = "1.37", default-features = false, features = ["macros"] }
+tokio = { version = "1.40", default-features = false, features = ["macros"] }
 
-arrow = { version = "51", features = ["prettyprint"] }
-arrow-ipc = { version = "51" }
+arrow = { version = "53", features = ["prettyprint"] }
+arrow-ipc = { version = "53" }
 
 serde_json = { version = "1" }
 
-prost = { version = "0.12" }
-prost-types = { version = "0.12" }
+prost = { version = "0.13" }
+prost-types = { version = "0.13" }
 
 rand = { version = "0.8" }
 uuid = { version = "1.8", features = ["v4"] }
