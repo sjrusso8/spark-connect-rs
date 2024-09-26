@@ -1146,7 +1146,7 @@ impl DataFrame {
         for (i, column) in batch.columns().iter().enumerate() {
             let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
             columns.push(polars::series::Series::from_arrow(
-                schema.fields().get(i).unwrap().name(),
+                schema.fields().get(i).unwrap().name().into(),
                 arrow,
             )?);
         }
@@ -2481,7 +2481,7 @@ mod tests {
         for (i, column) in data.columns().iter().enumerate() {
             let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
             columns.push(polars::series::Series::from_arrow(
-                schema.fields().get(i).unwrap().name(),
+                schema.fields().get(i).unwrap().name().into(),
                 arrow,
             )?);
         }

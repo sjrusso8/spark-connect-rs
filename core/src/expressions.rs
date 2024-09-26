@@ -6,13 +6,10 @@
 //!
 //! ## Overview
 //!
-//! - [ToExpr] accepts a `&str`, `String`, or [Column]. This trait uses the method `from`
-//! on the Column to create an expression.
-//! - [ToLiteral] is used for taking rust types into a [spark::expression::Literal]. These values
-//! are then converted into an expression
+//! - [ToExpr] accepts a `&str`, `String`, or [Column]. This trait uses the method `from` on the Column to create an expression.
+//! - [ToLiteral] is used for taking rust types into a [spark::expression::Literal]. These values are then converted into an expression
 //! - [ToLiteralExpr`] takes a literal value and converts it into a [spark::Expression]
-//! - [ToVecExpr] many gRPC methods require a `Vec<spark::Expression>` this trait is a shorthand
-//! for that transformation
+//! - [ToVecExpr] many gRPC methods require a `Vec<spark::Expression>` this trait is a shorthand for that transformation
 //! - [ToFilterExpr] is specifically used for filter statements
 //!
 
