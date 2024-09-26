@@ -54,6 +54,13 @@ where
     invoke_func("array_append", vec![lit(col), lit(value)])
 }
 
+pub fn array_contains<T: ToExpr + ToLiteralExpr>(col: T, value: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_contains", vec![lit(col), lit(value)])
+}
+
 pub fn array_insert<T: ToExpr + ToLiteralExpr>(col: T, pos: T, value: T) -> Column
 where
     Vec<T>: expressions::ToVecExpr,
@@ -78,6 +85,13 @@ where
     }
 }
 
+pub fn arrays_overlap<T: ToExpr + ToLiteralExpr>(a1: T, a2: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("array_overlap", vec![lit(a1), lit(a2)])
+}
+
 pub fn array_position<T: ToExpr + ToLiteralExpr>(col: T, value: T) -> Column
 where
     Vec<T>: expressions::ToVecExpr,
@@ -99,17 +113,43 @@ where
     invoke_func("array_repeat", vec![lit(col), lit(count)])
 }
 
-pub fn array_overlap<T: ToExpr + ToLiteralExpr>(a1: T, a2: T) -> Column
+pub fn assert_true<T: ToExpr + ToLiteralExpr>(col: T, err_msg: Option<T>) -> Column
 where
     Vec<T>: expressions::ToVecExpr,
 {
-    invoke_func("array_overlap", vec![lit(a1), lit(a2)])
+    if let Some(err_msg) = err_msg {
+        invoke_func("assert_true", vec![lit(col), lit(err_msg)])
+    } else {
+        invoke_func("assert_true", vec![lit(col)])
+    }
 }
 
-#[allow(dead_code)]
-#[allow(unused_variables)]
-fn broadcast(df: DataFrame) {
-    unimplemented!("not implemented")
+pub fn broadcast(df: DataFrame) -> DataFrame {
+    df.hint("broadcast", None::<String>)
+}
+
+pub fn bround<T: ToExpr + ToLiteralExpr>(col: T, scale: Option<i64>) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    match scale {
+        Some(val) => invoke_func("array_repeat", vec![lit(col), lit(val)]),
+        None => invoke_func("array_repeat", vec![lit(col), lit(0)]),
+    }
+}
+
+pub fn bucket<T: ToExpr + ToLiteralExpr>(num_buckets: T, col: T) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("bucket", vec![lit(num_buckets), lit(col)])
+}
+
+pub fn conv<T: ToExpr + ToLiteralExpr>(col: T, from_base: i64, to_base: i64) -> Column
+where
+    Vec<T>: expressions::ToVecExpr,
+{
+    invoke_func("bucket", vec![lit(col), lit(from_base), lit(to_base)])
 }
 
 pub fn rand(seed: Option<i32>) -> Column {
@@ -346,6 +386,7 @@ generate_functions!(
     bin,
     ceil,
     ceiling,
+    count,
     exp,
     factorial,
     floor,
@@ -433,6 +474,9 @@ generate_functions!(
     cbrt,
     collect_set,
     collect_list,
+    cos,
+    cosh,
+    cot,
     csc,
     degrees,
     expm1,
@@ -475,7 +519,8 @@ generate_functions!(
     power,
     atan2,
     covar_pop,
-    covar_samp
+    covar_samp,
+    corr
 );
 
 // functions that require one or more col arguments
