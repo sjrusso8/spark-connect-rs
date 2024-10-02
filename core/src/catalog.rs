@@ -37,7 +37,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_first_value(plan).await
     }
@@ -51,7 +51,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -66,7 +66,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -79,7 +79,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_first_value(plan).await
     }
@@ -93,7 +93,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -108,7 +108,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -120,7 +120,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -134,7 +134,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         let record = self.spark_session.client().to_arrow(plan).await?;
 
@@ -154,7 +154,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -167,7 +167,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -186,7 +186,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -205,7 +205,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         let record = self.spark_session.client().to_arrow(plan).await?;
 
@@ -220,7 +220,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -238,7 +238,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().to_arrow(plan).await
     }
@@ -255,7 +255,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         let record = self.spark_session.client().to_arrow(plan).await?;
 
@@ -269,7 +269,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         let record = self.spark_session.client().to_arrow(plan).await?;
 
@@ -285,7 +285,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         let record = self.spark_session.client().to_arrow(plan).await?;
 
@@ -299,7 +299,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         let record = self.spark_session.client().to_arrow(plan).await?;
 
@@ -318,7 +318,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -330,7 +330,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -340,7 +340,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -352,7 +352,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -366,7 +366,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }
@@ -380,7 +380,7 @@ impl Catalog {
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(rel_type));
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
         self.spark_session.client().execute_command(plan).await
     }

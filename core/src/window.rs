@@ -1,6 +1,8 @@
 //! Utility structs for defining a window over a DataFrame
 
-use crate::expressions::{ToExpr, ToLiteralExpr, ToVecExpr};
+use crate::column::Column;
+use crate::expressions::VecExpression;
+use crate::functions::lit;
 use crate::plan::sort_order;
 
 use crate::spark;
@@ -29,14 +31,22 @@ impl WindowSpec {
         }
     }
 
-    pub fn partition_by<I: ToVecExpr>(self, cols: I) -> WindowSpec {
-        WindowSpec::new(cols.to_vec_expr(), self.order_spec, self.frame_spec)
+    pub fn partition_by<I, S>(self, cols: I) -> WindowSpec
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        WindowSpec::new(
+            VecExpression::from_iter(cols).into(),
+            self.order_spec,
+            self.frame_spec,
+        )
     }
 
-    pub fn order_by<I, T>(self, cols: I) -> WindowSpec
+    pub fn order_by<I, S>(self, cols: I) -> WindowSpec
     where
-        T: ToExpr,
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
     {
         let order_spec = sort_order(cols);
 
@@ -75,10 +85,10 @@ impl WindowSpec {
                 // !TODO - I don't like casting this to i32
                 // however, the window boundary is expecting an INT and not a BIGINT
                 // i64 is a BIGINT (i.e. Long)
-                let expr = (value as i32).to_literal_expr();
+                let expr = lit(value as i32);
 
                 let boundary = Some(window::window_frame::frame_boundary::Boundary::Value(
-                    Box::new(expr),
+                    Box::new(expr.into()),
                 ));
 
                 Some(Box::new(window::window_frame::FrameBoundary { boundary }))
@@ -133,17 +143,21 @@ impl Window {
     }
 
     /// Creates a [WindowSpec] with the partitioning defined
-    pub fn partition_by<I: ToVecExpr>(mut self, cols: I) -> WindowSpec {
+    pub fn partition_by<I, S>(mut self, cols: I) -> WindowSpec
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
         self.spec = self.spec.partition_by(cols);
 
         self.spec
     }
 
     /// Creates a [WindowSpec] with the ordering defined
-    pub fn order_by<I, T>(mut self, cols: I) -> WindowSpec
+    pub fn order_by<I, S>(mut self, cols: I) -> WindowSpec
     where
-        T: ToExpr,
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
     {
         self.spec = self.spec.order_by(cols);
 
@@ -250,7 +264,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partition_by(col("name"))
+            .partition_by([col("name")])
             .order_by([col("age")])
             .rows_between(Window::unbounded_preceding(), Window::current_row());
 
@@ -288,7 +302,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partition_by(col("id"))
+            .partition_by([col("id")])
             .order_by([col("category")]);
 
         let res = df
@@ -320,7 +334,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partition_by(col("category"))
+            .partition_by([col("category")])
             .order_by([col("id")]);
 
         let res = df
@@ -352,7 +366,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partition_by(col("category"))
+            .partition_by([col("category")])
             .order_by([col("id")])
             .range_between(Window::current_row(), 1);
 
@@ -386,7 +400,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partition_by(col("category"))
+            .partition_by([col("category")])
             .order_by([col("id")])
             .rows_between(Window::current_row(), 1);
 
