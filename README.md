@@ -90,7 +90,7 @@ The following section outlines some of the larger functionality that are not yet
 |createDataFrame   |![partial]|Partial. Only works for `RecordBatch`  |
 |getActiveSessions |![open]   |                                       |
 |getTags           |![done]   |                                       |
-|interruptAll      |![done]   |  splitn                                     |
+|interruptAll      |![done]   |                                       |
 |interruptOperation|![done]   |                                       |
 |interruptTag      |![done]   |                                       |
 |newSession        |![open]   |                                       |

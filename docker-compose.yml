@@ -1,4 +1,3 @@
-version: '3.7'
 services:
   spark:
     image: "apache/spark:3.5.1-scala2.12-java11-r-ubuntu"

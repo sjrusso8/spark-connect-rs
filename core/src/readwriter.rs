@@ -2,14 +2,15 @@
 
 use std::collections::HashMap;
 
+use crate::column::Column;
 use crate::errors::SparkError;
+use crate::expressions::VecExpression;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark;
 use crate::types::{SparkDataType, StructType};
 use crate::DataFrame;
 
-use crate::expressions::ToVecExpr;
 use spark::write_operation::SaveMode;
 use spark::write_operation_v2::Mode;
 use spark::Expression;
@@ -1641,8 +1642,12 @@ impl DataFrameWriterV2 {
         self
     }
 
-    pub fn partition_by<T: ToVecExpr>(mut self, columns: T) -> Self {
-        self.partitioning = columns.to_vec_expr();
+    pub fn partition_by<I, S>(mut self, columns: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        self.partitioning = VecExpression::from_iter(columns).expr;
         self
     }
 

@@ -2,7 +2,7 @@
 
 use crate::column::Column;
 use crate::errors::SparkError;
-use crate::expressions::{ToExpr, ToFilterExpr, ToLiteral, ToVecExpr};
+use crate::expressions::{ToFilterExpr, VecExpression};
 use crate::group::GroupedData;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
@@ -105,8 +105,11 @@ impl DataFrame {
     }
 
     /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.group_by().agg()`)
-    pub fn agg<T: ToVecExpr>(self, exprs: T) -> DataFrame {
-        self.group_by::<Column>(None).agg(exprs)
+    pub fn agg<I>(self, exprs: I) -> DataFrame
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
+        self.group_by::<Vec<Column>>(None).agg(exprs)
     }
 
     /// Returns a new [DataFrame] with an alias set.
@@ -120,14 +123,14 @@ impl DataFrame {
     }
 
     /// Calculates the approximate quantiles of numerical columns of a [DataFrame].
-    pub async fn approx_quantile<'a, I, P>(
+    pub async fn approx_quantile<I, P>(
         self,
         cols: I,
         probabilities: P,
         relative_error: f64,
     ) -> Result<RecordBatch, SparkError>
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
         P: IntoIterator<Item = f64>,
     {
         if relative_error < 0.0 {
@@ -182,7 +185,7 @@ impl DataFrame {
     /// }
     /// ```
     pub async fn collect(self) -> Result<RecordBatch, SparkError> {
-        let plan = LogicalPlanBuilder::plan_root(self.plan);
+        let plan = self.plan.plan_root();
         self.spark_session.client().to_arrow(plan).await
     }
 
@@ -232,7 +235,8 @@ impl DataFrame {
 
     /// Returns the number of rows in this [DataFrame]
     pub async fn count(self) -> Result<i64, SparkError> {
-        let res = self.group_by::<Column>(None).count().collect().await?;
+        let res = self.group_by::<Vec<Column>>(None).count().collect().await?;
+
         let col = res.column(0);
 
         let data: &arrow::array::Int64Array = match col.data_type() {
@@ -330,15 +334,25 @@ impl DataFrame {
     }
 
     /// Create a multi-dimensional cube for the current [DataFrame] using the specified columns, so we can run aggregations on them.
-    pub fn cube<T: ToVecExpr>(self, cols: T) -> GroupedData {
-        GroupedData::new(self, GroupType::Cube, cols.to_vec_expr(), None, None)
+    pub fn cube<I>(self, cols: I) -> GroupedData
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
+        GroupedData::new(
+            self,
+            GroupType::Cube,
+            VecExpression::from_iter(cols).expr,
+            None,
+            None,
+        )
     }
 
     // Computes basic statistics for numeric and string columns. This includes count, mean, stddev, min, and max.
     // If no columns are given, this function computes statistics for all numerical or string columns.
-    pub fn describe<'a, I>(self, cols: Option<I>) -> DataFrame
+    pub fn describe<I, T>(self, cols: Option<I>) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str> + std::default::Default,
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
     {
         let plan = self.plan.describe(cols);
 
@@ -359,7 +373,10 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] without the specified columns
-    pub fn drop<T: ToVecExpr>(self, cols: T) -> DataFrame {
+    pub fn drop<I>(self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
         let plan = self.plan.drop(cols);
 
         DataFrame {
@@ -373,7 +390,11 @@ impl DataFrame {
     ///
     /// If no columns are supplied then it all columns are used
     ///
-    pub fn drop_duplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
+    pub fn drop_duplicates<I, T>(self, cols: Option<I>) -> DataFrame
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
         let plan = self.plan.drop_duplicates(cols, false);
 
         DataFrame {
@@ -387,7 +408,11 @@ impl DataFrame {
     ///
     /// This only works with streaming [DataFrame], and watermark for the input [DataFrame] must be set via `with_watermark()`.
     ///
-    pub fn drop_duplicates_within_waterwmark(self, cols: Option<Vec<&str>>) -> DataFrame {
+    pub fn drop_duplicates_within_waterwmark<I, T>(self, cols: Option<I>) -> DataFrame
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
         let plan = self.plan.drop_duplicates(cols, true);
 
         DataFrame {
@@ -459,7 +484,7 @@ impl DataFrame {
             None => ExplainMode::Simple,
         };
 
-        let plan = LogicalPlanBuilder::plan_root(self.plan);
+        let plan = self.plan.plan_root();
 
         let analyze =
             spark::analyze_plan_request::Analyze::Explain(spark::analyze_plan_request::Explain {
@@ -476,10 +501,11 @@ impl DataFrame {
     }
 
     /// Replace null values, alias for `df.na().fill()`.
-    pub fn fillna<'a, I, T>(self, cols: Option<I>, values: T) -> DataFrame
+    pub fn fillna<I, T, L>(self, cols: Option<I>, values: T) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str>,
-        T: IntoIterator<Item = Box<dyn ToLiteral>>,
+        I: IntoIterator<Item: AsRef<str>>,
+        T: IntoIterator<Item = L>,
+        L: Into<spark::expression::Literal>,
     {
         let plan = self.plan.fillna(cols, values);
 
@@ -497,7 +523,7 @@ impl DataFrame {
     ///     df.filter("salary > 4000").collect().await?;
     /// }
     /// ```
-    pub fn filter<T: ToFilterExpr>(self, condition: T) -> DataFrame {
+    pub fn filter(self, condition: impl ToFilterExpr) -> DataFrame {
         let plan = self.plan.filter(condition);
 
         DataFrame {
@@ -512,9 +538,10 @@ impl DataFrame {
     }
 
     /// Finding frequent items for columns, possibly with false positives.
-    pub fn freq_items<'a, I>(self, cols: I, support: Option<f64>) -> DataFrame
+    pub fn freq_items<I, S>(self, cols: I, support: Option<f64>) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
     {
         let plan = self.plan.freq_items(cols, support);
 
@@ -525,9 +552,12 @@ impl DataFrame {
     }
 
     /// Groups the [DataFrame] using the specified columns, and returns a [GroupedData] object
-    pub fn group_by<T: ToVecExpr>(self, cols: Option<T>) -> GroupedData {
+    pub fn group_by<I>(self, cols: Option<I>) -> GroupedData
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
         let grouping_cols = match cols {
-            Some(cols) => cols.to_vec_expr(),
+            Some(cols) => VecExpression::from_iter(cols).expr,
             None => vec![],
         };
         GroupedData::new(self, GroupType::Groupby, grouping_cols, None, None)
@@ -539,7 +569,10 @@ impl DataFrame {
     }
 
     /// Specifies some hint on the current [DataFrame].
-    pub fn hint<T: ToVecExpr>(self, name: &str, parameters: Option<T>) -> DataFrame {
+    pub fn hint<I>(self, name: &str, parameters: Option<I>) -> DataFrame
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
         let plan = self.plan.hint(name, parameters);
 
         DataFrame {
@@ -552,7 +585,7 @@ impl DataFrame {
     pub async fn input_files(self) -> Result<Vec<String>, SparkError> {
         let input_files = spark::analyze_plan_request::Analyze::InputFiles(
             spark::analyze_plan_request::InputFiles {
-                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
+                plan: Some(self.plan.plan_root()),
             },
         );
 
@@ -587,7 +620,7 @@ impl DataFrame {
 
     /// Checks if the DataFrame is empty and returns a boolean value.
     pub async fn is_empty(self) -> Result<bool, SparkError> {
-        let val = &self.select("*").limit(1).collect().await?;
+        let val = &self.select(["*"]).limit(1).collect().await?;
 
         Ok(val.num_rows() == 0)
     }
@@ -596,7 +629,7 @@ impl DataFrame {
     pub async fn is_local(self) -> Result<bool, SparkError> {
         let is_local =
             spark::analyze_plan_request::Analyze::IsLocal(spark::analyze_plan_request::IsLocal {
-                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
+                plan: Some(self.plan.plan_root()),
             });
 
         let mut client = self.spark_session.client();
@@ -608,7 +641,7 @@ impl DataFrame {
     pub async fn is_streaming(self) -> Result<bool, SparkError> {
         let is_streaming = spark::analyze_plan_request::Analyze::IsStreaming(
             spark::analyze_plan_request::IsStreaming {
-                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
+                plan: Some(self.plan.plan_root()),
             },
         );
 
@@ -631,7 +664,12 @@ impl DataFrame {
     /// }
     /// ```
 
-    pub fn join<T: ToExpr>(self, other: DataFrame, on: Option<T>, how: JoinType) -> DataFrame {
+    pub fn join<T: Into<spark::Expression>>(
+        self,
+        other: DataFrame,
+        on: Option<T>,
+        how: JoinType,
+    ) -> DataFrame {
         let plan = self.plan.join(other.plan, on, how, vec![]);
 
         DataFrame {
@@ -658,16 +696,15 @@ impl DataFrame {
     }
 
     /// Alias for [DataFrame::unpivot]
-    pub fn melt<I, K>(
+    pub fn melt<I>(
         self,
         ids: I,
-        values: Option<K>,
+        values: Option<I>,
         variable_column_name: &str,
         value_column_name: &str,
     ) -> DataFrame
     where
-        I: ToVecExpr,
-        K: ToVecExpr,
+        I: IntoIterator<Item: Into<Column>>,
     {
         self.unpivot(ids, values, variable_column_name, value_column_name)
     }
@@ -692,7 +729,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn order_by<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.sort(cols, false);
 
@@ -726,7 +763,7 @@ impl DataFrame {
     pub async fn print_schema(self, level: Option<i32>) -> Result<String, SparkError> {
         let tree_string = spark::analyze_plan_request::Analyze::TreeString(
             spark::analyze_plan_request::TreeString {
-                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
+                plan: Some(self.plan.plan_root()),
                 level,
             },
         );
@@ -794,11 +831,10 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] partitioned by the given partitioning expressions.
-    pub fn repartition_by_range<T: ToVecExpr>(
-        self,
-        num_partitions: Option<i32>,
-        cols: T,
-    ) -> DataFrame {
+    pub fn repartition_by_range<I>(self, num_partitions: Option<i32>, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
         let plan = self.plan.repartition_by_range(num_partitions, cols);
 
         DataFrame {
@@ -808,10 +844,10 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] replacing a value with another value.
-    pub fn replace<'a, I, T>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
+    pub fn replace<I, T>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str>,
-        T: IntoIterator<Item = Box<dyn ToLiteral>>,
+        I: IntoIterator<Item: AsRef<str>>,
+        T: IntoIterator<Item: Into<spark::expression::Literal>>,
     {
         let plan = self.plan.replace(to_replace, value, subset);
 
@@ -823,14 +859,23 @@ impl DataFrame {
 
     /// Create a multi-dimensional rollup for the current DataFrame using the specified columns,
     /// and returns a [GroupedData] object
-    pub fn rollup<T: ToVecExpr>(self, cols: T) -> GroupedData {
-        GroupedData::new(self, GroupType::Rollup, cols.to_vec_expr(), None, None)
+    pub fn rollup<I>(self, cols: I) -> GroupedData
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
+        GroupedData::new(
+            self,
+            GroupType::Rollup,
+            VecExpression::from_iter(cols).expr,
+            None,
+            None,
+        )
     }
 
     /// Returns True when the logical query plans inside both DataFrames are equal and therefore return the same results.
     pub async fn same_semantics(self, other: DataFrame) -> Result<bool, SparkError> {
-        let target_plan = Some(LogicalPlanBuilder::plan_root(self.plan));
-        let other_plan = Some(LogicalPlanBuilder::plan_root(other.plan));
+        let target_plan = Some(self.plan.plan_root());
+        let other_plan = Some(other.plan.plan_root());
 
         let same_semantics = spark::analyze_plan_request::Analyze::SameSemantics(
             spark::analyze_plan_request::SameSemantics {
@@ -863,10 +908,9 @@ impl DataFrame {
     }
 
     /// Returns a stratified sample without replacement based on the fraction given on each stratum.
-    pub fn sample_by<K, I, T>(self, col: T, fractions: I, seed: Option<i64>) -> DataFrame
+    pub fn sample_by<K, I>(self, col: Column, fractions: I, seed: Option<i64>) -> DataFrame
     where
-        K: ToLiteral,
-        T: ToExpr,
+        K: Into<spark::expression::Literal>,
         I: IntoIterator<Item = (K, f64)>,
     {
         let seed = seed.unwrap_or(random::<i64>());
@@ -882,7 +926,7 @@ impl DataFrame {
     /// Returns the schema of this [DataFrame] as a [spark::DataType]
     /// which contains the schema of a [DataFrame]
     pub async fn schema(self) -> Result<spark::DataType, SparkError> {
-        let plan = LogicalPlanBuilder::plan_root(self.plan);
+        let plan = self.plan.plan_root();
 
         let schema =
             spark::analyze_plan_request::Analyze::Schema(spark::analyze_plan_request::Schema {
@@ -898,7 +942,7 @@ impl DataFrame {
     ///
     /// # Arguments:
     ///
-    /// * `cols` - An object that implements [ToVecExpr]
+    /// * `cols` - An iterable of values that can be Columns
     ///
     /// # Example:
     /// ```rust
@@ -906,8 +950,11 @@ impl DataFrame {
     ///     df.select(vec![col("age"), col("name")]).collect().await?;
     /// }
     /// ```
-    pub fn select<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        let plan = self.plan.select(cols);
+    pub fn select<I>(self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item: Into<Column>>,
+    {
+        let plan = self.plan.project(cols);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -925,9 +972,9 @@ impl DataFrame {
     ///     df.select_expr(vec!["id * 2", "abs(id)"]).collect().await?;
     /// }
     /// ```
-    pub fn select_expr<'a, I>(self, cols: I) -> DataFrame
+    pub fn select_expr<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
     {
         let plan = self.plan.select_expr(cols);
 
@@ -939,10 +986,10 @@ impl DataFrame {
 
     /// Returns a hash code of the logical query plan against this [DataFrame].
     pub async fn semantic_hash(self) -> Result<i32, SparkError> {
-        let plan = LogicalPlanBuilder::plan_root(self.plan);
+        let plan = Some(self.plan.plan_root());
 
         let semantic_hash = spark::analyze_plan_request::Analyze::SemanticHash(
-            spark::analyze_plan_request::SemanticHash { plan: Some(plan) },
+            spark::analyze_plan_request::SemanticHash { plan },
         );
 
         let mut client = self.spark_session.client();
@@ -971,7 +1018,7 @@ impl DataFrame {
             vertical: vertical.unwrap_or(false),
         }));
 
-        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(show_expr));
+        let plan = LogicalPlanBuilder::from(show_expr).plan_root();
 
         let rows = self.spark_session.client().to_arrow(plan).await?;
 
@@ -981,7 +1028,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn sort<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.sort(cols, true);
 
@@ -994,7 +1041,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] with each partition sorted by the specified column(s).
     pub fn sort_within_partitions<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.sort(cols, false);
 
@@ -1052,10 +1099,9 @@ impl DataFrame {
     /// If no statistics are given, this function computes count, mean, stddev, min,
     /// approximate quartiles (percentiles at 25%, 50%, and 75%), and max
     ///
-    pub fn summary<T, I>(self, statistics: Option<I>) -> DataFrame
+    pub fn summary<I>(self, statistics: Option<I>) -> DataFrame
     where
-        T: AsRef<str>,
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item: AsRef<str>>,
     {
         let plan = self.plan.summary(statistics);
 
@@ -1091,9 +1137,9 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] that with new specified column names
-    pub fn to_df<'a, I>(self, cols: I) -> DataFrame
+    pub fn to_df<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
     {
         let plan = self.plan.to_df(cols);
 
@@ -1146,7 +1192,7 @@ impl DataFrame {
         for (i, column) in batch.columns().iter().enumerate() {
             let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
             columns.push(polars::series::Series::from_arrow(
-                schema.fields().get(i).unwrap().name(),
+                schema.fields().get(i).unwrap().name().into(),
                 arrow,
             )?);
         }
@@ -1230,19 +1276,20 @@ impl DataFrame {
 
     /// Unpivot a DataFrame from wide format to long format, optionally leaving identifier columns set.
     /// This is the reverse to groupBy(…).pivot(…).agg(…), except for the aggregation, which cannot be reversed.
-    pub fn unpivot<I, K>(
+    pub fn unpivot<I, T>(
         self,
         ids: I,
-        values: Option<K>,
+        values: Option<T>,
         variable_column_name: &str,
         value_column_name: &str,
     ) -> DataFrame
     where
-        I: ToVecExpr,
-        K: ToVecExpr,
+        T: IntoIterator<Item: Into<Column>>,
+        I: IntoIterator<Item: Into<Column>>,
     {
-        let ids = ids.to_vec_expr();
-        let values = values.map(|val| val.to_vec_expr());
+        let ids = VecExpression::from_iter(ids).expr;
+
+        let values = values.map(|values| VecExpression::from_iter(values).expr);
 
         let plan = self
             .plan
@@ -1306,7 +1353,7 @@ impl DataFrame {
 
     /// Returns a new [DataFrame] by updating an existing column with metadata.
     pub fn with_metadata(self, col: &str, metadata: &str) -> DataFrame {
-        let col_map = vec![(col, col)];
+        let col_map = vec![(col, Column::from_str(col))];
 
         let plan = self.plan.with_columns(col_map, Some(vec![metadata]));
 
@@ -1394,10 +1441,9 @@ impl DataFrameStatFunctions {
     }
 
     /// Returns a stratified sample without replacement based on the fraction given on each stratum.
-    pub fn sample_by<K, I, T>(self, col: T, fractions: I, seed: Option<i64>) -> DataFrame
+    pub fn sample_by<K, I>(self, col: Column, fractions: I, seed: Option<i64>) -> DataFrame
     where
-        K: ToLiteral,
-        T: ToExpr,
+        K: Into<spark::expression::Literal>,
         I: IntoIterator<Item = (K, f64)>,
     {
         self.df.sample_by(col, fractions, seed)
@@ -1421,19 +1467,21 @@ impl DataFrameNaFunctions {
     }
 
     /// Replace null values, alias for `df.na().fill()`.
-    pub fn fill<'a, I, T>(self, cols: Option<I>, values: T) -> DataFrame
+    pub fn fill<'a, I, T, L>(self, cols: Option<I>, values: T) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
-        T: IntoIterator<Item = Box<dyn ToLiteral>>,
+        T: IntoIterator<Item = L>,
+        L: Into<spark::expression::Literal>,
     {
         self.df.fillna(cols, values)
     }
 
     /// Returns a new [DataFrame] replacing a value with another value.
-    pub fn replace<'a, I, T>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
+    pub fn replace<'a, I, T, L>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
     where
         I: IntoIterator<Item = &'a str>,
-        T: IntoIterator<Item = Box<dyn ToLiteral>>,
+        T: IntoIterator<Item = L>,
+        L: Into<spark::expression::Literal>,
     {
         self.df.replace(to_replace, value, subset)
     }
@@ -1488,8 +1536,8 @@ mod tests {
 
         let joined_df = df_as1.join(df_as2, condition, JoinType::Inner);
 
-        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob", "Tom"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![23, 16, 14]));
 
         let expected =
             RecordBatch::try_from_iter(vec![("name", name.clone()), ("name", name), ("age", age)])?;
@@ -1497,7 +1545,7 @@ mod tests {
         let res = joined_df
             .clone()
             .select(["df_as1.name", "df_as2.name", "df_as2.age"])
-            .sort([asc("df_as1.name")])
+            .sort([asc(col("df_as1.name"))])
             .collect()
             .await?;
 
@@ -1527,7 +1575,7 @@ mod tests {
         let val = spark
             .range(None, 10, 1, Some(5))
             .coalesce(1)
-            .select(spark_partition_id().alias("partition"))
+            .select([spark_partition_id().alias("partition")])
             .distinct()
             .collect()
             .await?;
@@ -1549,7 +1597,7 @@ mod tests {
 
         let res = df
             .clone()
-            .select(df.col_regex("`(Col1)?+.+`"))
+            .select([df.col_regex("`(Col1)?+.+`")])
             .columns()
             .await?;
 
@@ -1690,8 +1738,8 @@ mod tests {
         let df2 = spark.create_dataframe(&data2)?;
 
         let rows = df
-            .cross_join(df2.select("height"))
-            .select(["age", "name", "height"])
+            .cross_join(df2.select(vec![col("height")]))
+            .select(vec![col("age"), col("name"), col("height")])
             .collect()
             .await?;
 
@@ -1762,7 +1810,7 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let cols = df.clone().drop("age").columns().await?;
+        let cols = df.clone().drop([col("age")]).columns().await?;
 
         assert_eq!(vec![String::from("name")], cols);
 
@@ -1790,7 +1838,11 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let res = df.clone().drop_duplicates(None).count().await?;
+        let res = df
+            .clone()
+            .drop_duplicates::<Vec<_>, String>(None)
+            .count()
+            .await?;
 
         assert_eq!(res, 2);
 
@@ -1950,8 +2002,8 @@ mod tests {
         // AVG
         let val = df
             .clone()
-            .group_by::<Column>(None)
-            .avg("age")
+            .group_by::<Vec<Column>>(None)
+            .avg(["age"])
             .collect()
             .await?;
 
@@ -1965,8 +2017,8 @@ mod tests {
         // MAX
         let val = df
             .clone()
-            .group_by::<Column>(None)
-            .max("age")
+            .group_by::<Vec<Column>>(None)
+            .max(["age"])
             .collect()
             .await?;
 
@@ -1980,8 +2032,8 @@ mod tests {
         // SUM
         let val = df
             .clone()
-            .group_by::<Column>(None)
-            .sum("age")
+            .group_by::<Vec<Column>>(None)
+            .sum(["age"])
             .collect()
             .await?;
 
@@ -2024,8 +2076,8 @@ mod tests {
         let df2 = spark.create_dataframe(&data)?.alias("df2");
 
         let df = df.join(
-            df2.hint::<Column>("broadcast", None),
-            Some(col("df1.name").eq("df2.name")),
+            df2.hint::<Vec<Column>>("broadcast", None),
+            Some(col("df1.name").eq(col("df2.name"))),
             JoinType::Inner,
         );
 
@@ -2241,12 +2293,12 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         // select *
-        let val = df.clone().select("*").collect().await?;
+        let val = df.clone().select(["*"]).collect().await?;
 
         assert_eq!(2, val.num_columns());
 
         // single select
-        let val = df.clone().select("name").collect().await?;
+        let val = df.clone().select(["name"]).collect().await?;
 
         assert_eq!(1, val.num_columns());
 
@@ -2377,7 +2429,12 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let df = df.unpivot("id", Some(["int", "float"]), "var", "val");
+        let df = df.unpivot(
+            [col("id")],
+            Some(vec![col("int"), col("float")]),
+            "var",
+            "val",
+        );
 
         let res = df.collect().await?;
 
@@ -2401,8 +2458,9 @@ mod tests {
         let val: i64 = 100;
 
         // closure with captured value from the immediate scope
-        let func =
-            |df: DataFrame| -> DataFrame { df.with_column("new_col", lit(val)).select("new_col") };
+        let func = |df: DataFrame| -> DataFrame {
+            df.with_column("new_col", lit(val)).select(["new_col"])
+        };
 
         let res = df.transform(func).collect().await?;
 
@@ -2481,7 +2539,7 @@ mod tests {
         for (i, column) in data.columns().iter().enumerate() {
             let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
             columns.push(polars::series::Series::from_arrow(
-                schema.fields().get(i).unwrap().name(),
+                schema.fields().get(i).unwrap().name().into(),
                 arrow,
             )?);
         }
@@ -2566,13 +2624,7 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let output = df
-            .fillna(
-                None::<Vec<&str>>,
-                vec![Box::new(80_i64) as Box<dyn ToLiteral>],
-            )
-            .collect()
-            .await?;
+        let output = df.fillna(None::<Vec<&str>>, vec![80_i64]).collect().await?;
 
         let name: ArrayRef = Arc::new(StringArray::from(vec![Some("Alice"), None, Some("Tom")]));
 
@@ -2613,11 +2665,7 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let df = df.replace(
-            vec![Box::new(10) as Box<dyn ToLiteral>],
-            vec![Box::new(20) as Box<dyn ToLiteral>],
-            None::<Vec<&str>>,
-        );
+        let df = df.replace(vec![10], vec![20], None::<Vec<&str>>);
 
         let output = df
             .filter("name in ('Alice', 'Tom')")
@@ -2677,9 +2725,13 @@ mod tests {
             .range(Some(0), 100, 1, None)
             .select([(col("id") % lit(3)).alias("key")]);
 
-        let sampled = df.sample_by("key", [(0, 0.1), (1, 0.2)], Some(0));
+        let sampled = df.sample_by(col("key"), [(0, 0.1), (1, 0.2)], Some(0));
 
-        let output = sampled.group_by(Some(["key"])).count().collect().await?;
+        let output = sampled
+            .group_by(Some([col("key")]))
+            .count()
+            .collect()
+            .await?;
 
         assert_eq!(output.num_rows(), 2);
 
@@ -2699,7 +2751,7 @@ mod tests {
         let val = df
             .clone()
             .with_metadata("name", metadata_val)
-            .select(["name"])
+            .select([col("name")])
             .schema()
             .await?;
 
