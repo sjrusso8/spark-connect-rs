@@ -161,7 +161,7 @@ impl Column {
         Column::from(expression)
     }
 
-    pub fn drop_fields<I, T>(self, field_names: I) -> Column
+    pub fn drop_fields<I>(self, field_names: I) -> Column
     where
         I: IntoIterator<Item: AsRef<str>>,
     {
