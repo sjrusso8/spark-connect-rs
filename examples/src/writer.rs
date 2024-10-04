@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let df = spark
         .range(None, 1000, 1, Some(16))
-        .select(col("id").alias("range_id"));
+        .select([col("id").alias("range_id")]);
 
     let path = "file:///tmp/range_table/";
 

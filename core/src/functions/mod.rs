@@ -1,20 +1,25 @@
 //! A re-implementation of Spark functions
 
-use crate::expressions;
+use crate::expressions::VecExpression;
 use crate::spark;
 use crate::DataFrame;
 
 use crate::column::Column;
-use expressions::{ToExpr, ToLiteralExpr, ToVecExpr};
+
+use crate::spark::expression::Literal;
 
 use rand::random;
 
-pub fn invoke_func<T: ToVecExpr>(name: &str, args: T) -> Column {
+pub fn invoke_func<I, S>(name: &str, args: I) -> Column
+where
+    I: IntoIterator<Item = S>,
+    S: Into<Column>,
+{
     Column::from(spark::Expression {
         expr_type: Some(spark::expression::ExprType::UnresolvedFunction(
             spark::expression::UnresolvedFunction {
                 function_name: name.to_string(),
-                arguments: args.to_vec_expr(),
+                arguments: VecExpression::from_iter(args).into(),
                 is_distinct: false,
                 is_user_defined_function: false,
             },
@@ -23,87 +28,76 @@ pub fn invoke_func<T: ToVecExpr>(name: &str, args: T) -> Column {
 }
 
 /// Create a column from a &str
-pub fn col(value: &str) -> Column {
-    Column::from(value)
+pub fn col(value: impl Into<Column>) -> Column {
+    value.into()
 }
 
 /// Create a column from a &str
-pub fn column(value: &str) -> Column {
-    Column::from(value)
+pub fn column(value: impl Into<Column>) -> Column {
+    value.into()
 }
 
 /// Create a literal value from a rust data type
-pub fn lit<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr())
+pub fn lit(col: impl Into<Literal>) -> Column {
+    Column::from(col.into())
 }
 
-pub fn approx_count_distinct<T: ToExpr + ToLiteralExpr>(col: T, rsd: Option<f32>) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
+pub fn approx_count_distinct(col: impl Into<Column>, rsd: Option<f32>) -> Column {
     match rsd {
-        Some(rsd) => invoke_func("approx_count_distinct", vec![lit(col), lit(rsd)]),
-        None => invoke_func("approx_count_distinct", vec![col]),
+        Some(rsd) => invoke_func("approx_count_distinct", vec![col.into(), lit(rsd)]),
+        None => invoke_func("approx_count_distinct", vec![col.into()]),
     }
 }
 
-pub fn array_append<T: ToExpr + ToLiteralExpr>(col: T, value: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("array_append", vec![lit(col), lit(value)])
+pub fn array_append(col: impl Into<Column>, value: impl Into<Column>) -> Column {
+    invoke_func("array_append", vec![col.into(), value.into()])
 }
 
-pub fn array_insert<T: ToExpr + ToLiteralExpr>(col: T, pos: T, value: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("array_insert", vec![lit(col), lit(pos), lit(value)])
+pub fn array_insert(
+    col: impl Into<Column>,
+    pos: impl Into<Column>,
+    value: impl Into<Column>,
+) -> Column {
+    invoke_func("array_insert", vec![col.into(), pos.into(), value.into()])
 }
 
-pub fn array_join<T: ToExpr + ToLiteralExpr>(
-    col: T,
+pub fn array_join(
+    col: impl Into<Column>,
     delimiter: &str,
     null_replacement: Option<&str>,
-) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
+) -> Column {
     match null_replacement {
         Some(replacement) => invoke_func(
             "array_join",
-            vec![lit(col), lit(delimiter), lit(replacement)],
+            vec![col.into(), lit(delimiter), lit(replacement)],
         ),
-        None => invoke_func("array_join", vec![lit(col), lit(delimiter)]),
+        None => invoke_func("array_join", vec![col.into(), lit(delimiter)]),
     }
 }
 
-pub fn array_position<T: ToExpr + ToLiteralExpr>(col: T, value: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("array_position", vec![lit(col), lit(value)])
+pub fn array_position(
+    col: impl Into<Column>,
+    value: impl Into<spark::expression::Literal>,
+) -> Column {
+    invoke_func("array_position", vec![col.into(), lit(value)])
 }
 
-pub fn array_remove<T: ToExpr + ToLiteralExpr>(col: T, element: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("array_remove", vec![lit(col), lit(element)])
+pub fn array_remove(
+    col: impl Into<Column>,
+    element: impl Into<spark::expression::Literal>,
+) -> Column {
+    invoke_func("array_remove", vec![col.into(), lit(element)])
 }
 
-pub fn array_repeat<T: ToExpr + ToLiteralExpr>(col: T, count: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("array_repeat", vec![lit(col), lit(count)])
+pub fn array_repeat(
+    col: impl Into<Column>,
+    count: impl Into<spark::expression::Literal>,
+) -> Column {
+    invoke_func("array_repeat", vec![col.into(), lit(count)])
 }
 
-pub fn array_overlap<T: ToExpr + ToLiteralExpr>(a1: T, a2: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("array_overlap", vec![lit(a1), lit(a2)])
+pub fn array_overlap(a1: impl Into<Column>, a2: impl Into<Column>) -> Column {
+    invoke_func("array_overlap", vec![a1.into(), a2.into()])
 }
 
 #[allow(dead_code)]
@@ -122,15 +116,12 @@ pub fn randn(seed: Option<i32>) -> Column {
 
 #[allow(dead_code)]
 #[allow(unused_variables)]
-fn when<T: ToLiteralExpr>(condition: Column, value: T) -> Column {
+fn when(condition: impl Into<Column>, value: Column) -> Column {
     unimplemented!("not implemented")
 }
 
-pub fn bitwise_not<T: ToExpr>(col: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("~", vec![col])
+pub fn bitwise_not(col: impl Into<Column>) -> Column {
+    invoke_func("~", vec![col.into()])
 }
 
 pub fn expr(val: &str) -> Column {
@@ -143,131 +134,88 @@ pub fn expr(val: &str) -> Column {
     })
 }
 
-pub fn log<T: ToExpr>(arg1: T, arg2: Option<T>) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
+pub fn log(arg1: impl Into<Column>, arg2: Option<impl Into<Column>>) -> Column {
     match arg2 {
-        Some(arg2) => invoke_func("log", vec![arg1, arg2]),
+        Some(arg2) => invoke_func("log", vec![arg1.into(), arg2.into()]),
         None => ln(arg1),
     }
 }
 
-pub fn mean<T: ToExpr>(col: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
+pub fn mean(col: Column) -> Column {
     avg(col)
 }
 
 pub fn ntile(n: i32) -> Column {
-    invoke_func("ntitle", lit(n))
+    invoke_func("ntitle", vec![lit(n)])
 }
 
-pub fn struct_col<T: expressions::ToVecExpr>(cols: T) -> Column {
-    invoke_func("struct", cols)
-}
-
-pub fn negate<T: expressions::ToExpr>(col: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
+pub fn negate(col: impl Into<Column>) -> Column {
     invoke_func("negative", vec![col])
 }
 
-pub fn pow<T: ToExpr>(col1: T, col2: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    power(col1, col2)
+pub fn pow(col1: impl Into<Column>, col2: impl Into<Column>) -> Column {
+    power(col1.into(), col2.into())
 }
 
-pub fn round<T: ToExpr + ToLiteralExpr>(col: T, scale: Option<f32>) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    let values = vec![lit(col), lit(scale.unwrap_or(0.0)).clone()];
+pub fn round(col: impl Into<Column>, scale: Option<f32>) -> Column {
+    let values = vec![col.into(), lit(scale.unwrap_or(0.0)).clone()];
     invoke_func("round", values)
 }
 
-pub fn add_months<T: ToExpr>(start: T, months: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("add_months", vec![start, months])
+pub fn add_months(start: impl Into<Column>, months: impl Into<Column>) -> Column {
+    invoke_func("add_months", vec![start.into(), months.into()])
 }
 
-pub fn date_add<T: ToExpr>(start: T, days: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("date_add", vec![start, days])
+pub fn date_add(start: impl Into<Column>, days: impl Into<Column>) -> Column {
+    invoke_func("date_add", vec![start.into(), days.into()])
 }
 
-pub fn dateadd<T: ToExpr>(start: T, days: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("dateadd", vec![start, days])
+pub fn dateadd(start: impl Into<Column>, days: impl Into<Column>) -> Column {
+    invoke_func("dateadd", vec![start.into(), days.into()])
 }
 
-pub fn datediff<T: ToExpr>(end: T, start: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("datediff", vec![end, start])
+pub fn datediff(end: impl Into<Column>, start: impl Into<Column>) -> Column {
+    invoke_func("datediff", vec![end.into(), start.into()])
 }
 
-pub fn date_sub<T: ToExpr>(start: T, end: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("date_sub", vec![start, end])
+pub fn date_sub(start: impl Into<Column>, end: impl Into<Column>) -> Column {
+    invoke_func("date_sub", vec![start.into(), end.into()])
 }
 
-pub fn character_length<T: ToExpr>(str: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("character_length", vec![str])
+pub fn character_length(str: impl Into<Column>) -> Column {
+    invoke_func("character_length", vec![str.into()])
 }
 
-pub fn char_length<T: ToExpr>(str: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("char_length", vec![str])
+pub fn char_length(str: impl Into<Column>) -> Column {
+    invoke_func("char_length", vec![str.into()])
 }
 
-pub fn ucase<T: ToExpr>(str: T) -> Column
-where
-    Vec<T>: expressions::ToVecExpr,
-{
-    invoke_func("ucase", vec![str])
+pub fn ucase(str: impl Into<Column>) -> Column {
+    invoke_func("ucase", vec![str.into()])
 }
 
-pub fn asc<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).asc()
+pub fn asc(col: impl Into<Column>) -> Column {
+    col.into().asc()
 }
 
-pub fn asc_nulls_first<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).asc_nulls_first()
+pub fn asc_nulls_first(col: impl Into<Column>) -> Column {
+    col.into().asc_nulls_first()
 }
 
-pub fn asc_nulls_last<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).asc_nulls_last()
+pub fn asc_nulls_last(col: impl Into<Column>) -> Column {
+    col.into().asc_nulls_last()
 }
 
-pub fn desc<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).desc()
+pub fn desc(col: impl Into<Column>) -> Column {
+    col.into().desc()
 }
 
-pub fn desc_nulls_first<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).desc_nulls_first()
+pub fn desc_nulls_first(col: impl Into<Column>) -> Column {
+    col.into().desc_nulls_first()
 }
 
-pub fn desc_nulls_last<T: ToLiteralExpr>(col: T) -> Column {
-    Column::from(col.to_literal_expr()).desc_nulls_last()
+pub fn desc_nulls_last(col: impl Into<Column>) -> Column {
+    col.into().desc_nulls_last()
 }
 
 macro_rules! generate_functions {
@@ -281,27 +229,25 @@ macro_rules! generate_functions {
     };
     (one_col: $($func_name:ident),*) => {
         $(
-            pub fn $func_name<T: expressions::ToExpr>(col: T) -> Column
-            where
-                Vec<T>: expressions::ToVecExpr,
+            pub fn $func_name(col: impl Into<Column>) -> Column
             {
-                invoke_func(stringify!($func_name), vec![col])
+                invoke_func(stringify!($func_name), vec![col.into()])
             }
         )*
     };
     (two_cols: $($func_name:ident),*) => {
         $(
-            pub fn $func_name<T: expressions::ToExpr>(col1: T, col2: T) -> Column
-            where
-                Vec<T>: expressions::ToVecExpr,
+            pub fn $func_name<T: Into<Column>>(col1: T, col2: T) -> Column
             {
-                invoke_func(stringify!($func_name), vec![col1, col2])
+                invoke_func(stringify!($func_name), vec![col1.into(), col2.into()])
             }
         )*
     };
     (multiple_cols: $($func_name:ident),*) => {
         $(
-            pub fn $func_name<T: expressions::ToVecExpr>(cols: T) -> Column
+            pub fn $func_name<I>(cols: I) -> Column
+            where
+                I: IntoIterator<Item = Column>,
             {
                 invoke_func(stringify!($func_name), cols)
             }
@@ -494,7 +440,8 @@ generate_functions!(
     concat,
     create_map,
     array,
-    group_id
+    group_id,
+    struct_col
 );
 
 #[cfg(test)]
@@ -574,7 +521,9 @@ mod tests {
 
         assert_eq!(expected.clone(), row);
 
-        let df = spark.range(None, 1, 1, Some(1)).select(lit(vec![1, 2, 3]));
+        let df = spark
+            .range(None, 1, 1, Some(1))
+            .select([lit(vec![1, 2, 3])]);
 
         let row = df.collect().await?;
 
@@ -779,7 +728,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .with_column("coalesce", coalesce(["a", "b"]))
+            .with_column("coalesce", coalesce([col("a"), col("b")]))
             .collect()
             .await?;
 
@@ -813,7 +762,7 @@ mod tests {
             .option("delimiter", ";")
             .load(path)?;
 
-        let res = df.select(input_file_name()).head(None).await?;
+        let res = df.select([input_file_name()]).head(None).await?;
 
         let a: ArrayRef = Arc::new(StringArray::from(vec![
             "file:///opt/spark/work-dir/datasets/people.csv",
@@ -871,7 +820,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .select(named_struct([lit("x"), col("a"), lit("y"), col("c")]).alias("struct"))
+            .select([named_struct([lit("x"), col("a"), lit("y"), col("c")]).alias("struct")])
             .collect()
             .await?;
 
@@ -890,7 +839,7 @@ mod tests {
     async fn test_func_sqrt() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df = spark.range(None, 1, 1, Some(1)).select(sqrt(lit(4)));
+        let df = spark.range(None, 1, 1, Some(1)).select([sqrt(lit(4))]);
 
         let row = df.collect().await?;
 
@@ -915,7 +864,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .select((col("a") + lit(4)).alias("add"))
+            .select([(col("a") + lit(4)).alias("add")])
             .collect()
             .await?;
 
@@ -938,7 +887,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .select((col("a") - lit(4)).alias("sub"))
+            .select([(col("a") - lit(4)).alias("sub")])
             .collect()
             .await?;
 
@@ -961,7 +910,7 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .select((col("a") * lit(4)).alias("multi"))
+            .select([(col("a") * lit(4)).alias("multi")])
             .collect()
             .await?;
 
@@ -985,8 +934,8 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").contains("e"))
-            .select("name")
+            .filter(col("name").contains(lit("e")))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1009,8 +958,8 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").startswith("Al"))
-            .select("name")
+            .filter(col("name").startswith(lit("Al")))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1033,8 +982,8 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").endswith("ice"))
-            .select("name")
+            .filter(col("name").endswith(lit("ice")))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1057,8 +1006,8 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").like("Alice"))
-            .select("name")
+            .filter(col("name").like(lit("Alice")))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1081,8 +1030,8 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").ilike("%Ice"))
-            .select("name")
+            .filter(col("name").ilike(lit("%Ice")))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1105,8 +1054,8 @@ mod tests {
         let df = spark.create_dataframe(&data)?;
 
         let res = df
-            .filter(col("name").rlike("ice$"))
-            .select("name")
+            .filter(col("name").rlike(lit("ice$")))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1129,7 +1078,7 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let res = df.select(col("a").eq("b")).collect().await?;
+        let res = df.select([col("a").eq(col("b"))]).collect().await?;
 
         let a: ArrayRef = Arc::new(BooleanArray::from(vec![true, true, false]));
 
@@ -1284,8 +1233,8 @@ mod tests {
 
         let res = df
             .clone()
-            .filter(col("name").isin(vec!["Tom", "Bob"]))
-            .select("name")
+            .filter(col("name").isin(vec![lit("Tom"), lit("Bob")]))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1297,8 +1246,8 @@ mod tests {
 
         // Logical NOT for column ISIN
         let res = df
-            .filter(!col("name").isin(vec!["Tom", "Bob"]))
-            .select("name")
+            .filter(!col("name").isin(vec![lit("Tom"), lit("Bob")]))
+            .select(["name"])
             .collect()
             .await?;
 
@@ -1345,7 +1294,10 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let res = df.select(greatest(["a", "b", "c"])).collect().await?;
+        let res = df
+            .select([greatest([col("a"), col("b"), col("c")])])
+            .collect()
+            .await?;
 
         let expected = RecordBatch::try_from_iter(vec![("greatest(a, b, c)", b)])?;
 
@@ -1365,7 +1317,10 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let res = df.select(least(["a", "b", "c"])).collect().await?;
+        let res = df
+            .select([least([col("a"), col("b"), col("c")])])
+            .collect()
+            .await?;
 
         let expected = RecordBatch::try_from_iter(vec![("least(a, b, c)", a)])?;
 
@@ -1377,25 +1332,21 @@ mod tests {
     async fn test_func_col_drop_fields() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df = spark.range(None, 1, 1, None).select(
-            named_struct([
-                lit("a"),
-                lit(1),
-                lit("b"),
-                lit(2),
-                lit("c"),
-                lit(3),
-                lit("d"),
-                lit(4),
-            ])
-            .alias("struct_col"),
-        );
+        let df = spark.range(None, 1, 1, None).select([named_struct([
+            lit("a"),
+            lit(1),
+            lit("b"),
+            lit(2),
+            lit("c"),
+            lit(3),
+            lit("d"),
+            lit(4),
+        ])
+        .alias("struct_col")]);
 
-        let df = df.select(
-            col("struct_col")
-                .drop_fields(["b", "c"])
-                .alias("struct_col"),
-        );
+        let df = df.select([col("struct_col")
+            .drop_fields(["b", "c"])
+            .alias("struct_col")]);
 
         let res = df.collect().await?;
 
@@ -1417,15 +1368,17 @@ mod tests {
     async fn test_func_col_with_field() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let df = spark
-            .range(None, 1, 1, None)
-            .select(named_struct([lit("a"), lit(1), lit("b"), lit(2)]).alias("struct_col"));
+        let df = spark.range(None, 1, 1, None).select([named_struct([
+            lit("a"),
+            lit(1),
+            lit("b"),
+            lit(2),
+        ])
+        .alias("struct_col")]);
 
-        let df = df.select(
-            col("struct_col")
-                .with_field("b", lit(4))
-                .alias("struct_col"),
-        );
+        let df = df.select([col("struct_col")
+            .with_field("b", lit(4))
+            .alias("struct_col")]);
 
         let res = df.collect().await?;
 
@@ -1500,7 +1453,7 @@ mod tests {
         let spark = setup().await;
 
         let window = Window::new()
-            .partition_by(col("name"))
+            .partition_by([col("name")])
             .order_by([col("age")])
             .rows_between(Window::unbounded_preceding(), Window::current_row());
 
