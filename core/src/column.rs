@@ -161,9 +161,10 @@ impl Column {
         Column::from(expression)
     }
 
-    pub fn drop_fields<'a, I>(self, field_names: I) -> Column
+    pub fn drop_fields<I, T>(self, field_names: I) -> Column
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item = T>,
+        T: ToString,
     {
         let mut parent_col = self.expression;
 
@@ -182,13 +183,13 @@ impl Column {
         Column::from(parent_col)
     }
 
-    pub fn with_field(self, field_name: &str, col: Column) -> Column {
+    pub fn with_field(self, field_name: &str, col: impl Into<Column>) -> Column {
         let update_field = spark::Expression {
             expr_type: Some(spark::expression::ExprType::UpdateFields(Box::new(
                 spark::expression::UpdateFields {
                     struct_expression: Some(Box::new(self.expression)),
                     field_name: field_name.to_string(),
-                    value_expression: Some(Box::new(col.expression)),
+                    value_expression: Some(Box::new(col.into().expression)),
                 },
             ))),
         };
@@ -196,8 +197,8 @@ impl Column {
         Column::from(update_field)
     }
 
-    pub fn substr(self, start_pos: Column, length: Column) -> Column {
-        invoke_func("substr", vec![self, start_pos, length])
+    pub fn substr(self, start_pos: impl Into<Column>, length: impl Into<Column>) -> Column {
+        invoke_func("substr", vec![self, start_pos.into(), length.into()])
     }
 
     /// Casts the column into the Spark DataType
@@ -263,50 +264,50 @@ impl Column {
     /// ```rust
     /// df.filter(col("name").contains("ge"));
     /// ```
-    pub fn contains(self, other: Column) -> Column {
-        invoke_func("contains", vec![self, other])
+    pub fn contains(self, other: impl Into<Column>) -> Column {
+        invoke_func("contains", vec![self, other.into()])
     }
 
     /// A filter expression that evaluates if the column startswith a string literal
-    pub fn startswith(self, other: Column) -> Column {
-        invoke_func("startswith", vec![self, other])
+    pub fn startswith(self, other: impl Into<Column>) -> Column {
+        invoke_func("startswith", vec![self, other.into()])
     }
 
     /// A filter expression that evaluates if the column endswith a string literal
-    pub fn endswith(self, other: Column) -> Column {
-        invoke_func("endswith", vec![self, other])
+    pub fn endswith(self, other: impl Into<Column>) -> Column {
+        invoke_func("endswith", vec![self, other.into()])
     }
 
     /// A SQL LIKE filter expression that evaluates the column based on a case sensitive match
-    pub fn like(self, other: Column) -> Column {
-        invoke_func("like", vec![self, other])
+    pub fn like(self, other: impl Into<Column>) -> Column {
+        invoke_func("like", vec![self, other.into()])
     }
 
     /// A SQL ILIKE filter expression that evaluates the column based on a case insensitive match
-    pub fn ilike(self, other: Column) -> Column {
-        invoke_func("ilike", vec![self, other])
+    pub fn ilike(self, other: impl Into<Column>) -> Column {
+        invoke_func("ilike", vec![self, other.into()])
     }
 
     /// A SQL RLIKE filter expression that evaluates the column based on a regex match
-    pub fn rlike(self, other: Column) -> Column {
-        invoke_func("rlike", vec![self, other])
+    pub fn rlike(self, other: impl Into<Column>) -> Column {
+        invoke_func("rlike", vec![self, other.into()])
     }
 
     /// Equality comparion. Cannot overload the '==' and return something other
     /// than a bool
-    pub fn eq(self, other: Column) -> Column {
-        invoke_func("==", vec![self, other])
+    pub fn eq(self, other: impl Into<Column>) -> Column {
+        invoke_func("==", vec![self, other.into()])
     }
 
     /// Logical AND comparion. Cannot overload the '&&' and return something other
     /// than a bool
-    pub fn and(self, other: Column) -> Column {
-        invoke_func("and", vec![self, other])
+    pub fn and(self, other: impl Into<Column>) -> Column {
+        invoke_func("and", vec![self, other.into()])
     }
 
     /// Logical OR comparion.
-    pub fn or(self, other: Column) -> Column {
-        invoke_func("or", vec![self, other])
+    pub fn or(self, other: impl Into<Column>) -> Column {
+        invoke_func("or", vec![self, other.into()])
     }
 
     /// A filter expression that evaluates to true is the expression is null
@@ -374,6 +375,12 @@ impl From<spark::expression::Literal> for Column {
 impl From<String> for Column {
     fn from(value: String) -> Self {
         Column::from_string(value)
+    }
+}
+
+impl From<&String> for Column {
+    fn from(value: &String) -> Self {
+        Column::from_str(value.as_str())
     }
 }
 

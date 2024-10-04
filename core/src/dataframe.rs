@@ -107,7 +107,7 @@ impl DataFrame {
     /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.group_by().agg()`)
     pub fn agg<I>(self, exprs: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         self.group_by::<Vec<Column>>(None).agg(exprs)
     }
@@ -123,14 +123,14 @@ impl DataFrame {
     }
 
     /// Calculates the approximate quantiles of numerical columns of a [DataFrame].
-    pub async fn approx_quantile<'a, I, P>(
+    pub async fn approx_quantile<I, P>(
         self,
         cols: I,
         probabilities: P,
         relative_error: f64,
     ) -> Result<RecordBatch, SparkError>
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
         P: IntoIterator<Item = f64>,
     {
         if relative_error < 0.0 {
@@ -336,7 +336,7 @@ impl DataFrame {
     /// Create a multi-dimensional cube for the current [DataFrame] using the specified columns, so we can run aggregations on them.
     pub fn cube<I>(self, cols: I) -> GroupedData
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         GroupedData::new(
             self,
@@ -349,9 +349,10 @@ impl DataFrame {
 
     // Computes basic statistics for numeric and string columns. This includes count, mean, stddev, min, and max.
     // If no columns are given, this function computes statistics for all numerical or string columns.
-    pub fn describe<'a, I>(self, cols: Option<I>) -> DataFrame
+    pub fn describe<I, T>(self, cols: Option<I>) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str> + std::default::Default,
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
     {
         let plan = self.plan.describe(cols);
 
@@ -374,7 +375,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] without the specified columns
     pub fn drop<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.drop(cols);
 
@@ -389,7 +390,11 @@ impl DataFrame {
     ///
     /// If no columns are supplied then it all columns are used
     ///
-    pub fn drop_duplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
+    pub fn drop_duplicates<I, T>(self, cols: Option<I>) -> DataFrame
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
         let plan = self.plan.drop_duplicates(cols, false);
 
         DataFrame {
@@ -403,7 +408,11 @@ impl DataFrame {
     ///
     /// This only works with streaming [DataFrame], and watermark for the input [DataFrame] must be set via `with_watermark()`.
     ///
-    pub fn drop_duplicates_within_waterwmark(self, cols: Option<Vec<&str>>) -> DataFrame {
+    pub fn drop_duplicates_within_waterwmark<I, T>(self, cols: Option<I>) -> DataFrame
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
         let plan = self.plan.drop_duplicates(cols, true);
 
         DataFrame {
@@ -492,9 +501,9 @@ impl DataFrame {
     }
 
     /// Replace null values, alias for `df.na().fill()`.
-    pub fn fillna<'a, I, T, L>(self, cols: Option<I>, values: T) -> DataFrame
+    pub fn fillna<I, T, L>(self, cols: Option<I>, values: T) -> DataFrame
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
         T: IntoIterator<Item = L>,
         L: Into<spark::expression::Literal>,
     {
@@ -514,7 +523,7 @@ impl DataFrame {
     ///     df.filter("salary > 4000").collect().await?;
     /// }
     /// ```
-    pub fn filter<T: ToFilterExpr>(self, condition: T) -> DataFrame {
+    pub fn filter(self, condition: impl ToFilterExpr) -> DataFrame {
         let plan = self.plan.filter(condition);
 
         DataFrame {
@@ -545,7 +554,7 @@ impl DataFrame {
     /// Groups the [DataFrame] using the specified columns, and returns a [GroupedData] object
     pub fn group_by<I>(self, cols: Option<I>) -> GroupedData
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let grouping_cols = match cols {
             Some(cols) => VecExpression::from_iter(cols).expr,
@@ -562,7 +571,7 @@ impl DataFrame {
     /// Specifies some hint on the current [DataFrame].
     pub fn hint<I>(self, name: &str, parameters: Option<I>) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.hint(name, parameters);
 
@@ -695,7 +704,7 @@ impl DataFrame {
         value_column_name: &str,
     ) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         self.unpivot(ids, values, variable_column_name, value_column_name)
     }
@@ -720,7 +729,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn order_by<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.sort(cols, false);
 
@@ -824,7 +833,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] partitioned by the given partitioning expressions.
     pub fn repartition_by_range<I>(self, num_partitions: Option<i32>, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.repartition_by_range(num_partitions, cols);
 
@@ -852,7 +861,7 @@ impl DataFrame {
     /// and returns a [GroupedData] object
     pub fn rollup<I>(self, cols: I) -> GroupedData
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         GroupedData::new(
             self,
@@ -941,10 +950,9 @@ impl DataFrame {
     ///     df.select(vec![col("age"), col("name")]).collect().await?;
     /// }
     /// ```
-    pub fn select<I, S>(self, cols: I) -> DataFrame
+    pub fn select<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = S>,
-        S: Into<Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.project(cols);
 
@@ -1020,7 +1028,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn sort<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.sort(cols, true);
 
@@ -1033,7 +1041,7 @@ impl DataFrame {
     /// Returns a new [DataFrame] with each partition sorted by the specified column(s).
     pub fn sort_within_partitions<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item = Column>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let plan = self.plan.sort(cols, false);
 
@@ -1276,8 +1284,8 @@ impl DataFrame {
         value_column_name: &str,
     ) -> DataFrame
     where
-        T: IntoIterator<Item = Column>,
-        I: IntoIterator<Item = Column>,
+        T: IntoIterator<Item: Into<Column>>,
+        I: IntoIterator<Item: Into<Column>>,
     {
         let ids = VecExpression::from_iter(ids).expr;
 
@@ -1830,7 +1838,11 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let res = df.clone().drop_duplicates(None).count().await?;
+        let res = df
+            .clone()
+            .drop_duplicates::<Vec<_>, String>(None)
+            .count()
+            .await?;
 
         assert_eq!(res, 2);
 

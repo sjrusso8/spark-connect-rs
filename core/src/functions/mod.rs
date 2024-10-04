@@ -28,13 +28,13 @@ where
 }
 
 /// Create a column from a &str
-pub fn col(value: &str) -> Column {
-    Column::from(value)
+pub fn col(value: impl Into<Column>) -> Column {
+    value.into()
 }
 
 /// Create a column from a &str
-pub fn column(value: &str) -> Column {
-    Column::from(value)
+pub fn column(value: impl Into<Column>) -> Column {
+    value.into()
 }
 
 /// Create a literal value from a rust data type
@@ -42,42 +42,62 @@ pub fn lit(col: impl Into<Literal>) -> Column {
     Column::from(col.into())
 }
 
-pub fn approx_count_distinct(col: Column, rsd: Option<f32>) -> Column {
+pub fn approx_count_distinct(col: impl Into<Column>, rsd: Option<f32>) -> Column {
     match rsd {
-        Some(rsd) => invoke_func("approx_count_distinct", vec![col, lit(rsd)]),
-        None => invoke_func("approx_count_distinct", vec![col]),
+        Some(rsd) => invoke_func("approx_count_distinct", vec![col.into(), lit(rsd)]),
+        None => invoke_func("approx_count_distinct", vec![col.into()]),
     }
 }
 
-pub fn array_append(col: Column, value: Column) -> Column {
-    invoke_func("array_append", vec![col, value])
+pub fn array_append(col: impl Into<Column>, value: impl Into<Column>) -> Column {
+    invoke_func("array_append", vec![col.into(), value.into()])
 }
 
-pub fn array_insert(col: Column, pos: Column, value: Column) -> Column {
-    invoke_func("array_insert", vec![col, pos, value])
+pub fn array_insert(
+    col: impl Into<Column>,
+    pos: impl Into<Column>,
+    value: impl Into<Column>,
+) -> Column {
+    invoke_func("array_insert", vec![col.into(), pos.into(), value.into()])
 }
 
-pub fn array_join(col: Column, delimiter: &str, null_replacement: Option<&str>) -> Column {
+pub fn array_join(
+    col: impl Into<Column>,
+    delimiter: &str,
+    null_replacement: Option<&str>,
+) -> Column {
     match null_replacement {
-        Some(replacement) => invoke_func("array_join", vec![col, lit(delimiter), lit(replacement)]),
-        None => invoke_func("array_join", vec![col, lit(delimiter)]),
+        Some(replacement) => invoke_func(
+            "array_join",
+            vec![col.into(), lit(delimiter), lit(replacement)],
+        ),
+        None => invoke_func("array_join", vec![col.into(), lit(delimiter)]),
     }
 }
 
-pub fn array_position(col: Column, value: impl Into<spark::expression::Literal>) -> Column {
-    invoke_func("array_position", vec![col, lit(value)])
+pub fn array_position(
+    col: impl Into<Column>,
+    value: impl Into<spark::expression::Literal>,
+) -> Column {
+    invoke_func("array_position", vec![col.into(), lit(value)])
 }
 
-pub fn array_remove(col: Column, element: impl Into<spark::expression::Literal>) -> Column {
-    invoke_func("array_remove", vec![col, lit(element)])
+pub fn array_remove(
+    col: impl Into<Column>,
+    element: impl Into<spark::expression::Literal>,
+) -> Column {
+    invoke_func("array_remove", vec![col.into(), lit(element)])
 }
 
-pub fn array_repeat(col: Column, count: impl Into<spark::expression::Literal>) -> Column {
-    invoke_func("array_repeat", vec![col, lit(count)])
+pub fn array_repeat(
+    col: impl Into<Column>,
+    count: impl Into<spark::expression::Literal>,
+) -> Column {
+    invoke_func("array_repeat", vec![col.into(), lit(count)])
 }
 
-pub fn array_overlap(a1: Column, a2: Column) -> Column {
-    invoke_func("array_overlap", vec![a1, a2])
+pub fn array_overlap(a1: impl Into<Column>, a2: impl Into<Column>) -> Column {
+    invoke_func("array_overlap", vec![a1.into(), a2.into()])
 }
 
 #[allow(dead_code)]
@@ -96,11 +116,11 @@ pub fn randn(seed: Option<i32>) -> Column {
 
 #[allow(dead_code)]
 #[allow(unused_variables)]
-fn when(condition: Column, value: Column) -> Column {
+fn when(condition: impl Into<Column>, value: Column) -> Column {
     unimplemented!("not implemented")
 }
 
-pub fn bitwise_not<T: Into<Column>>(col: T) -> Column {
+pub fn bitwise_not(col: impl Into<Column>) -> Column {
     invoke_func("~", vec![col.into()])
 }
 
@@ -114,9 +134,9 @@ pub fn expr(val: &str) -> Column {
     })
 }
 
-pub fn log(arg1: Column, arg2: Option<Column>) -> Column {
+pub fn log(arg1: impl Into<Column>, arg2: Option<impl Into<Column>>) -> Column {
     match arg2 {
-        Some(arg2) => invoke_func("log", vec![arg1, arg2]),
+        Some(arg2) => invoke_func("log", vec![arg1.into(), arg2.into()]),
         None => ln(arg1),
     }
 }
@@ -129,73 +149,73 @@ pub fn ntile(n: i32) -> Column {
     invoke_func("ntitle", vec![lit(n)])
 }
 
-pub fn negate(col: Column) -> Column {
+pub fn negate(col: impl Into<Column>) -> Column {
     invoke_func("negative", vec![col])
 }
 
-pub fn pow(col1: Column, col2: Column) -> Column {
-    power(col1, col2)
+pub fn pow(col1: impl Into<Column>, col2: impl Into<Column>) -> Column {
+    power(col1.into(), col2.into())
 }
 
-pub fn round(col: Column, scale: Option<f32>) -> Column {
-    let values = vec![col, lit(scale.unwrap_or(0.0)).clone()];
+pub fn round(col: impl Into<Column>, scale: Option<f32>) -> Column {
+    let values = vec![col.into(), lit(scale.unwrap_or(0.0)).clone()];
     invoke_func("round", values)
 }
 
-pub fn add_months(start: Column, months: Column) -> Column {
-    invoke_func("add_months", vec![start, months])
+pub fn add_months(start: impl Into<Column>, months: impl Into<Column>) -> Column {
+    invoke_func("add_months", vec![start.into(), months.into()])
 }
 
-pub fn date_add(start: Column, days: Column) -> Column {
-    invoke_func("date_add", vec![start, days])
+pub fn date_add(start: impl Into<Column>, days: impl Into<Column>) -> Column {
+    invoke_func("date_add", vec![start.into(), days.into()])
 }
 
-pub fn dateadd(start: Column, days: Column) -> Column {
-    invoke_func("dateadd", vec![start, days])
+pub fn dateadd(start: impl Into<Column>, days: impl Into<Column>) -> Column {
+    invoke_func("dateadd", vec![start.into(), days.into()])
 }
 
-pub fn datediff(end: Column, start: Column) -> Column {
-    invoke_func("datediff", vec![end, start])
+pub fn datediff(end: impl Into<Column>, start: impl Into<Column>) -> Column {
+    invoke_func("datediff", vec![end.into(), start.into()])
 }
 
-pub fn date_sub(start: Column, end: Column) -> Column {
-    invoke_func("date_sub", vec![start, end])
+pub fn date_sub(start: impl Into<Column>, end: impl Into<Column>) -> Column {
+    invoke_func("date_sub", vec![start.into(), end.into()])
 }
 
-pub fn character_length(str: Column) -> Column {
-    invoke_func("character_length", vec![str])
+pub fn character_length(str: impl Into<Column>) -> Column {
+    invoke_func("character_length", vec![str.into()])
 }
 
-pub fn char_length(str: Column) -> Column {
-    invoke_func("char_length", vec![str])
+pub fn char_length(str: impl Into<Column>) -> Column {
+    invoke_func("char_length", vec![str.into()])
 }
 
-pub fn ucase(str: Column) -> Column {
-    invoke_func("ucase", vec![str])
+pub fn ucase(str: impl Into<Column>) -> Column {
+    invoke_func("ucase", vec![str.into()])
 }
 
-pub fn asc(col: Column) -> Column {
-    col.asc()
+pub fn asc(col: impl Into<Column>) -> Column {
+    col.into().asc()
 }
 
-pub fn asc_nulls_first(col: Column) -> Column {
-    col.asc_nulls_first()
+pub fn asc_nulls_first(col: impl Into<Column>) -> Column {
+    col.into().asc_nulls_first()
 }
 
-pub fn asc_nulls_last(col: Column) -> Column {
-    col.asc_nulls_last()
+pub fn asc_nulls_last(col: impl Into<Column>) -> Column {
+    col.into().asc_nulls_last()
 }
 
-pub fn desc(col: Column) -> Column {
-    col.desc()
+pub fn desc(col: impl Into<Column>) -> Column {
+    col.into().desc()
 }
 
-pub fn desc_nulls_first(col: Column) -> Column {
-    col.desc_nulls_first()
+pub fn desc_nulls_first(col: impl Into<Column>) -> Column {
+    col.into().desc_nulls_first()
 }
 
-pub fn desc_nulls_last(col: Column) -> Column {
-    col.desc_nulls_last()
+pub fn desc_nulls_last(col: impl Into<Column>) -> Column {
+    col.into().desc_nulls_last()
 }
 
 macro_rules! generate_functions {

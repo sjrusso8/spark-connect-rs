@@ -151,11 +151,11 @@ impl LogicalPlanBuilder {
         Ok(LogicalPlanBuilder::from(local_rel))
     }
 
-    pub fn corr(self, col1: &str, col2: &str) -> LogicalPlanBuilder {
+    pub fn corr(self, col1: impl AsRef<str>, col2: impl AsRef<str>) -> LogicalPlanBuilder {
         let corr = spark::StatCorr {
             input: self.relation_input(),
-            col1: col1.to_string(),
-            col2: col2.to_string(),
+            col1: col1.as_ref().to_string(),
+            col2: col2.as_ref().to_string(),
             method: Some("pearson".to_string()),
         };
 
@@ -164,11 +164,11 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(corr_rel)
     }
 
-    pub fn cov(self, col1: &str, col2: &str) -> LogicalPlanBuilder {
+    pub fn cov(self, col1: impl AsRef<str>, col2: impl AsRef<str>) -> LogicalPlanBuilder {
         let cov = spark::StatCov {
             input: self.relation_input(),
-            col1: col1.to_string(),
-            col2: col2.to_string(),
+            col1: col1.as_ref().to_string(),
+            col2: col2.as_ref().to_string(),
         };
 
         let cov_rel = RelType::Cov(Box::new(cov));
@@ -188,17 +188,19 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(ctab_rel)
     }
 
-    pub fn describe<'a, I>(self, cols: Option<I>) -> LogicalPlanBuilder
+    pub fn describe<I, T>(self, cols: Option<I>) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = &'a str> + std::default::Default,
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
     {
+        let cols = match cols {
+            Some(cols) => cols.into_iter().map(|c| c.as_ref().to_string()).collect(),
+            None => vec![],
+        };
+
         let desc = spark::StatDescribe {
             input: self.relation_input(),
-            cols: cols
-                .unwrap_or_default()
-                .into_iter()
-                .map(|col| col.to_string())
-                .collect(),
+            cols,
         };
 
         let desc_rel = RelType::Describe(Box::new(desc));
@@ -207,7 +209,7 @@ impl LogicalPlanBuilder {
     }
 
     pub fn distinct(self) -> LogicalPlanBuilder {
-        self.drop_duplicates::<Vec<_>>(None, false)
+        self.drop_duplicates::<Vec<_>, String>(None, false)
     }
 
     pub fn drop<I, S>(self, cols: I) -> LogicalPlanBuilder
@@ -224,18 +226,22 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(drop_expr)
     }
 
-    pub fn drop_duplicates<'a, I>(
+    pub fn drop_duplicates<I, T>(
         self,
         cols: Option<I>,
         within_watermark: bool,
     ) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = &'a str> + std::default::Default,
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
     {
         let drop_expr = match cols {
             Some(cols) => spark::Deduplicate {
                 input: self.relation_input(),
-                column_names: cols.into_iter().map(|col| col.to_string()).collect(),
+                column_names: cols
+                    .into_iter()
+                    .map(|col| col.as_ref().to_string())
+                    .collect(),
                 all_columns_as_keys: Some(false),
                 within_watermark: Some(within_watermark),
             },
@@ -253,14 +259,16 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(rel_type)
     }
 
-    pub fn dropna<'a, I>(
+    // TODO! this should probably be an enum
+    pub fn dropna<I, T>(
         self,
         how: &str,
         threshold: Option<i32>,
         subset: Option<I>,
     ) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = &'a str> + std::default::Default,
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
     {
         let mut min_non_nulls = match how {
             "all" => Some(1),
@@ -272,13 +280,14 @@ impl LogicalPlanBuilder {
             min_non_nulls = Some(threshold)
         };
 
+        let cols = match subset {
+            Some(cols) => cols.into_iter().map(|c| c.as_ref().to_string()).collect(),
+            None => vec![],
+        };
+
         let dropna = spark::NaDrop {
             input: self.relation_input(),
-            cols: subset
-                .unwrap_or_default()
-                .into_iter()
-                .map(|col| col.to_string())
-                .collect(),
+            cols,
             min_non_nulls,
         };
 
@@ -287,14 +296,14 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(dropna_rel)
     }
 
-    pub fn fillna<'a, I, T, L>(self, cols: Option<I>, values: T) -> LogicalPlanBuilder
+    pub fn fillna<I, T, L>(self, cols: Option<I>, values: T) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
         T: IntoIterator<Item = L>,
         L: Into<spark::expression::Literal>,
     {
         let cols: Vec<String> = match cols {
-            Some(cols) => cols.into_iter().map(|v| v.to_string()).collect(),
+            Some(cols) => cols.into_iter().map(|v| v.as_ref().to_string()).collect(),
             None => vec![],
         };
 
@@ -426,19 +435,22 @@ impl LogicalPlanBuilder {
         LogicalPlanBuilder::from(rel_type)
     }
 
-    pub fn approx_quantile<'a, I, P>(
+    pub fn approx_quantile<I, P>(
         self,
         cols: I,
         probabilities: P,
         relative_error: f64,
     ) -> LogicalPlanBuilder
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
         P: IntoIterator<Item = f64>,
     {
         let approx_quantile = spark::StatApproxQuantile {
             input: self.relation_input(),
-            cols: cols.into_iter().map(|col| col.to_string()).collect(),
+            cols: cols
+                .into_iter()
+                .map(|col| col.as_ref().to_string())
+                .collect(),
             probabilities: probabilities.into_iter().collect(),
             relative_error,
         };
