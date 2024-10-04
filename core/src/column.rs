@@ -163,8 +163,7 @@ impl Column {
 
     pub fn drop_fields<I, T>(self, field_names: I) -> Column
     where
-        I: IntoIterator<Item = T>,
-        T: ToString,
+        I: IntoIterator<Item: AsRef<str>>,
     {
         let mut parent_col = self.expression;
 
@@ -173,7 +172,7 @@ impl Column {
                 expr_type: Some(spark::expression::ExprType::UpdateFields(Box::new(
                     spark::expression::UpdateFields {
                         struct_expression: Some(Box::new(parent_col)),
-                        field_name: field.to_string(),
+                        field_name: field.as_ref().to_string(),
                         value_expression: None,
                     },
                 ))),
