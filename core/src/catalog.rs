@@ -1,11 +1,14 @@
 //! Spark Catalog representation through which the user may create, drop, alter or query underlying databases, tables, functions, etc.
 
+use std::collections::HashMap;
+
 use arrow::array::RecordBatch;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
-use crate::spark;
+use crate::types::StructType;
+use crate::{spark, DataFrame};
 use crate::storage::StorageLevel;
 
 #[derive(Debug, Clone)]
@@ -139,6 +142,25 @@ impl Catalog {
         let record = self.spark_session.client().to_arrow(plan).await?;
 
         Catalog::arrow_to_bool(record)
+    }
+
+    /// Creates a table based on the dataset in a data source
+    pub async fn create_table(
+        &self,
+        table_name: &str,
+        path: Option<&str>,
+        source: Option<&str>,
+        schema: Option<StructType>,
+        description: Option<&str>,
+        options: HashMap<String, String>,
+    ) -> Result<DataFrame, SparkError> {
+        let mut opts = options.clone();
+
+        if let Some(p) = path {
+            opts.insert("path".to_string(), p.to_string());
+        }
+
+        todo!()
     }
 
     /// Returns a list of tables/views in the specific database
