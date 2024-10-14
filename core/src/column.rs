@@ -204,7 +204,7 @@ impl Column {
     ///
     /// # Arguments:
     ///
-    /// * `to_type` is a string or [DataType] of the target type
+    /// * `to_type` is a string or [crate::types::DataType] of the target type
     ///
     /// # Example:
     /// ```rust
@@ -239,11 +239,11 @@ impl Column {
     ///
     /// # Arguments:
     ///
-    /// * `cols` a value that implements the [ToLiteralExpr] trait
+    /// * `cols` a vector of Columns
     ///
     /// # Example:
     /// ```rust
-    /// df.filter(col("name").isin(["Jorge", "Bob"]));
+    /// df.filter(col("name").isin([lit("Jorge"), lit("Bob")]));
     /// ```
     pub fn isin(self, cols: Vec<Column>) -> Column {
         let mut val = cols.clone();
