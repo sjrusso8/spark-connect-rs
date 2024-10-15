@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // groupby the pickup
     let df = df
         .select(["pickup_zip", "fare_amount"])
-        .group_by(Some([col("pickup_zip")]));
+        .group_by(Some(["pickup_zip"]));
 
     // average the fare amount and order by the top 10 zip codes
     let df = df

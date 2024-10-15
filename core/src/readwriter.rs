@@ -86,8 +86,8 @@ pub struct CommonFileOptions {
     pub ignore_missing_files: Option<bool>,
 }
 
-impl CommonFileOptions {
-    pub fn new() -> Self {
+impl Default for CommonFileOptions {
+    fn default() -> Self {
         Self {
             path_glob_filter: None,
             recursive_file_lookup: Some(false),
@@ -183,7 +183,7 @@ impl ConfigOpts for CommonFileOptions {
 /// - `line_sep`: Line separator character in the CSV file.
 /// - `unescaped_quote_handling`: How to handle unescaped quotes in quoted fields. Options are "STOP_AT_CLOSING_QUOTE" and "BACK_TO_DELIMITER".
 /// - `common` - Common file options that are shared across multiple file formats.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CsvOptions {
     pub schema: Option<String>,
     pub sep: Option<String>,
@@ -224,47 +224,6 @@ pub struct CsvOptions {
 }
 
 impl CsvOptions {
-    pub fn new() -> Self {
-        Self {
-            schema: None,
-            sep: None,
-            delimiter: None,
-            encoding: None,
-            quote: None,
-            quote_all: None,
-            escape: None,
-            comment: None,
-            header: None,
-            infer_schema: None,
-            ignore_leading_white_space: None,
-            ignore_trailing_white_space: None,
-            null_value: None,
-            nan_value: None,
-            positive_inf: None,
-            negative_inf: None,
-            date_format: None,
-            timestamp_format: None,
-            timestamp_ntz_format: None,
-            enable_datetime_parsing_fallback: None,
-            max_columns: None,
-            max_chars_per_column: None,
-            max_malformed_log_per_partition: None,
-            mode: None,
-            column_name_of_corrupt_record: None,
-            multi_line: None,
-            char_to_escape_quote_escaping: None,
-            sampling_ratio: None,
-            prefer_date: None,
-            enforce_schema: None,
-            empty_value: None,
-            locale: None,
-            line_sep: None,
-            unescaped_quote_handling: None,
-            escape_quotes: None,
-            common: CommonFileOptions::new(),
-        }
-    }
-
     pub fn schema(mut self, value: &str) -> Self {
         self.schema = Some(value.to_string());
         self
@@ -696,8 +655,8 @@ pub struct JsonOptions {
     pub common: CommonFileOptions,
 }
 
-impl JsonOptions {
-    pub fn new() -> Self {
+impl Default for JsonOptions {
+    fn default() -> Self {
         Self {
             schema: None,
             compression: Some("gzip".to_string()),
@@ -724,10 +683,12 @@ impl JsonOptions {
             timestamp_ntz_format: None,
             enable_datetime_parsing_fallback: None,
             ignore_null_fields: None,
-            common: CommonFileOptions::new(),
+            common: CommonFileOptions::default(),
         }
     }
+}
 
+impl JsonOptions {
     pub fn schema(mut self, value: &str) -> Self {
         self.schema = Some(value.to_string());
         self
@@ -1026,15 +987,17 @@ pub struct OrcOptions {
     pub common: CommonFileOptions,
 }
 
-impl OrcOptions {
-    pub fn new() -> Self {
+impl Default for OrcOptions {
+    fn default() -> Self {
         OrcOptions {
             compression: Some("snappy".to_string()),
             merge_schema: None,
-            common: CommonFileOptions::new(),
+            common: CommonFileOptions::default(),
         }
     }
+}
 
+impl OrcOptions {
     pub fn compression(mut self, value: &str) -> Self {
         self.compression = Some(value.to_string());
         self
@@ -1091,17 +1054,19 @@ pub struct ParquetOptions {
     pub common: CommonFileOptions,
 }
 
-impl ParquetOptions {
-    pub fn new() -> Self {
+impl Default for ParquetOptions {
+    fn default() -> Self {
         Self {
             compression: Some("snappy".to_string()),
             merge_schema: None,
             datetime_rebase_mode: None,
             int96_rebase_mode: None,
-            common: CommonFileOptions::new(),
+            common: CommonFileOptions::default(),
         }
     }
+}
 
+impl ParquetOptions {
     pub fn compression(mut self, value: &str) -> Self {
         self.compression = Some(value.to_string());
         self
@@ -1169,7 +1134,7 @@ impl ConfigOpts for ParquetOptions {
 ///
 /// let df = spark.read().text(["/path/to/text"], options)?;
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TextOptions {
     pub whole_text: Option<bool>,
     pub line_sep: Option<String>,
@@ -1177,14 +1142,6 @@ pub struct TextOptions {
 }
 
 impl TextOptions {
-    pub fn new() -> Self {
-        Self {
-            whole_text: None,
-            line_sep: None,
-            common: CommonFileOptions::new(),
-        }
-    }
-
     pub fn whole_text(mut self, value: bool) -> Self {
         self.whole_text = Some(value);
         self
@@ -1753,7 +1710,7 @@ mod tests {
 
         let path = ["/opt/spark/work-dir/datasets/people.csv"];
 
-        let mut opts = CsvOptions::new();
+        let mut opts = CsvOptions::default();
 
         opts.header = Some(true);
         opts.null_value = Some("NULL".to_string());
@@ -1783,7 +1740,7 @@ mod tests {
 
         let path = ["/opt/spark/work-dir/datasets/employees.json"];
 
-        let mut opts = JsonOptions::new();
+        let mut opts = JsonOptions::default();
 
         opts.schema = Some("name STRING, salary INT".to_string());
         opts.multi_line = Some(false);
@@ -1807,7 +1764,7 @@ mod tests {
 
         let path = ["/opt/spark/work-dir/datasets/users.orc"];
 
-        let mut opts = OrcOptions::new();
+        let mut opts = OrcOptions::default();
 
         opts.compression = Some("snappy".to_string());
         opts.merge_schema = Some(true);
@@ -1828,7 +1785,7 @@ mod tests {
 
         let path = ["/opt/spark/work-dir/datasets/users.parquet"];
 
-        let mut opts = ParquetOptions::new();
+        let mut opts = ParquetOptions::default();
 
         opts.compression = Some("snappy".to_string());
         opts.common.path_glob_filter = Some("*.parquet".to_string());
@@ -1848,7 +1805,7 @@ mod tests {
 
         let path = ["/opt/spark/work-dir/datasets/people.txt"];
 
-        let mut opts = TextOptions::new();
+        let mut opts = TextOptions::default();
 
         // If true, read each file from input path(s) as a single row.
         opts.whole_text = Some(false);
@@ -1981,7 +1938,7 @@ mod tests {
 
         let path = "/tmp/csv_with_options_rande_id/";
 
-        let mut write_opts = CsvOptions::new();
+        let mut write_opts = CsvOptions::default();
 
         write_opts.header = Some(true);
         write_opts.null_value = Some("NULL".to_string());
@@ -1994,7 +1951,7 @@ mod tests {
 
         let path = ["/tmp/csv_with_options_rande_id/"];
 
-        let mut read_opts = CsvOptions::new();
+        let mut read_opts = CsvOptions::default();
 
         read_opts.header = Some(true);
 
@@ -2016,7 +1973,7 @@ mod tests {
 
         let path = "/tmp/json_with_options_rande_id/";
 
-        let mut write_opts = JsonOptions::new();
+        let mut write_opts = JsonOptions::default();
 
         write_opts.multi_line = Some(true);
         write_opts.allow_comments = Some(false);
@@ -2031,7 +1988,7 @@ mod tests {
 
         let path = ["/tmp/json_with_options_rande_id/"];
 
-        let read_opts = JsonOptions::new();
+        let read_opts = JsonOptions::default();
 
         let df = spark.read().json(path, read_opts)?;
 
@@ -2051,7 +2008,7 @@ mod tests {
 
         let path = "/tmp/orc_with_options_rande_id/";
 
-        let write_opts = OrcOptions::new();
+        let write_opts = OrcOptions::default();
 
         let _ = df
             .write()
@@ -2061,7 +2018,7 @@ mod tests {
 
         let path = ["/tmp/orc_with_options_rande_id/"];
 
-        let mut read_opts = OrcOptions::new();
+        let mut read_opts = OrcOptions::default();
 
         read_opts.merge_schema = Some(true);
         read_opts.common.path_glob_filter = Some("*.orc".to_string());
@@ -2085,7 +2042,7 @@ mod tests {
 
         let path = "/tmp/parquet_with_options_rande_id/";
 
-        let mut write_opts = ParquetOptions::new();
+        let mut write_opts = ParquetOptions::default();
 
         // Configure datetime rebase mode (options could be "EXCEPTION", "LEGACY", or "CORRECTED").
         write_opts.datetime_rebase_mode = Some("CORRECTED".to_string());
@@ -2101,7 +2058,7 @@ mod tests {
 
         let path = ["/tmp/parquet_with_options_rande_id/"];
 
-        let mut read_opts = ParquetOptions::new();
+        let mut read_opts = ParquetOptions::default();
 
         read_opts.merge_schema = Some(false);
         read_opts.common.path_glob_filter = Some("*.parquet".to_string());
@@ -2131,7 +2088,7 @@ mod tests {
 
         let path = "/tmp/text_with_options_rande_id/";
 
-        let mut write_opts = TextOptions::new();
+        let mut write_opts = TextOptions::default();
 
         write_opts.whole_text = Some(true);
 
@@ -2146,7 +2103,7 @@ mod tests {
 
         let path = ["/tmp/text_with_options_rande_id/"];
 
-        let mut read_opts = TextOptions::new();
+        let mut read_opts = TextOptions::default();
 
         read_opts.whole_text = Some(true);
         read_opts.line_sep = Some("\n".to_string());
