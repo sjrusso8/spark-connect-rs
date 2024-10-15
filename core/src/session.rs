@@ -79,7 +79,6 @@ impl SparkSessionBuilder {
 
     #[cfg(not(feature = "wasm"))]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
-        println!("{:?}", self.channel_builder.endpoint());
         let channel = Endpoint::from_shared(self.channel_builder.endpoint())
             .expect("Failed to create endpoint")
             .connect()

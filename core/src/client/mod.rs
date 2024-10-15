@@ -577,7 +577,10 @@ where
             }
             Ok(None) => {
                 if self.use_reattachable_execute && !self.handler.result_complete {
-                    println!("something bad happened in the reattach");
+                    println!("something bad happened in the reattach. submitting reattach");
+                    if let Err(err) = Box::pin(self.reattach_request()).await {
+                        return Err(err);
+                    }
                 }
                 None
             }
