@@ -287,37 +287,44 @@ where
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
 pub struct ResponseHandler {
+    session_id: Option<String>,
+    operation_id: Option<String>,
+    response_id: Option<String>,
     metrics: Option<spark::execute_plan_response::Metrics>,
     observed_metrics: Option<spark::execute_plan_response::ObservedMetrics>,
-    pub schema: Option<spark::DataType>,
+    pub(crate) schema: Option<spark::DataType>,
     batches: Vec<RecordBatch>,
-    pub sql_command_result: Option<spark::execute_plan_response::SqlCommandResult>,
-    pub write_stream_operation_start_result: Option<spark::WriteStreamOperationStartResult>,
-    pub streaming_query_command_result: Option<spark::StreamingQueryCommandResult>,
-    pub get_resources_command_result: Option<spark::GetResourcesCommandResult>,
-    pub streaming_query_manager_command_result: Option<spark::StreamingQueryManagerCommandResult>,
-    pub result_complete: Option<spark::execute_plan_response::ResultComplete>,
+    pub(crate) sql_command_result: Option<spark::execute_plan_response::SqlCommandResult>,
+    pub(crate) write_stream_operation_start_result: Option<spark::WriteStreamOperationStartResult>,
+    pub(crate) streaming_query_command_result: Option<spark::StreamingQueryCommandResult>,
+    pub(crate) get_resources_command_result: Option<spark::GetResourcesCommandResult>,
+    pub(crate) streaming_query_manager_command_result:
+        Option<spark::StreamingQueryManagerCommandResult>,
+    pub(crate) result_complete: bool,
     total_count: isize,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct AnalyzeHandler {
-    pub schema: Option<spark::DataType>,
-    pub explain: Option<String>,
-    pub tree_string: Option<String>,
-    pub is_local: Option<bool>,
-    pub is_streaming: Option<bool>,
-    pub input_files: Option<Vec<String>>,
-    pub spark_version: Option<String>,
-    pub ddl_parse: Option<spark::DataType>,
-    pub same_semantics: Option<bool>,
-    pub semantic_hash: Option<i32>,
-    pub get_storage_level: Option<spark::StorageLevel>,
+    pub(crate) schema: Option<spark::DataType>,
+    pub(crate) explain: Option<String>,
+    pub(crate) tree_string: Option<String>,
+    pub(crate) is_local: Option<bool>,
+    pub(crate) is_streaming: Option<bool>,
+    pub(crate) input_files: Option<Vec<String>>,
+    pub(crate) spark_version: Option<String>,
+    pub(crate) ddl_parse: Option<spark::DataType>,
+    pub(crate) same_semantics: Option<bool>,
+    pub(crate) semantic_hash: Option<i32>,
+    pub(crate) get_storage_level: Option<spark::StorageLevel>,
 }
 
 impl ResponseHandler {
     fn new() -> Self {
         Self {
+            session_id: None,
+            operation_id: None,
+            response_id: None,
             metrics: None,
             observed_metrics: None,
             schema: None,
@@ -327,7 +334,7 @@ impl ResponseHandler {
             streaming_query_command_result: None,
             get_resources_command_result: None,
             streaming_query_manager_command_result: None,
-            result_complete: None,
+            result_complete: false,
             total_count: 0,
         }
     }
@@ -355,10 +362,11 @@ impl AnalyzeHandler {
 pub struct SparkConnectClient<T> {
     stub: Arc<RwLock<SparkConnectServiceClient<T>>>,
     builder: ChannelBuilder,
-    pub handler: ResponseHandler,
-    pub analyzer: AnalyzeHandler,
-    pub user_context: Option<spark::UserContext>,
+    pub(crate) handler: ResponseHandler,
+    pub(crate) analyzer: AnalyzeHandler,
+    pub(crate) user_context: Option<spark::UserContext>,
     pub tags: Vec<String>,
+    pub use_reattachable_execute: bool,
 }
 
 impl<T> SparkConnectClient<T>
@@ -382,11 +390,34 @@ where
                 extensions: vec![],
             }),
             tags: vec![],
+            use_reattachable_execute: true,
         }
     }
 
     pub fn session_id(&self) -> String {
         self.builder.session_id.to_string()
+    }
+
+    pub fn set_reattachable_execute(&mut self, setting: bool) -> Result<(), SparkError> {
+        self.use_reattachable_execute = setting;
+        Ok(())
+    }
+
+    fn request_options(&self) -> Vec<spark::execute_plan_request::RequestOption> {
+        if self.use_reattachable_execute {
+            let reattach_opt = spark::ReattachOptions { reattachable: true };
+            let request_opt = spark::execute_plan_request::RequestOption {
+                request_option: Some(
+                    spark::execute_plan_request::request_option::RequestOption::ReattachOptions(
+                        reattach_opt,
+                    ),
+                ),
+            };
+
+            return vec![request_opt];
+        };
+
+        vec![]
     }
 
     fn execute_plan_request_with_metadata(&self) -> spark::ExecutePlanRequest {
@@ -396,7 +427,7 @@ where
             operation_id: None,
             plan: None,
             client_type: self.builder.user_agent.clone(),
-            request_options: vec![],
+            request_options: self.request_options(),
             tags: self.tags.clone(),
         }
     }
@@ -416,20 +447,52 @@ where
     ) -> Result<(), SparkError> {
         let mut client = self.stub.write().await;
 
-        let mut resp = client.execute_plan(req).await?.into_inner();
+        let mut stream = client.execute_plan(req).await?.into_inner();
         drop(client);
 
         // clear out any prior responses
         self.handler = ResponseHandler::new();
 
-        while let Some(resp) = resp.message().await.map_err(|err| {
-            SparkError::IoError(
-                err.to_string(),
-                std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
-            )
-        })? {
-            self.handle_response(resp)?;
-        }
+        while let Some(_resp) = match stream.message().await {
+            Ok(Some(msg)) => {
+                // Handle the message
+                self.handle_response(msg.clone())?;
+
+                Some(msg)
+            }
+            Ok(None) => {
+                if self.use_reattachable_execute && !self.handler.result_complete {
+                    println!("didn't get the whole stream submitting a reattach");
+                    if let Err(err) = self.reattach_request().await {
+                        return Err(err);
+                    }
+                }
+                None
+            }
+            Err(err) => {
+                if self.use_reattachable_execute && !self.handler.result_complete {
+                    println!("Error occurred, attempting to reattach the request");
+                    // Attempt to reattach the request before returning the error
+                    if let Err(err) = self.reattach_request().await {
+                        // If reattach fails, return the original error
+                        return Err(SparkError::IoError(
+                            err.to_string(),
+                            std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
+                        ));
+                    }
+                    None // Retry after reattaching
+                } else {
+                    return Err(SparkError::IoError(
+                        err.to_string(),
+                        std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
+                    ));
+                }
+            }
+        } {}
+        //
+        // if stream.message().await.is_ok() {
+        //     println!("next message")
+        // }
 
         Ok(())
     }
@@ -450,6 +513,101 @@ where
         drop(client);
 
         self.handle_analyze(resp)
+    }
+
+    fn validate_tag(&self, tag: &str) -> Result<(), SparkError> {
+        if tag.contains(',') {
+            return Err(SparkError::AnalysisException(
+                "Spark Connect tag can not contain ',' ".to_string(),
+            ));
+        };
+
+        if tag.is_empty() {
+            return Err(SparkError::AnalysisException(
+                "Spark Connect tag can not an empty string ".to_string(),
+            ));
+        };
+
+        Ok(())
+    }
+
+    pub fn add_tag(&mut self, tag: &str) -> Result<(), SparkError> {
+        self.validate_tag(tag)?;
+        self.tags.push(tag.to_string());
+        Ok(())
+    }
+
+    pub fn remove_tag(&mut self, tag: &str) -> Result<(), SparkError> {
+        self.validate_tag(tag)?;
+        self.tags.retain(|t| t != tag);
+        Ok(())
+    }
+
+    pub fn get_tags(&self) -> &Vec<String> {
+        &self.tags
+    }
+
+    pub fn clear_tags(&mut self) {
+        self.tags = vec![];
+    }
+
+    async fn reattach_request(&mut self) -> Result<(), SparkError> {
+        let mut client = self.stub.write().await;
+
+        let req = spark::ReattachExecuteRequest {
+            session_id: self.handler.session_id.clone().unwrap(),
+            user_context: self.user_context.clone(),
+            operation_id: self.handler.operation_id.clone().unwrap(),
+            client_type: self.builder.user_agent.clone(),
+            last_response_id: self.handler.response_id.clone(),
+        };
+
+        let mut stream = client.reattach_execute(req).await?.into_inner();
+        drop(client);
+
+        // clear out any prior responses
+        // self.handler = ResponseHandler::new();
+
+        while let Some(_resp) = match stream.message().await {
+            Ok(Some(msg)) => {
+                // Handle the message
+                self.handle_response(msg.clone())?;
+
+                Some(msg)
+            }
+            Ok(None) => {
+                if self.use_reattachable_execute && !self.handler.result_complete {
+                    println!("something bad happened in the reattach");
+                }
+                None
+            }
+            Err(err) => {
+                return Err(SparkError::IoError(
+                    err.to_string(),
+                    std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
+                ));
+            }
+        } {}
+
+        Ok(())
+    }
+
+    pub async fn config_request(
+        &self,
+        operation: spark::config_request::Operation,
+    ) -> Result<spark::ConfigResponse, SparkError> {
+        let operation = spark::ConfigRequest {
+            session_id: self.session_id(),
+            user_context: self.user_context.clone(),
+            client_type: self.builder.user_agent.clone(),
+            operation: Some(operation),
+        };
+
+        let mut client = self.stub.write().await;
+
+        let resp = client.config(operation).await?.into_inner();
+
+        Ok(resp)
     }
 
     pub async fn interrupt_request(
@@ -495,62 +653,13 @@ where
         Ok(resp)
     }
 
-    fn validate_tag(&self, tag: &str) -> Result<(), SparkError> {
-        if tag.contains(',') {
-            return Err(SparkError::AnalysisException(
-                "Spark Connect tag can not contain ',' ".to_string(),
-            ));
-        };
-
-        if tag.is_empty() {
-            return Err(SparkError::AnalysisException(
-                "Spark Connect tag can not an empty string ".to_string(),
-            ));
-        };
-
-        Ok(())
-    }
-
-    pub fn add_tag(&mut self, tag: &str) -> Result<(), SparkError> {
-        self.validate_tag(tag)?;
-        self.tags.push(tag.to_string());
-        Ok(())
-    }
-
-    pub fn remove_tag(&mut self, tag: &str) -> Result<(), SparkError> {
-        self.validate_tag(tag)?;
-        self.tags.retain(|t| t != tag);
-        Ok(())
-    }
-
-    pub fn get_tags(&self) -> &Vec<String> {
-        &self.tags
-    }
-
-    pub fn clear_tags(&mut self) {
-        self.tags = vec![];
-    }
-
-    pub async fn config_request(
-        &self,
-        operation: spark::config_request::Operation,
-    ) -> Result<spark::ConfigResponse, SparkError> {
-        let operation = spark::ConfigRequest {
-            session_id: self.session_id(),
-            user_context: self.user_context.clone(),
-            client_type: self.builder.user_agent.clone(),
-            operation: Some(operation),
-        };
-
-        let mut client = self.stub.write().await;
-
-        let resp = client.config(operation).await?.into_inner();
-
-        Ok(resp)
-    }
-
     fn handle_response(&mut self, resp: spark::ExecutePlanResponse) -> Result<(), SparkError> {
+        println!("{:?}", resp);
         self.validate_session(&resp.session_id)?;
+
+        self.handler.session_id = Some(resp.session_id);
+        self.handler.operation_id = Some(resp.operation_id);
+        self.handler.response_id = Some(resp.response_id);
 
         if let Some(schema) = &resp.schema {
             self.handler.schema = Some(schema.clone());
@@ -578,10 +687,9 @@ where
                 ResponseType::StreamingQueryManagerCommandResult(stream_qry_mngr_cmd) => {
                     self.handler.streaming_query_manager_command_result = Some(stream_qry_mngr_cmd)
                 }
-                _ => {
-                    return Err(SparkError::NotYetImplemented(
-                        "ResponseType not implemented".to_string(),
-                    ));
+                ResponseType::ResultComplete(_) => self.handler.result_complete = true,
+                ResponseType::Extension(_) => {
+                    unimplemented!("extension response types are not implemented")
                 }
             }
         }
