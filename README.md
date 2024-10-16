@@ -163,17 +163,17 @@ The following section outlines some of the larger functionality that are not yet
 
 |DataFrameReader  |API       |Comment                                |
 |------------------|----------|---------------------------------------|
-|csv               |![open]   |                                       |
+|csv               |![done]   |                                       |
 |format            |![done]   |                                       |
-|json              |![open]   |                                       |
+|json              |![done]   |                                       |
 |load              |![done]   |                                       |
 |option            |![done]   |                                       |
 |options           |![done]   |                                       |
-|orc               |![open]   |                                       |
-|parquet           |![open]   |                                       |
+|orc               |![done]   |                                       |
+|parquet           |![done]   |                                       |
 |schema            |![done]   |                                       |
 |table             |![done]   |                                       |
-|text              |![open]   |                                       |
+|text              |![done]   |                                       |
 
 ### DataStreamWriter
 
@@ -373,21 +373,21 @@ required jars
 |DataFrameWriter   |API       |Comment                                |
 |------------------|----------|---------------------------------------|
 |bucketBy          |![done]   |                                       |
-|csv               |          |                                       |
+|csv               |![done]   |                                       |
 |format            |![done]   |                                       |
 |insertInto        |![done]   |                                       |
 |jdbc              |          |                                       |
-|json              |          |                                       |
+|json              |![done]   |                                       |
 |mode              |![done]   |                                       |
 |option            |![done]   |                                       |
 |options           |![done]   |                                       |
-|orc               |          |                                       |
-|parquet           |          |                                       |
+|orc               |![done]   |                                       |
+|parquet           |![done]   |                                       |
 |partitionBy       |          |                                       |
 |save              |![done]   |                                       |
 |saveAsTable       |![done]   |                                       |
 |sortBy            |![done]   |                                       |
-|text              |          |                                       |
+|text              |![done]   |                                       |
 
 ### DataFrameWriterV2
 
