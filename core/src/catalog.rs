@@ -7,9 +7,10 @@ use arrow::array::RecordBatch;
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
+use crate::spark::DataType;
+use crate::storage::StorageLevel;
 use crate::types::StructType;
 use crate::{spark, DataFrame};
-use crate::storage::StorageLevel;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -152,15 +153,44 @@ impl Catalog {
         source: Option<&str>,
         schema: Option<StructType>,
         description: Option<&str>,
-        options: HashMap<String, String>,
-    ) -> Result<DataFrame, SparkError> {
-        let mut opts = options.clone();
+        options: Option<HashMap<String, String>>,
+    ) -> Result<String, SparkError> {
+        let mut opts = options.unwrap_or_default();
 
         if let Some(p) = path {
             opts.insert("path".to_string(), p.to_string());
         }
 
-        todo!()
+        // The source of this table such as 'parquet, 'orc', etc.
+        // If ``source`` is not specified, the default data source configured by
+        // ``spark.sql.sources.default`` will be used
+        let source = if let Some(s) = source {
+            s.to_string()
+        } else {
+            let mut config = self.spark_session.conf();
+            let res = config.get("spark.sql.sources.default", None).await?;
+            res
+        };
+
+        let description = description.unwrap_or("");
+
+        let mut table = spark::CreateTable {
+            table_name: table_name.to_string(),
+            path: path.map(|p| p.to_string()),
+            source: Some(source.clone()),
+            description: Some(description.to_string()),
+            schema: None,
+            options: opts.clone()
+        };
+
+        if let Some(schema) = schema {
+            let scala_datatype: DataType = schema.into();
+            table.schema = Some(scala_datatype);
+        }
+
+        self.spark_session.client().
+
+        Ok(source)
     }
 
     /// Returns a list of tables/views in the specific database
@@ -591,6 +621,17 @@ mod tests {
         let res = spark.catalog().drop_temp_view("tmp_view").await?;
 
         assert!(res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_table() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let res = spark.catalog().create_table("test", Some("test"), None, None, Some("desc"), None).await?;
+
+        print!("{:?}\n", res);
 
         Ok(())
     }
