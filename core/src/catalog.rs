@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use arrow::array::RecordBatch;
-use tonic::Request;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
@@ -159,12 +158,12 @@ impl Catalog {
         let mut opts = options.unwrap_or_default();
 
         if let Some(p) = path {
-            opts.insert("path".to_string(), p.to_string());
+            opts.insert("path".to_string(), p.to_string())
         }
 
         // The source of this table such as 'parquet, 'orc', etc.
-        // If ``source`` is not specified, the default data source configured by
-        // ``spark.sql.sources.default`` will be used
+        // If `source is not specified, the default data source configured by
+        // `spark.sql.sources.default will be used
         let source = if let Some(s) = source {
             s.to_string()
         } else {
@@ -173,40 +172,31 @@ impl Catalog {
             res
         };
 
-        let description = description.unwrap_or("");
-
-        let mut table = spark::CreateTable {
-            table_name: table_name.to_string(),
-            path: path.map(|p| p.to_string()),
-            source: Some(source.clone()),
-            description: Some(description.to_string()),
-            schema: None,
-            options: opts.clone(),
-        };
+        let description = description.unwrap_or("").to_string();
 
         if let Some(schema) = schema {
             let scala_datatype: DataType = schema.into();
             table.schema = Some(scala_datatype);
         }
 
-        let reader = self.spark_session.read().format(&source);
+        let mut create_table_command = spark::catalog::CatType::CreateTable(spark::CreateTable {
+            table_name: table_name.to_string(),
+            path: path.map(|p| p.to_string()),
+            source: Some(source),
+            description: if description.is_empty() {
+                None
+            } else {
+                Some(description)
+            },
+            schema: schema.map(|s| s.into()),
+            options: opts.clone(),
+        });
 
-        for (key, value) in &opts {
-            reader.clone().option(key, value);
-        }
+        let plan = LogicalPlanBuilder::plan_cmd(create_table_command);
 
-        let df = reader.load(vec![table.path.as_ref().unwrap().as_str()])?;
+        let df = self.spark_session.client().execute_command(plan).await;
 
-        let dt = DataFrameWriter::new(df.clone());
-
-        dt.save_as_table(&table.table_name).await?;
-        Ok(df)
-
-        // let path = table.path.unwrap();
-
-        // let df = reader.load(vec![path.as_str()])?;
-
-        // Ok(df)
+        todo!()
     }
 
     /// Returns a list of tables/views in the specific database
@@ -647,7 +637,14 @@ mod tests {
 
         let res = spark
             .catalog()
-            .create_table("test", Some("./datasets/users.parquet"), None, None, Some("desc"), None)
+            .create_table(
+                "test",
+                Some("./datasets/test.parquet"),
+                None,
+                None,
+                Some("desc"),
+                None,
+            )
             .await?;
 
         print!("{:?}\n", res);
