@@ -647,7 +647,7 @@ mod tests {
 
         let res = spark
             .catalog()
-            .create_table("test", Some("test"), None, None, Some("desc"), None)
+            .create_table("test", Some("./datasets/users.parquet"), None, None, Some("desc"), None)
             .await?;
 
         print!("{:?}\n", res);
