@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use arrow::array::RecordBatch;
+use tonic::Request;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
@@ -10,7 +11,7 @@ use crate::session::SparkSession;
 use crate::spark::DataType;
 use crate::storage::StorageLevel;
 use crate::types::StructType;
-use crate::{spark, DataFrame};
+use crate::{spark, DataFrame, DataFrameWriter};
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -154,7 +155,7 @@ impl Catalog {
         schema: Option<StructType>,
         description: Option<&str>,
         options: Option<HashMap<String, String>>,
-    ) -> Result<String, SparkError> {
+    ) -> Result<DataFrame, SparkError> {
         let mut opts = options.unwrap_or_default();
 
         if let Some(p) = path {
@@ -180,7 +181,7 @@ impl Catalog {
             source: Some(source.clone()),
             description: Some(description.to_string()),
             schema: None,
-            options: opts.clone()
+            options: opts.clone(),
         };
 
         if let Some(schema) = schema {
@@ -188,9 +189,24 @@ impl Catalog {
             table.schema = Some(scala_datatype);
         }
 
-        self.spark_session.client().
+        let reader = self.spark_session.read().format(&source);
 
-        Ok(source)
+        for (key, value) in &opts {
+            reader.clone().option(key, value);
+        }
+
+        let df = reader.load(vec![table.path.as_ref().unwrap().as_str()])?;
+
+        let dt = DataFrameWriter::new(df.clone());
+
+        dt.save_as_table(&table.table_name).await?;
+        Ok(df)
+
+        // let path = table.path.unwrap();
+
+        // let df = reader.load(vec![path.as_str()])?;
+
+        // Ok(df)
     }
 
     /// Returns a list of tables/views in the specific database
@@ -629,7 +645,10 @@ mod tests {
     async fn test_create_table() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let res = spark.catalog().create_table("test", Some("test"), None, None, Some("desc"), None).await?;
+        let res = spark
+            .catalog()
+            .create_table("test", Some("test"), None, None, Some("desc"), None)
+            .await?;
 
         print!("{:?}\n", res);
 
