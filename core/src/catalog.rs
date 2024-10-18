@@ -194,9 +194,11 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::plan_cmd(create_table_command);
 
-        let df = self.spark_session.client().execute_command(plan).await;
+        self.spark_session.client().execute_command(plan).await;
 
-        todo!()
+        let df = self.spark_session.read().table(table_name, Some(opts))?;
+
+        Ok(df)
     }
 
     /// Returns a list of tables/views in the specific database
