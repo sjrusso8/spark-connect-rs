@@ -190,13 +190,16 @@ impl Catalog {
 
         let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
-        let _ = self.spark_session.clone().client().execute_command(plan).await;
+        let _ = self
+            .spark_session
+            .clone()
+            .client()
+            .execute_command(plan)
+            .await;
 
         let df = self.spark_session.read().table(table_name, Some(opts))?;
 
         Ok(df)
-
-        // todo!()
     }
 
     /// Returns a list of tables/views in the specific database
@@ -449,8 +452,15 @@ mod tests {
 
     use super::*;
 
-    use crate::errors::SparkError;
+    use arrow::{
+        array::{ArrayRef, Float32Array, Float64Array, Int64Array, StringArray},
+        datatypes::{Field, Schema},
+        record_batch::RecordBatch,
+    };
+
+    use crate::types::StructField;
     use crate::SparkSessionBuilder;
+    use crate::{errors::SparkError, types::DataType};
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
@@ -635,19 +645,48 @@ mod tests {
     async fn test_create_table() -> Result<(), SparkError> {
         let spark = setup().await;
 
-        let res = spark
+        let path = "/opt/spark/work-dir/datasets/users.parquet";
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        let mut options = HashMap::new();
+        options.insert("compression".to_string(), "snappy".to_string());
+
+        let df = spark
             .catalog()
             .create_table(
-                "test",
-                Some("./datasets/test.parquet"),
-                None,
-                None,
-                Some("desc"),
-                None,
+                "test_create_tablecd",
+                Some(path),
+                Some("parquet"),
+                Some(schema),
+                Some("test create table"),
+                Some(options),
             )
             .await?;
 
-        print!("{:?}\n", res);
+        let tables = spark
+            .catalog()
+            .list_tables(Some("test_create_table"), Some("default"))
+            .await?;
 
         Ok(())
     }
