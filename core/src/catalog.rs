@@ -7,10 +7,9 @@ use arrow::array::RecordBatch;
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
-use crate::spark::DataType;
 use crate::storage::StorageLevel;
 use crate::types::StructType;
-use crate::{spark, DataFrame, DataFrameWriter};
+use crate::{spark, DataFrame};
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -158,7 +157,7 @@ impl Catalog {
         let mut opts = options.unwrap_or_default();
 
         if let Some(p) = path {
-            opts.insert("path".to_string(), p.to_string())
+            opts.insert("path".to_string(), p.to_string());
         }
 
         // The source of this table such as 'parquet, 'orc', etc.
@@ -174,12 +173,7 @@ impl Catalog {
 
         let description = description.unwrap_or("").to_string();
 
-        if let Some(schema) = schema {
-            let scala_datatype: DataType = schema.into();
-            table.schema = Some(scala_datatype);
-        }
-
-        let mut create_table_command = spark::catalog::CatType::CreateTable(spark::CreateTable {
+        let cat_type = Some(spark::catalog::CatType::CreateTable(spark::CreateTable {
             table_name: table_name.to_string(),
             path: path.map(|p| p.to_string()),
             source: Some(source),
@@ -190,15 +184,19 @@ impl Catalog {
             },
             schema: schema.map(|s| s.into()),
             options: opts.clone(),
-        });
+        }));
 
-        let plan = LogicalPlanBuilder::plan_cmd(create_table_command);
+        let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
-        self.spark_session.client().execute_command(plan).await;
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
+
+        let _ = self.spark_session.clone().client().execute_command(plan).await;
 
         let df = self.spark_session.read().table(table_name, Some(opts))?;
 
         Ok(df)
+
+        // todo!()
     }
 
     /// Returns a list of tables/views in the specific database
