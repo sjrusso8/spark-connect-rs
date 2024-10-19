@@ -452,11 +452,7 @@ mod tests {
 
     use super::*;
 
-    use arrow::{
-        array::{ArrayRef, Float32Array, Float64Array, Int64Array, StringArray},
-        datatypes::{Field, Schema},
-        record_batch::RecordBatch,
-    };
+    use arrow::array::StringArray;
 
     use crate::types::StructField;
     use crate::SparkSessionBuilder;
@@ -674,7 +670,7 @@ mod tests {
         let df = spark
             .catalog()
             .create_table(
-                "default.test_create_table",
+                "test_create_table",
                 Some(path),
                 Some("parquet"),
                 Some(schema.clone()),

@@ -1936,7 +1936,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/csv_with_options_rande_id/";
+        let path = "/tmp/csv_with_options_range_id/";
 
         let mut write_opts = CsvOptions::default();
 
@@ -1949,7 +1949,7 @@ mod tests {
             .csv(path, write_opts)
             .await;
 
-        let path = ["/tmp/csv_with_options_rande_id/"];
+        let path = ["/tmp/csv_with_options_range_id/"];
 
         let mut read_opts = CsvOptions::default();
 
@@ -1971,7 +1971,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/json_with_options_rande_id/";
+        let path = "/tmp/json_with_options_range_id/";
 
         let mut write_opts = JsonOptions::default();
 
@@ -1986,7 +1986,7 @@ mod tests {
             .json(path, write_opts)
             .await;
 
-        let path = ["/tmp/json_with_options_rande_id/"];
+        let path = ["/tmp/json_with_options_range_id/"];
 
         let read_opts = JsonOptions::default();
 
@@ -2006,7 +2006,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/orc_with_options_rande_id/";
+        let path = "/tmp/orc_with_options_range_id/";
 
         let write_opts = OrcOptions::default();
 
@@ -2016,7 +2016,7 @@ mod tests {
             .orc(path, write_opts)
             .await;
 
-        let path = ["/tmp/orc_with_options_rande_id/"];
+        let path = ["/tmp/orc_with_options_range_id/"];
 
         let mut read_opts = OrcOptions::default();
 
@@ -2040,7 +2040,7 @@ mod tests {
             .range(None, 1000, 1, Some(16))
             .select_expr(vec!["id AS range_id"]);
 
-        let path = "/tmp/parquet_with_options_rande_id/";
+        let path = "/tmp/parquet_with_options_range_id/";
 
         let mut write_opts = ParquetOptions::default();
 
@@ -2056,7 +2056,7 @@ mod tests {
             .parquet(path, write_opts)
             .await;
 
-        let path = ["/tmp/parquet_with_options_rande_id/"];
+        let path = ["/tmp/parquet_with_options_range_id/"];
 
         let mut read_opts = ParquetOptions::default();
 
@@ -2086,7 +2086,7 @@ mod tests {
 
         let df = spark.create_dataframe(&data)?;
 
-        let path = "/tmp/text_with_options_rande_id/";
+        let path = "/tmp/text_with_options_range_id/";
 
         let mut write_opts = TextOptions::default();
 
@@ -2101,7 +2101,7 @@ mod tests {
             .text(path, write_opts)
             .await;
 
-        let path = ["/tmp/text_with_options_rande_id/"];
+        let path = ["/tmp/text_with_options_range_id/"];
 
         let mut read_opts = TextOptions::default();
 
