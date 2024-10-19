@@ -649,7 +649,7 @@ mod tests {
 
         let schema = StructType::new(vec![
             StructField {
-                name: "name",
+                name: "namne",
                 data_type: DataType::String,
                 nullable: true,
                 metadata: None,
@@ -674,11 +674,11 @@ mod tests {
         let df = spark
             .catalog()
             .create_table(
-                "test_create_tablecd",
+                "default.test_create_table",
                 Some(path),
                 Some("parquet"),
-                Some(schema),
-                Some("test create table"),
+                Some(schema.clone()),
+                Some("This is a test table"),
                 Some(options),
             )
             .await?;
@@ -687,6 +687,26 @@ mod tests {
             .catalog()
             .list_tables(Some("test_create_table"), Some("default"))
             .await?;
+
+        let df_schema = df.schema().await?;
+
+        if let Some(table_name) = tables.column_by_name("name") {
+            let string_array = table_name
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .expect("Expected a StringArray for table names");
+
+            let table_name_value = string_array.value(0);
+            assert_eq!(table_name_value, "test_create_table");
+        }
+
+        assert_eq!(tables.num_rows(), 1);
+
+        assert_eq!(
+            df_schema,
+            schema.into(),
+            "Table schema does not match the expected schema"
+        );
 
         Ok(())
     }
