@@ -483,10 +483,8 @@ mod tests {
 
     use super::*;
 
-    use arrow::array::StringArray;
-
     use crate::readwriter::ParquetOptions;
-    use crate::types::StructField;
+    use crate::types::{StructField, StructType};
     use crate::SparkSessionBuilder;
     use crate::{errors::SparkError, types::DataType};
 
