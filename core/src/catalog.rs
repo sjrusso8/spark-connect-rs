@@ -634,7 +634,7 @@ mod tests {
     async fn test_create_table() -> Result<(), SparkError> {
         let spark: SparkSession = setup().await;
 
-        let table_name = "test_table3";
+        let table_name = "test_create_table";
         let source = Some("parquet");
         let description = Some("Test table description");
 
@@ -642,12 +642,18 @@ mod tests {
             StructField {
                 name: "name",
                 data_type: DataType::String,
-                nullable: false,
+                nullable: true,
                 metadata: None,
             },
             StructField {
-                name: "age",
-                data_type: DataType::Short,
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::String,
                 nullable: true,
                 metadata: None,
             },
@@ -661,7 +667,7 @@ mod tests {
             .create_table(
                 table_name,
                 source,
-                Some(schema.into()),
+                Some(schema.clone().into()),
                 description,
                 Some(options),
             )
@@ -669,9 +675,18 @@ mod tests {
 
         let df = result.unwrap();
 
-        let _ = df.clone().show(Some(100), None, None).await;
+        let _ = df.clone().show(None, None, None).await;
 
-        print!("\n{df:?}\n");
+        let df_schema = df.clone().schema().await?;
+
+        let res = spark
+            .catalog()
+            .list_tables(Some("test_create_table"), None)
+            .await?;
+
+        assert_eq!(res.num_rows(), 1);
+        assert_eq!(df_schema, schema.into(), "Schema mismatch!");
+        assert_eq!(source.unwrap(), "parquet", "Source mismatch!");
 
         Ok(())
     }
@@ -697,17 +712,6 @@ mod tests {
         assert!(!res);
 
         spark.sql("DROP TABLE cache_table").await?;
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn clean_up_tables() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let res = spark.catalog().list_tables(None, None).await?;
-
-        print!("{res:?}\n");
-
         Ok(())
     }
 }
