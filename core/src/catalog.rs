@@ -9,7 +9,6 @@ use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
 use crate::spark::DataType;
 use crate::storage::StorageLevel;
-use crate::types::StructType;
 use crate::{spark, DataFrame};
 
 #[derive(Debug, Clone)]
