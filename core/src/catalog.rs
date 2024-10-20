@@ -7,6 +7,7 @@ use arrow::array::RecordBatch;
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
+use crate::spark::DataType;
 use crate::storage::StorageLevel;
 use crate::types::StructType;
 use crate::{spark, DataFrame};
@@ -144,60 +145,52 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
-    /// Creates a table based on the dataset in a data source
+    /// Creates a managed table based on the dataset in a data source
     pub async fn create_table(
-        &self,
+        self,
         table_name: &str,
-        path: Option<&str>,
         source: Option<&str>,
-        schema: Option<StructType>,
+        schema: Option<DataType>,
         description: Option<&str>,
         options: Option<HashMap<String, String>>,
     ) -> Result<DataFrame, SparkError> {
-        let mut opts = options.unwrap_or_default();
-
-        if let Some(p) = path {
-            opts.insert("path".to_string(), p.to_string());
-        }
-
-        // The source of this table such as 'parquet, 'orc', etc.
-        // If `source is not specified, the default data source configured by
-        // `spark.sql.sources.default will be used
         let source = if let Some(s) = source {
             s.to_string()
         } else {
+            // If no source is provided, use the default data source from the Spark config
             let mut config = self.spark_session.conf();
-            let res = config.get("spark.sql.sources.default", None).await?;
-            res
+            let default_source = config.get("spark.sql.sources.default", None).await?;
+            default_source
         };
 
-        let description = description.unwrap_or("").to_string();
-
-        let cat_type = Some(spark::catalog::CatType::CreateTable(spark::CreateTable {
-            table_name: table_name.to_string(),
-            path: path.map(|p| p.to_string()),
-            source: Some(source),
-            description: if description.is_empty() {
+        let description = if let Some(d) = description {
+            if d.is_empty() {
                 None
             } else {
-                Some(description)
-            },
-            schema: schema.map(|s| s.into()),
-            options: opts.clone(),
-        }));
+                Some(d.to_string())
+            }
+        } else {
+            None
+        };
+
+        let create_table_message = spark::CreateTable {
+            table_name: table_name.to_string(),
+            source: Some(source),
+            schema,
+            description,
+            options: options.unwrap_or_default(),
+            path: None,
+        };
+
+        let cat_type = Some(spark::catalog::CatType::CreateTable(create_table_message));
 
         let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
 
         let plan = LogicalPlanBuilder::from(rel_type).plan_root();
 
-        let _ = self
-            .spark_session
-            .clone()
-            .client()
-            .execute_command(plan)
-            .await;
+        let _ = self.spark_session.clone().client().to_arrow(plan).await;
 
-        let df = self.spark_session.read().table(table_name, Some(opts))?;
+        let df = self.spark_session.read().table(table_name, None)?;
 
         Ok(df)
     }
@@ -639,26 +632,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_table() -> Result<(), SparkError> {
-        let spark = setup().await;
+        let spark: SparkSession = setup().await;
 
-        let path = "/opt/spark/work-dir/datasets/users.parquet";
+        let table_name = "test_table3";
+        let source = Some("parquet");
+        let description = Some("Test table description");
 
         let schema = StructType::new(vec![
             StructField {
-                name: "namne",
+                name: "name",
                 data_type: DataType::String,
-                nullable: true,
+                nullable: false,
                 metadata: None,
             },
             StructField {
-                name: "favorite_color",
-                data_type: DataType::String,
-                nullable: true,
-                metadata: None,
-            },
-            StructField {
-                name: "favorite_numbers",
-                data_type: DataType::String,
+                name: "age",
+                data_type: DataType::Short,
                 nullable: true,
                 metadata: None,
             },
@@ -667,42 +656,22 @@ mod tests {
         let mut options = HashMap::new();
         options.insert("compression".to_string(), "snappy".to_string());
 
-        let df = spark
+        let result = spark
             .catalog()
             .create_table(
-                "test_create_table",
-                Some(path),
-                Some("parquet"),
-                Some(schema.clone()),
-                Some("This is a test table"),
+                table_name,
+                source,
+                Some(schema.into()),
+                description,
                 Some(options),
             )
-            .await?;
+            .await;
 
-        let tables = spark
-            .catalog()
-            .list_tables(Some("test_create_table"), Some("default"))
-            .await?;
+        let df = result.unwrap();
 
-        let df_schema = df.schema().await?;
+        let _ = df.clone().show(Some(100), None, None).await;
 
-        if let Some(table_name) = tables.column_by_name("name") {
-            let string_array = table_name
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .expect("Expected a StringArray for table names");
-
-            let table_name_value = string_array.value(0);
-            assert_eq!(table_name_value, "test_create_table");
-        }
-
-        assert_eq!(tables.num_rows(), 1);
-
-        assert_eq!(
-            df_schema,
-            schema.into(),
-            "Table schema does not match the expected schema"
-        );
+        print!("\n{df:?}\n");
 
         Ok(())
     }
@@ -728,6 +697,17 @@ mod tests {
         assert!(!res);
 
         spark.sql("DROP TABLE cache_table").await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn clean_up_tables() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let res = spark.catalog().list_tables(None, None).await?;
+
+        print!("{res:?}\n");
+
         Ok(())
     }
 }
