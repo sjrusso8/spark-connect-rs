@@ -204,7 +204,6 @@ where
             }
             Err(err) => {
                 if self.use_reattachable_execute && self.handler.response_id.is_some() {
-                    println!("submitted release until");
                     self.release_until().await?;
                 }
                 return Err(err.into());
@@ -369,7 +368,6 @@ where
     }
 
     fn handle_response(&mut self, resp: spark::ExecutePlanResponse) -> Result<(), SparkError> {
-        println!("{:?}", resp);
         self.validate_session(&resp.session_id)?;
 
         self.handler.session_id = Some(resp.session_id);
