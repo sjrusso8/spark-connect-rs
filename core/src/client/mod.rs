@@ -1,11 +1,13 @@
-use crate::errors::SparkError;
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
+
+use tonic::codec::Streaming;
+use tonic::codegen::{Body, Bytes, StdError};
+use tonic::transport::Channel;
 
 use crate::spark;
 use spark::execute_plan_response::ResponseType;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use tonic::codegen::{Body, Bytes, StdError};
-
 use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use arrow::compute::concat_batches;
@@ -13,11 +15,15 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
 
+use crate::errors::SparkError;
+
 mod builder;
 mod middleware;
 
 pub use builder::ChannelBuilder;
-pub use middleware::MetadataInterceptor;
+pub use middleware::{HeadersLayer, HeadersMiddleware};
+
+pub type SparkClient = SparkConnectClient<HeadersMiddleware<Channel>>;
 
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
@@ -149,44 +155,100 @@ where
         // clear out any prior responses
         self.handler = ResponseHandler::default();
 
+        self.process_stream(&mut stream).await?;
+
+        if self.use_reattachable_execute && self.handler.result_complete {
+            self.release_all().await?
+        }
+
+        Ok(())
+    }
+
+    async fn reattach_execute(&mut self) -> Result<(), SparkError> {
+        let mut client = self.stub.write().await;
+
+        let req = spark::ReattachExecuteRequest {
+            session_id: self.handler.session_id.clone().unwrap(),
+            user_context: self.user_context.clone(),
+            operation_id: self.handler.operation_id.clone().unwrap(),
+            client_type: self.builder.user_agent.clone(),
+            last_response_id: self.handler.response_id.clone(),
+        };
+
+        let mut stream = client.reattach_execute(req).await?.into_inner();
+        drop(client);
+
+        self.process_stream(&mut stream).await?;
+
+        if self.use_reattachable_execute && self.handler.result_complete {
+            self.release_all().await?
+        }
+
+        Ok(())
+    }
+
+    async fn process_stream(
+        &mut self,
+        stream: &mut Streaming<spark::ExecutePlanResponse>,
+    ) -> Result<(), SparkError> {
         while let Some(_resp) = match stream.message().await {
             Ok(Some(msg)) => {
-                // Handle the message
                 self.handle_response(msg.clone())?;
-
                 Some(msg)
             }
             Ok(None) => {
                 if self.use_reattachable_execute && !self.handler.result_complete {
-                    println!("didn't get the whole stream submitting a reattach");
-                    self.reattach_request().await?
+                    Box::pin(self.reattach_execute()).await?;
                 }
                 None
             }
             Err(err) => {
-                if self.use_reattachable_execute && !self.handler.result_complete {
-                    println!("Error occurred, attempting to reattach the request");
-                    // Attempt to reattach the request before returning the error
-                    if let Err(err) = self.reattach_request().await {
-                        // If reattach fails, return the original error
-                        return Err(SparkError::IoError(
-                            err.to_string(),
-                            std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
-                        ));
-                    }
-                    None // Retry after reattaching
-                } else {
-                    return Err(SparkError::IoError(
-                        err.to_string(),
-                        std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
-                    ));
+                if self.use_reattachable_execute && self.handler.response_id.is_some() {
+                    println!("submitted release until");
+                    self.release_until().await?;
                 }
+                return Err(err.into());
             }
         } {}
-        //
-        // if stream.message().await.is_ok() {
-        //     println!("next message")
-        // }
+
+        Ok(())
+    }
+
+    async fn release_until(&mut self) -> Result<(), SparkError> {
+        let release_until = spark::release_execute_request::ReleaseUntil {
+            response_id: self.handler.response_id.clone().unwrap(),
+        };
+
+        self.release_execute(Some(spark::release_execute_request::Release::ReleaseUntil(
+            release_until,
+        )))
+        .await
+    }
+
+    async fn release_all(&mut self) -> Result<(), SparkError> {
+        let release_all = spark::release_execute_request::ReleaseAll {};
+
+        self.release_execute(Some(spark::release_execute_request::Release::ReleaseAll(
+            release_all,
+        )))
+        .await
+    }
+
+    async fn release_execute(
+        &mut self,
+        release: Option<spark::release_execute_request::Release>,
+    ) -> Result<(), SparkError> {
+        let mut client = self.stub.write().await;
+
+        let req = spark::ReleaseExecuteRequest {
+            session_id: self.handler.session_id.clone().unwrap(),
+            user_context: self.user_context.clone(),
+            operation_id: self.handler.operation_id.clone().unwrap(),
+            client_type: self.builder.user_agent.clone(),
+            release,
+        };
+
+        let _resp = client.release_execute(req).await?.into_inner();
 
         Ok(())
     }
@@ -243,45 +305,6 @@ where
 
     pub fn clear_tags(&mut self) {
         self.tags = vec![];
-    }
-
-    async fn reattach_request(&mut self) -> Result<(), SparkError> {
-        let mut client = self.stub.write().await;
-
-        let req = spark::ReattachExecuteRequest {
-            session_id: self.handler.session_id.clone().unwrap(),
-            user_context: self.user_context.clone(),
-            operation_id: self.handler.operation_id.clone().unwrap(),
-            client_type: self.builder.user_agent.clone(),
-            last_response_id: self.handler.response_id.clone(),
-        };
-
-        let mut stream = client.reattach_execute(req).await?.into_inner();
-        drop(client);
-
-        while let Some(_resp) = match stream.message().await {
-            Ok(Some(msg)) => {
-                // Handle the message
-                self.handle_response(msg.clone())?;
-
-                Some(msg)
-            }
-            Ok(None) => {
-                if self.use_reattachable_execute && !self.handler.result_complete {
-                    println!("something bad happened in the reattach. submitting reattach");
-                    Box::pin(self.reattach_request()).await?
-                }
-                None
-            }
-            Err(err) => {
-                return Err(SparkError::IoError(
-                    err.to_string(),
-                    std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
-                ));
-            }
-        } {}
-
-        Ok(())
     }
 
     pub async fn config_request(

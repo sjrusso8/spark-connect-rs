@@ -3,9 +3,10 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Write;
 
+use arrow::error::ArrowError;
 use std::error::Error;
 
-use arrow::error::ArrowError;
+use tonic::Code;
 
 #[cfg(feature = "datafusion")]
 use datafusion::error::DataFusionError;
@@ -16,9 +17,10 @@ use polars::error::PolarsError;
 #[derive(Debug)]
 pub enum SparkError {
     /// Returned when functionality is not yet available.
+    AnalysisException(String),
+    SessionNotTheSameException(String),
     NotYetImplemented(String),
     ExternalError(Box<dyn Error + Send + Sync>),
-    AnalysisException(String),
     IoError(String, std::io::Error),
     ArrowError(ArrowError),
     InvalidConnectionUrl(String),
@@ -57,7 +59,25 @@ impl From<ArrowError> for SparkError {
 
 impl From<tonic::Status> for SparkError {
     fn from(status: tonic::Status) -> Self {
-        SparkError::AnalysisException(status.message().to_string())
+        match status.code() {
+            Code::Ok => SparkError::AnalysisException(status.message().to_string()),
+            Code::Unknown => SparkError::AnalysisException(status.message().to_string()),
+            Code::Aborted => SparkError::AnalysisException(status.message().to_string()),
+            Code::NotFound => SparkError::AnalysisException(status.message().to_string()),
+            Code::Internal => SparkError::AnalysisException(status.message().to_string()),
+            Code::DataLoss => SparkError::AnalysisException(status.message().to_string()),
+            Code::Cancelled => SparkError::AnalysisException(status.message().to_string()),
+            Code::OutOfRange => SparkError::AnalysisException(status.message().to_string()),
+            Code::Unavailable => SparkError::AnalysisException(status.message().to_string()),
+            Code::AlreadyExists => SparkError::AnalysisException(status.message().to_string()),
+            Code::InvalidArgument => SparkError::AnalysisException(status.message().to_string()),
+            Code::DeadlineExceeded => SparkError::AnalysisException(status.message().to_string()),
+            Code::Unimplemented => SparkError::AnalysisException(status.message().to_string()),
+            Code::Unauthenticated => SparkError::AnalysisException(status.message().to_string()),
+            Code::PermissionDenied => SparkError::AnalysisException(status.message().to_string()),
+            Code::ResourceExhausted => SparkError::AnalysisException(status.message().to_string()),
+            Code::FailedPrecondition => SparkError::AnalysisException(status.message().to_string()),
+        }
     }
 }
 
@@ -81,6 +101,18 @@ impl From<PolarsError> for SparkError {
     }
 }
 
+impl From<tonic::codegen::http::uri::InvalidUri> for SparkError {
+    fn from(value: tonic::codegen::http::uri::InvalidUri) -> Self {
+        SparkError::InvalidConnectionUrl(value.to_string())
+    }
+}
+
+impl From<tonic::transport::Error> for SparkError {
+    fn from(value: tonic::transport::Error) -> Self {
+        SparkError::InvalidConnectionUrl(value.to_string())
+    }
+}
+
 impl<W: Write> From<std::io::IntoInnerError<W>> for SparkError {
     fn from(error: std::io::IntoInnerError<W>) -> Self {
         SparkError::IoError(error.to_string(), error.into())
@@ -96,6 +128,9 @@ impl Display for SparkError {
             SparkError::ArrowError(desc) => write!(f, "Apache Arrow error: {desc}"),
             SparkError::NotYetImplemented(source) => write!(f, "Not yet implemented: {source}"),
             SparkError::InvalidConnectionUrl(val) => write!(f, "Invalid URL error: {val}"),
+            SparkError::SessionNotTheSameException(val) => {
+                write!(f, "Spark Session is no the same: {val}")
+            }
         }
     }
 }

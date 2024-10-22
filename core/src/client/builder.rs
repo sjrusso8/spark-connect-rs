@@ -3,13 +3,10 @@ use std::env;
 use std::str::FromStr;
 
 use crate::errors::SparkError;
-use tonic::metadata::MetadataMap;
 
 use url::Url;
 
 use uuid::Uuid;
-
-use super::middleware::metadata_builder;
 
 type Host = String;
 type Port = u16;
@@ -26,7 +23,7 @@ pub struct ChannelBuilder {
     pub(super) user_id: Option<String>,
     pub(super) user_agent: Option<String>,
     pub(super) use_ssl: bool,
-    pub(super) headers: Option<MetadataMap>,
+    pub(super) headers: Option<HashMap<String, String>>,
 }
 
 impl Default for ChannelBuilder {
@@ -59,7 +56,7 @@ impl ChannelBuilder {
         self.token.to_owned()
     }
 
-    pub fn headers(&self) -> Option<MetadataMap> {
+    pub fn headers(&self) -> Option<HashMap<String, String>> {
         self.headers.to_owned()
     }
 
@@ -177,7 +174,9 @@ impl ChannelBuilder {
                 .unwrap_or_else(|| ChannelBuilder::create_user_agent(None));
 
             if let Some(token) = headers.remove("token") {
-                channel_builder.token = Some(format!("Bearer {token}"));
+                let token = format!("Bearer {token}");
+                channel_builder.token = Some(token.clone());
+                headers.insert("authorization".to_string(), token);
             }
 
             if let Some(session_id) = headers.remove("session_id") {
@@ -197,7 +196,7 @@ impl ChannelBuilder {
             };
 
             if !headers.is_empty() {
-                channel_builder.headers = Some(metadata_builder(&headers));
+                channel_builder.headers = Some(headers);
             }
         }
 

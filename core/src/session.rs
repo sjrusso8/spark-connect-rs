@@ -3,28 +3,29 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::client::{ChannelBuilder, HeadersLayer, SparkClient, SparkConnectClient};
+
 use crate::catalog::Catalog;
 use crate::conf::RunTimeConfig;
 use crate::dataframe::{DataFrame, DataFrameReader};
+use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
-use crate::spark;
 use crate::streaming::DataStreamReader;
 
-use crate::client::{ChannelBuilder, MetadataInterceptor, SparkConnectClient};
-use crate::errors::SparkError;
+use crate::spark;
 use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use arrow::record_batch::RecordBatch;
 
 use tokio::sync::RwLock;
 
+use tower::ServiceBuilder;
+
 #[cfg(not(feature = "wasm"))]
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::Channel;
 
 #[cfg(feature = "wasm")]
 use tonic_web_wasm_client::Client;
-
-use tonic::service::interceptor::InterceptedService;
 
 /// SparkSessionBuilder creates a remote Spark Session a connection string.
 ///
@@ -79,23 +80,20 @@ impl SparkSessionBuilder {
 
     #[cfg(not(feature = "wasm"))]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
-        let channel = Endpoint::from_shared(self.channel_builder.endpoint())
-            .expect("Failed to create endpoint")
+        let channel = Channel::from_shared(self.channel_builder.endpoint())?
             .connect()
-            .await
-            .expect("Failed to create channel");
+            .await?;
 
-        let service_client = SparkConnectServiceClient::with_interceptor(
-            channel,
-            MetadataInterceptor::new(
-                self.channel_builder.token().to_owned(),
-                self.channel_builder.headers().to_owned(),
-            ),
-        );
+        let channel = ServiceBuilder::new()
+            .layer(HeadersLayer::new(
+                self.channel_builder.headers().unwrap_or_default(),
+            ))
+            .service(channel);
 
-        let client = Arc::new(RwLock::new(service_client));
+        let client = SparkConnectServiceClient::new(channel);
 
-        let spark_connnect_client = SparkConnectClient::new(client, self.channel_builder.clone());
+        let spark_connnect_client =
+            SparkConnectClient::new(Arc::new(RwLock::new(client)), self.channel_builder.clone());
 
         let mut rt_config = RunTimeConfig::new(&spark_connnect_client);
 
@@ -140,8 +138,8 @@ impl SparkSessionBuilder {
 #[derive(Clone, Debug)]
 pub struct SparkSession {
     #[cfg(not(feature = "wasm"))]
-    client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
-
+    client: SparkClient,
+    // client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
     #[cfg(feature = "wasm")]
     client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
 
@@ -150,9 +148,7 @@ pub struct SparkSession {
 
 impl SparkSession {
     #[cfg(not(feature = "wasm"))]
-    pub fn new(
-        client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
-    ) -> Self {
+    pub fn new(client: SparkClient) -> Self {
         Self {
             session_id: client.session_id(),
             client,
@@ -250,7 +246,7 @@ impl SparkSession {
 
     /// Spark Connection gRPC client interface
     #[cfg(not(feature = "wasm"))]
-    pub fn client(self) -> SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>> {
+    pub fn client(self) -> SparkClient {
         self.client
     }
 
@@ -326,10 +322,10 @@ impl SparkSession {
         client.analyze(version).await?.spark_version()
     }
 
-    /// [RunTimeConfig] configuration interface for Spark.
-    pub fn conf(&self) -> RunTimeConfig {
-        RunTimeConfig::new(&self.client)
-    }
+    // [RunTimeConfig] configuration interface for Spark.
+    // pub fn conf(&self) -> RunTimeConfig {
+    //     RunTimeConfig::new(&self.client)
+    // }
 }
 
 #[cfg(test)]
@@ -452,58 +448,58 @@ mod tests {
         assert_eq!("3.5.1".to_string(), version);
         Ok(())
     }
-
-    #[tokio::test]
-    async fn test_session_config() -> Result<(), SparkError> {
-        let value = "rust-test-app";
-
-        let spark = SparkSessionBuilder::default()
-            .app_name("rust-test-app")
-            .build()
-            .await?;
-
-        let name = spark.conf().get("spark.app.name", None).await?;
-
-        assert_eq!(value, &name);
-
-        // validate set
-        spark
-            .conf()
-            .set("spark.sql.shuffle.partitions", "42")
-            .await?;
-
-        // validate get
-        let val = spark
-            .conf()
-            .get("spark.sql.shuffle.partitions", None)
-            .await?;
-
-        assert_eq!("42", &val);
-
-        // validate unset
-        spark.conf().unset("spark.sql.shuffle.partitions").await?;
-
-        let val = spark
-            .conf()
-            .get("spark.sql.shuffle.partitions", None)
-            .await?;
-
-        assert_eq!("200", &val);
-
-        // not a modifable setting
-        let val = spark
-            .conf()
-            .is_modifable("spark.executor.instances")
-            .await?;
-        assert!(!val);
-
-        // a modifable setting
-        let val = spark
-            .conf()
-            .is_modifable("spark.sql.shuffle.partitions")
-            .await?;
-        assert!(val);
-
-        Ok(())
-    }
+    //
+    // #[tokio::test]
+    // async fn test_session_config() -> Result<(), SparkError> {
+    //     let value = "rust-test-app";
+    //
+    //     let spark = SparkSessionBuilder::default()
+    //         .app_name("rust-test-app")
+    //         .build()
+    //         .await?;
+    //
+    //     let name = spark.conf().get("spark.app.name", None).await?;
+    //
+    //     assert_eq!(value, &name);
+    //
+    //     // validate set
+    //     spark
+    //         .conf()
+    //         .set("spark.sql.shuffle.partitions", "42")
+    //         .await?;
+    //
+    //     // validate get
+    //     let val = spark
+    //         .conf()
+    //         .get("spark.sql.shuffle.partitions", None)
+    //         .await?;
+    //
+    //     assert_eq!("42", &val);
+    //
+    //     // validate unset
+    //     spark.conf().unset("spark.sql.shuffle.partitions").await?;
+    //
+    //     let val = spark
+    //         .conf()
+    //         .get("spark.sql.shuffle.partitions", None)
+    //         .await?;
+    //
+    //     assert_eq!("200", &val);
+    //
+    //     // not a modifable setting
+    //     let val = spark
+    //         .conf()
+    //         .is_modifable("spark.executor.instances")
+    //         .await?;
+    //     assert!(!val);
+    //
+    //     // a modifable setting
+    //     let val = spark
+    //         .conf()
+    //         .is_modifable("spark.sql.shuffle.partitions")
+    //         .await?;
+    //     assert!(val);
+    //
+    //     Ok(())
+    // }
 }

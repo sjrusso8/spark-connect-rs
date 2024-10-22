@@ -1,181 +1,141 @@
-use std::str::FromStr;
-
 use std::collections::HashMap;
-use tonic::metadata::{
-    Ascii, AsciiMetadataValue, KeyAndValueRef, MetadataKey, MetadataMap, MetadataValue,
-};
-use tonic::service::Interceptor;
-use tonic::Status;
+use std::fmt::Debug;
+use std::str::FromStr;
+use std::task::{Context, Poll};
+
+use futures_util::future::BoxFuture;
+use http_body::combinators::UnsyncBoxBody;
+
+use tonic::codegen::http::Request;
+use tonic::codegen::http::{HeaderName, HeaderValue};
+
+use tower::Service;
+
+#[derive(Debug, Clone)]
+pub struct HeadersLayer {
+    headers: HashMap<String, String>,
+}
+
+impl HeadersLayer {
+    pub fn new(headers: HashMap<String, String>) -> Self {
+        Self { headers }
+    }
+}
+
+impl<S> tower::Layer<S> for HeadersLayer {
+    type Service = HeadersMiddleware<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        HeadersMiddleware::new(inner, self.headers.clone())
+    }
+}
 
 #[derive(Clone, Debug)]
-pub struct MetadataInterceptor {
-    token: Option<String>,
-    metadata: Option<MetadataMap>,
+pub struct HeadersMiddleware<S> {
+    inner: S,
+    headers: HashMap<String, String>,
 }
 
-impl Interceptor for MetadataInterceptor {
-    fn call(&mut self, mut req: tonic::Request<()>) -> Result<tonic::Request<()>, Status> {
-        if let Some(header) = &self.metadata {
-            merge_metadata(req.metadata_mut(), header);
-        }
-        if let Some(token) = &self.token {
-            req.metadata_mut().insert(
-                "authorization",
-                AsciiMetadataValue::from_str(token.as_str()).unwrap(),
-            );
-        }
-
-        Ok(req)
+#[allow(dead_code)]
+impl<S> HeadersMiddleware<S> {
+    pub fn new(inner: S, headers: HashMap<String, String>) -> Self {
+        Self { inner, headers }
     }
 }
 
-impl MetadataInterceptor {
-    pub fn new(token: Option<String>, metadata: Option<MetadataMap>) -> Self {
-        MetadataInterceptor { token, metadata }
-    }
-}
-
-pub(super) fn metadata_builder(headers: &HashMap<String, String>) -> MetadataMap {
-    let mut metadata_map = MetadataMap::new();
-    for (key, val) in headers.iter() {
-        let meta_val = MetadataValue::from_str(val.as_str()).unwrap();
-        let meta_key = MetadataKey::from_str(key.as_str()).unwrap();
-
-        metadata_map.insert(meta_key, meta_val);
-    }
-
-    metadata_map
-}
-
-fn merge_metadata(metadata_into: &mut MetadataMap, metadata_from: &MetadataMap) {
-    metadata_for_each(metadata_from, |key, value| {
-        if key.to_string().starts_with("x-") {
-            metadata_into.insert(key, value.to_owned());
-        }
-    })
-}
-
-fn metadata_for_each<F>(metadata: &MetadataMap, mut f: F)
+impl<S> Service<Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>> for HeadersMiddleware<S>
 where
-    F: FnMut(&MetadataKey<Ascii>, &MetadataValue<Ascii>),
+    S: Service<Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+    S::Future: Send + 'static,
+    S::Response: Send + Debug + 'static,
+    S::Error: Debug,
 {
-    for kv_ref in metadata.iter() {
-        match kv_ref {
-            KeyAndValueRef::Ascii(key, value) => f(key, value),
-            KeyAndValueRef::Binary(_key, _value) => {}
-        }
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx).map_err(Into::into)
+    }
+
+    fn call(
+        &mut self,
+        mut request: Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>,
+    ) -> Self::Future {
+        let clone = self.inner.clone();
+        let mut inner = std::mem::replace(&mut self.inner, clone);
+
+        let headers = self.headers.clone();
+
+        Box::pin(async move {
+            for (key, value) in &headers {
+                let meta_key = HeaderName::from_str(key.as_str()).unwrap();
+                let meta_val = HeaderValue::from_str(value.as_str()).unwrap();
+
+                request.headers_mut().insert(meta_key, meta_val);
+            }
+
+            inner.call(request).await
+        })
     }
 }
 
+// TODO! as of now Request is not clone. So the retry logic does not work.
+// https://github.com/tower-rs/tower/pull/790
+//
+// use futures_util::future;
+// use tower::retry::Policy;
+// use tonic::codegen::http::Response;
+// use tonic::transport::Body;
 //
 // #[derive(Clone, Debug)]
-// pub struct MetadataInterceptor {
-//     token: Option<String>,
-//     metadata: Option<MetadataMap>,
+// pub struct RetryPolicy {
+//     max_retries: usize,
+//     backoff_multiplier: i32,
+//     max_backoff: usize,
 // }
 //
-// impl Interceptor for MetadataInterceptor {
-//     fn call(&mut self, mut req: tonic::Request<()>) -> Result<tonic::Request<()>, Status> {
-//         if let Some(header) = &self.metadata {
-//             merge_metadata(req.metadata_mut(), header);
-//         }
-//         if let Some(token) = &self.token {
-//             req.metadata_mut().insert(
-//                 "authorization",
-//                 AsciiMetadataValue::from_str(token.as_str()).unwrap(),
-//             );
-//         }
-//
-//         Ok(req)
-//     }
-// }
-//
-// impl MetadataInterceptor {
-//     pub fn new(token: Option<String>, metadata: Option<MetadataMap>) -> Self {
-//         MetadataInterceptor { token, metadata }
-//     }
-// }
-//
-// pub fn metadata_builder(headers: &HashMap<String, String>) -> MetadataMap {
-//     let mut metadata_map = MetadataMap::new();
-//     for (key, val) in headers.iter() {
-//         let meta_val = MetadataValue::from_str(val.as_str()).unwrap();
-//         let meta_key = MetadataKey::from_str(key.as_str()).unwrap();
-//
-//         metadata_map.insert(meta_key, meta_val);
-//     }
-//
-//     metadata_map
-// }
-//
-// fn merge_metadata(metadata_into: &mut MetadataMap, metadata_from: &MetadataMap) {
-//     metadata_for_each(metadata_from, |key, value| {
-//         if key.to_string().starts_with("x-") {
-//             metadata_into.insert(key, value.to_owned());
-//         }
-//     })
-// }
-//
-// fn metadata_for_each<F>(metadata: &MetadataMap, mut f: F)
-// where
-//     F: FnMut(&MetadataKey<Ascii>, &MetadataValue<Ascii>),
-// {
-//     for kv_ref in metadata.iter() {
-//         match kv_ref {
-//             KeyAndValueRef::Ascii(key, value) => f(key, value),
-//             KeyAndValueRef::Binary(_key, _value) => {}
+// impl Default for RetryPolicy {
+//     fn default() -> Self {
+//         Self {
+//             max_retries: 15,
+//             backoff_multiplier: 4,
+//             max_backoff: 600,
 //         }
 //     }
 // }
 //
-// pub mod service {
-//     use hyper::body::Body;
-//     use hyper::{Request, Response};
-//     use std::future::Future;
-//     use std::pin::Pin;
-//     use std::task::{Context, Poll};
-//     use tonic::body::BoxBody;
-//     use tonic::transport::Channel;
-//     use tonic::IntoRequest;
-//     use tower::Service;
+// type Req = Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>;
+// type Res = Response<Body>;
 //
-//     #[derive(Debug, Clone)]
-//     pub struct AuthSvc {
-//         inner: Channel,
-//     }
+// impl<E> Policy<Req, Res, E> for RetryPolicy {
+//     type Future = future::Ready<()>;
 //
-//     impl AuthSvc {
-//         pub fn new(inner: Channel) -> Self {
-//             AuthSvc { inner }
+//     fn retry(&mut self, _req: &mut Req, result: &mut Result<Res, E>) -> Option<Self::Future> {
+//         match result {
+//             Ok(_) => {
+//                 None
+//             }
+//             Err(_) => {
+//                 if self.max_retries > 0 {
+//                     self.max_retries -= 1;
+//                     Some(future::ready(()))
+//                 } else {
+//                     None
+//                 }
+//             }
 //         }
 //     }
 //
-//     impl Service<Request<BoxBody>> for AuthSvc {
-//         type Response = Response<BoxBody>;
-//         type Error = Box<dyn std::error::Error + Send + Sync>;
+//     fn clone_request(&mut self, req: &Req) -> Option<Req> {
+//         let (parts, body) = req.into_parts();
 //
-//         #[allow(clippy::type_complexity)]
-//         type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+//         let req = Request::from_parts(parts, body);
 //
-//         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-//             self.inner.poll_ready(cx).map_err(Into::into)
-//         }
-//
-//         fn call(&mut self, req: Request<BoxBody>) -> Self::Future {
-//             // This is necessary because tonic internally uses `tower::buffer::Buffer`.
-//             // See https://github.com/tower-rs/tower/issues/547#issuecomment-767629149
-//             // for details on why this is necessary
-//             let clone = self.inner.clone();
-//             let mut inner = std::mem::replace(&mut self.inner, clone);
-//
-//             Box::pin(async move {
-//                 // Do extra async work here...
-//                 let response = inner.call(req).await?;
-//
-//                 // let (parts, _) = response..into_parts();
-//
-//                 Ok(response)
-//             })
-//         }
+//         Some(req)
 //     }
 // }
