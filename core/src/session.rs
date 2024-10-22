@@ -322,10 +322,10 @@ impl SparkSession {
         client.analyze(version).await?.spark_version()
     }
 
-    // [RunTimeConfig] configuration interface for Spark.
-    // pub fn conf(&self) -> RunTimeConfig {
-    //     RunTimeConfig::new(&self.client)
-    // }
+    /// [RunTimeConfig] configuration interface for Spark.
+    pub fn conf(&self) -> RunTimeConfig {
+        RunTimeConfig::new(&self.client)
+    }
 }
 
 #[cfg(test)]
@@ -448,58 +448,58 @@ mod tests {
         assert_eq!("3.5.1".to_string(), version);
         Ok(())
     }
-    //
-    // #[tokio::test]
-    // async fn test_session_config() -> Result<(), SparkError> {
-    //     let value = "rust-test-app";
-    //
-    //     let spark = SparkSessionBuilder::default()
-    //         .app_name("rust-test-app")
-    //         .build()
-    //         .await?;
-    //
-    //     let name = spark.conf().get("spark.app.name", None).await?;
-    //
-    //     assert_eq!(value, &name);
-    //
-    //     // validate set
-    //     spark
-    //         .conf()
-    //         .set("spark.sql.shuffle.partitions", "42")
-    //         .await?;
-    //
-    //     // validate get
-    //     let val = spark
-    //         .conf()
-    //         .get("spark.sql.shuffle.partitions", None)
-    //         .await?;
-    //
-    //     assert_eq!("42", &val);
-    //
-    //     // validate unset
-    //     spark.conf().unset("spark.sql.shuffle.partitions").await?;
-    //
-    //     let val = spark
-    //         .conf()
-    //         .get("spark.sql.shuffle.partitions", None)
-    //         .await?;
-    //
-    //     assert_eq!("200", &val);
-    //
-    //     // not a modifable setting
-    //     let val = spark
-    //         .conf()
-    //         .is_modifable("spark.executor.instances")
-    //         .await?;
-    //     assert!(!val);
-    //
-    //     // a modifable setting
-    //     let val = spark
-    //         .conf()
-    //         .is_modifable("spark.sql.shuffle.partitions")
-    //         .await?;
-    //     assert!(val);
-    //
-    //     Ok(())
-    // }
+
+    #[tokio::test]
+    async fn test_session_config() -> Result<(), SparkError> {
+        let value = "rust-test-app";
+
+        let spark = SparkSessionBuilder::default()
+            .app_name("rust-test-app")
+            .build()
+            .await?;
+
+        let name = spark.conf().get("spark.app.name", None).await?;
+
+        assert_eq!(value, &name);
+
+        // validate set
+        spark
+            .conf()
+            .set("spark.sql.shuffle.partitions", "42")
+            .await?;
+
+        // validate get
+        let val = spark
+            .conf()
+            .get("spark.sql.shuffle.partitions", None)
+            .await?;
+
+        assert_eq!("42", &val);
+
+        // validate unset
+        spark.conf().unset("spark.sql.shuffle.partitions").await?;
+
+        let val = spark
+            .conf()
+            .get("spark.sql.shuffle.partitions", None)
+            .await?;
+
+        assert_eq!("200", &val);
+
+        // not a modifable setting
+        let val = spark
+            .conf()
+            .is_modifable("spark.executor.instances")
+            .await?;
+        assert!(!val);
+
+        // a modifable setting
+        let val = spark
+            .conf()
+            .is_modifable("spark.sql.shuffle.partitions")
+            .await?;
+        assert!(val);
+
+        Ok(())
+    }
 }
