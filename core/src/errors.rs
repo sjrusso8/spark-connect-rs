@@ -129,7 +129,7 @@ impl Display for SparkError {
             SparkError::NotYetImplemented(source) => write!(f, "Not yet implemented: {source}"),
             SparkError::InvalidConnectionUrl(val) => write!(f, "Invalid URL error: {val}"),
             SparkError::SessionNotTheSameException(val) => {
-                write!(f, "Spark Session is no the same: {val}")
+                write!(f, "Spark Session ID is not the same: {val}")
             }
         }
     }
