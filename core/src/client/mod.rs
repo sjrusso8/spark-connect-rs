@@ -1,3 +1,5 @@
+//! Implementation of the SparkConnectServiceClient
+
 use std::sync::Arc;
 
 use tokio::sync::RwLock;

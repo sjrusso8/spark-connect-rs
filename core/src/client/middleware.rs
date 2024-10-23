@@ -1,3 +1,5 @@
+//! Middleware services
+
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str::FromStr;

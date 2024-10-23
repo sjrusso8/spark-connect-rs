@@ -139,7 +139,7 @@ impl SparkSessionBuilder {
 pub struct SparkSession {
     #[cfg(not(feature = "wasm"))]
     client: SparkClient,
-    // client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+
     #[cfg(feature = "wasm")]
     client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
 

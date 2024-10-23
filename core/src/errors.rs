@@ -1,10 +1,10 @@
 //! Defines a [SparkError] for representing failures in various Spark operations.
 //! Most of these are wrappers for tonic or arrow error messages
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Write;
 
 use arrow::error::ArrowError;
-use std::error::Error;
 
 use tonic::Code;
 
