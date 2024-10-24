@@ -4,20 +4,15 @@ use std::collections::HashMap;
 
 use crate::spark;
 
-use crate::client::{MetadataInterceptor, SparkConnectClient};
+use crate::client::SparkClient;
 use crate::errors::SparkError;
-
-use tonic::service::interceptor::InterceptedService;
-
-#[cfg(not(feature = "wasm"))]
-use tonic::transport::Channel;
 
 #[cfg(feature = "wasm")]
 use tonic_web_wasm_client::Client;
 
 pub struct RunTimeConfig {
     #[cfg(not(feature = "wasm"))]
-    pub(crate) client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+    pub(crate) client: SparkClient,
 
     #[cfg(feature = "wasm")]
     pub(crate) client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
@@ -36,9 +31,7 @@ pub struct RunTimeConfig {
 /// ```
 impl RunTimeConfig {
     #[cfg(not(feature = "wasm"))]
-    pub fn new(
-        client: &SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
-    ) -> RunTimeConfig {
+    pub fn new(client: &SparkClient) -> RunTimeConfig {
         RunTimeConfig {
             client: client.clone(),
         }

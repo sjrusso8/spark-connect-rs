@@ -21,7 +21,12 @@ include = [
 tonic = { workspace = true, default-features = false, optional = true }
 tonic-web-wasm-client = { workspace = true, optional = true }
 
+tower = { workspace = true }
 tokio = { workspace = true, optional = true }
+
+futures-util = { workspace = true }
+
+http-body = { workspace = true }
 
 arrow = { workspace = true }
 arrow-ipc = { workspace = true }

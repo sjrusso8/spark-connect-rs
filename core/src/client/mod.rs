@@ -1,14 +1,15 @@
-//! Generic implementation of ChannelBuilder and SparkConnectClient
+//! Implementation of the SparkConnectServiceClient
 
-use std::collections::HashMap;
-use std::env;
-use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::errors::SparkError;
+use tokio::sync::RwLock;
+
+use tonic::codec::Streaming;
+use tonic::codegen::{Body, Bytes, StdError};
+use tonic::transport::Channel;
+
 use crate::spark;
 use spark::execute_plan_response::ResponseType;
-
 use spark::spark_connect_service_client::SparkConnectServiceClient;
 
 use arrow::compute::concat_batches;
@@ -16,349 +17,60 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
 
-use tonic::codegen::{Body, Bytes, StdError};
-use tonic::metadata::{
-    Ascii, AsciiMetadataValue, KeyAndValueRef, MetadataKey, MetadataMap, MetadataValue,
-};
-use tonic::service::Interceptor;
-use tonic::Status;
+use crate::errors::SparkError;
 
-use tokio::sync::RwLock;
+mod builder;
+mod middleware;
 
-use url::Url;
+pub use builder::ChannelBuilder;
+pub use middleware::{HeadersLayer, HeadersMiddleware};
 
-use uuid::Uuid;
-
-type Host = String;
-type Port = u16;
-type UrlParse = (Host, Port, Option<HashMap<String, String>>);
-
-/// ChannelBuilder validates a connection string
-/// based on the requirements from [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
-#[derive(Clone, Debug)]
-pub struct ChannelBuilder {
-    host: Host,
-    port: Port,
-    session_id: Uuid,
-    token: Option<String>,
-    user_id: Option<String>,
-    user_agent: Option<String>,
-    use_ssl: bool,
-    headers: Option<MetadataMap>,
-}
-
-impl Default for ChannelBuilder {
-    fn default() -> Self {
-        let connection = match env::var("SPARK_REMOTE") {
-            Ok(conn) => conn.to_string(),
-            Err(_) => "sc://localhost:15002".to_string(),
-        };
-
-        ChannelBuilder::create(&connection).unwrap()
-    }
-}
-
-impl ChannelBuilder {
-    pub fn new() -> Self {
-        ChannelBuilder::default()
-    }
-
-    pub fn endpoint(&self) -> String {
-        let scheme = if cfg!(feature = "tls") {
-            "https"
-        } else {
-            "http"
-        };
-
-        format!("{}://{}:{}", scheme, self.host, self.port)
-    }
-
-    pub fn token(&self) -> Option<String> {
-        self.token.to_owned()
-    }
-
-    pub fn headers(&self) -> Option<MetadataMap> {
-        self.headers.to_owned()
-    }
-
-    fn create_user_agent(user_agent: Option<&str>) -> Option<String> {
-        let user_agent = user_agent.unwrap_or("_SPARK_CONNECT_RUST");
-        let pkg_version = env!("CARGO_PKG_VERSION");
-        let os = env::consts::OS.to_lowercase();
-
-        Some(format!(
-            "{} os/{} spark_connect_rs/{}",
-            user_agent, os, pkg_version
-        ))
-    }
-
-    fn create_user_id(user_id: Option<&str>) -> Option<String> {
-        match user_id {
-            Some(user_id) => Some(user_id.to_string()),
-            None => match env::var("USER") {
-                Ok(user) => Some(user),
-                Err(_) => None,
-            },
-        }
-    }
-
-    pub fn parse_connection_string(connection: &str) -> Result<UrlParse, SparkError> {
-        let url = Url::parse(connection).map_err(|_| {
-            SparkError::InvalidConnectionUrl("Failed to parse the connection URL".to_string())
-        })?;
-
-        if url.scheme() != "sc" {
-            return Err(SparkError::InvalidConnectionUrl(
-                "The URL must start with 'sc://'. Please update the URL to follow the correct format, e.g., 'sc://hostname:port'".to_string(),
-            ));
-        };
-
-        let host = url
-            .host_str()
-            .ok_or_else(|| {
-                SparkError::InvalidConnectionUrl(
-                    "The hostname must not be empty. Please update
-                    the URL to follow the correct format, e.g., 'sc://hostname:port'."
-                        .to_string(),
-                )
-            })?
-            .to_string();
-
-        let port = url.port().ok_or_else(|| {
-            SparkError::InvalidConnectionUrl(
-                "The port must not be empty. Please update
-                    the URL to follow the correct format, e.g., 'sc://hostname:port'."
-                    .to_string(),
-            )
-        })?;
-
-        let headers = ChannelBuilder::parse_headers(url);
-
-        Ok((host, port, headers))
-    }
-
-    pub fn parse_headers(url: Url) -> Option<HashMap<String, String>> {
-        let path: Vec<&str> = url
-            .path()
-            .split(';')
-            .filter(|&pair| (pair != "/") & (!pair.is_empty()))
-            .collect();
-
-        if path.is_empty() || (path.len() == 1 && (path[0].is_empty() || path[0] == "/")) {
-            return None;
-        }
-
-        let headers: HashMap<String, String> = path
-            .iter()
-            .copied()
-            .map(|pair| {
-                let mut parts = pair.splitn(2, '=');
-                (
-                    parts.next().unwrap_or("").to_string(),
-                    parts.next().unwrap_or("").to_string(),
-                )
-            })
-            .collect();
-
-        if headers.is_empty() {
-            return None;
-        }
-
-        Some(headers)
-    }
-
-    /// Create and validate a connnection string
-    #[allow(unreachable_code)]
-    pub fn create(connection: &str) -> Result<ChannelBuilder, SparkError> {
-        let (host, port, headers) = ChannelBuilder::parse_connection_string(connection)?;
-
-        let mut channel_builder = ChannelBuilder {
-            host,
-            port,
-            session_id: Uuid::new_v4(),
-            token: None,
-            user_id: ChannelBuilder::create_user_id(None),
-            user_agent: ChannelBuilder::create_user_agent(None),
-            use_ssl: false,
-            headers: None,
-        };
-
-        let mut headers = match headers {
-            Some(headers) => headers,
-            None => return Ok(channel_builder),
-        };
-
-        channel_builder.user_id = headers
-            .remove("user_id")
-            .map(|user_id| ChannelBuilder::create_user_id(Some(&user_id)))
-            .unwrap_or_else(|| ChannelBuilder::create_user_id(None));
-
-        channel_builder.user_agent = headers
-            .remove("user_agent")
-            .map(|user_agent| ChannelBuilder::create_user_agent(Some(&user_agent)))
-            .unwrap_or_else(|| ChannelBuilder::create_user_agent(None));
-
-        if let Some(token) = headers.remove("token") {
-            channel_builder.token = Some(format!("Bearer {token}"));
-        }
-
-        if let Some(session_id) = headers.remove("session_id") {
-            channel_builder.session_id = Uuid::from_str(&session_id).unwrap()
-        }
-
-        if let Some(use_ssl) = headers.remove("use_ssl") {
-            if use_ssl.to_lowercase() == "true" {
-                #[cfg(not(feature = "tls"))]
-                {
-                    panic!(
-                        "The 'use_ssl' option requires the 'tls' feature, but it's not enabled!"
-                    );
-                };
-                channel_builder.use_ssl = true
-            }
-        };
-
-        channel_builder.headers = Some(metadata_builder(&headers));
-
-        Ok(channel_builder)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MetadataInterceptor {
-    token: Option<String>,
-    metadata: Option<MetadataMap>,
-}
-
-impl Interceptor for MetadataInterceptor {
-    fn call(&mut self, mut req: tonic::Request<()>) -> Result<tonic::Request<()>, Status> {
-        if let Some(header) = &self.metadata {
-            merge_metadata(req.metadata_mut(), header);
-        }
-        if let Some(token) = &self.token {
-            req.metadata_mut().insert(
-                "authorization",
-                AsciiMetadataValue::from_str(token.as_str()).unwrap(),
-            );
-        }
-
-        Ok(req)
-    }
-}
-
-impl MetadataInterceptor {
-    pub fn new(token: Option<String>, metadata: Option<MetadataMap>) -> Self {
-        MetadataInterceptor { token, metadata }
-    }
-}
-
-fn metadata_builder(headers: &HashMap<String, String>) -> MetadataMap {
-    let mut metadata_map = MetadataMap::new();
-    for (key, val) in headers.iter() {
-        let meta_val = MetadataValue::from_str(val.as_str()).unwrap();
-        let meta_key = MetadataKey::from_str(key.as_str()).unwrap();
-
-        metadata_map.insert(meta_key, meta_val);
-    }
-
-    metadata_map
-}
-
-fn merge_metadata(metadata_into: &mut MetadataMap, metadata_from: &MetadataMap) {
-    metadata_for_each(metadata_from, |key, value| {
-        if key.to_string().starts_with("x-") {
-            metadata_into.insert(key, value.to_owned());
-        }
-    })
-}
-
-fn metadata_for_each<F>(metadata: &MetadataMap, mut f: F)
-where
-    F: FnMut(&MetadataKey<Ascii>, &MetadataValue<Ascii>),
-{
-    for kv_ref in metadata.iter() {
-        match kv_ref {
-            KeyAndValueRef::Ascii(key, value) => f(key, value),
-            KeyAndValueRef::Binary(_key, _value) => {}
-        }
-    }
-}
+pub type SparkClient = SparkConnectClient<HeadersMiddleware<Channel>>;
 
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
 pub struct ResponseHandler {
+    session_id: Option<String>,
+    operation_id: Option<String>,
+    response_id: Option<String>,
     metrics: Option<spark::execute_plan_response::Metrics>,
     observed_metrics: Option<spark::execute_plan_response::ObservedMetrics>,
-    pub schema: Option<spark::DataType>,
+    pub(crate) schema: Option<spark::DataType>,
     batches: Vec<RecordBatch>,
-    pub sql_command_result: Option<spark::execute_plan_response::SqlCommandResult>,
-    pub write_stream_operation_start_result: Option<spark::WriteStreamOperationStartResult>,
-    pub streaming_query_command_result: Option<spark::StreamingQueryCommandResult>,
-    pub get_resources_command_result: Option<spark::GetResourcesCommandResult>,
-    pub streaming_query_manager_command_result: Option<spark::StreamingQueryManagerCommandResult>,
-    pub result_complete: Option<spark::execute_plan_response::ResultComplete>,
+    pub(crate) sql_command_result: Option<spark::execute_plan_response::SqlCommandResult>,
+    pub(crate) write_stream_operation_start_result: Option<spark::WriteStreamOperationStartResult>,
+    pub(crate) streaming_query_command_result: Option<spark::StreamingQueryCommandResult>,
+    pub(crate) get_resources_command_result: Option<spark::GetResourcesCommandResult>,
+    pub(crate) streaming_query_manager_command_result:
+        Option<spark::StreamingQueryManagerCommandResult>,
+    pub(crate) result_complete: bool,
     total_count: isize,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct AnalyzeHandler {
-    pub schema: Option<spark::DataType>,
-    pub explain: Option<String>,
-    pub tree_string: Option<String>,
-    pub is_local: Option<bool>,
-    pub is_streaming: Option<bool>,
-    pub input_files: Option<Vec<String>>,
-    pub spark_version: Option<String>,
-    pub ddl_parse: Option<spark::DataType>,
-    pub same_semantics: Option<bool>,
-    pub semantic_hash: Option<i32>,
-    pub get_storage_level: Option<spark::StorageLevel>,
-}
-
-impl ResponseHandler {
-    fn new() -> Self {
-        Self {
-            metrics: None,
-            observed_metrics: None,
-            schema: None,
-            batches: Vec::new(),
-            sql_command_result: None,
-            write_stream_operation_start_result: None,
-            streaming_query_command_result: None,
-            get_resources_command_result: None,
-            streaming_query_manager_command_result: None,
-            result_complete: None,
-            total_count: 0,
-        }
-    }
-}
-
-impl AnalyzeHandler {
-    fn new() -> Self {
-        Self {
-            schema: None,
-            explain: None,
-            tree_string: None,
-            is_local: None,
-            is_streaming: None,
-            input_files: None,
-            spark_version: None,
-            ddl_parse: None,
-            same_semantics: None,
-            semantic_hash: None,
-            get_storage_level: None,
-        }
-    }
+    pub(crate) schema: Option<spark::DataType>,
+    pub(crate) explain: Option<String>,
+    pub(crate) tree_string: Option<String>,
+    pub(crate) is_local: Option<bool>,
+    pub(crate) is_streaming: Option<bool>,
+    pub(crate) input_files: Option<Vec<String>>,
+    pub(crate) spark_version: Option<String>,
+    pub(crate) ddl_parse: Option<spark::DataType>,
+    pub(crate) same_semantics: Option<bool>,
+    pub(crate) semantic_hash: Option<i32>,
+    pub(crate) get_storage_level: Option<spark::StorageLevel>,
 }
 
 #[derive(Clone, Debug)]
 pub struct SparkConnectClient<T> {
     stub: Arc<RwLock<SparkConnectServiceClient<T>>>,
     builder: ChannelBuilder,
-    pub handler: ResponseHandler,
-    pub analyzer: AnalyzeHandler,
-    pub user_context: Option<spark::UserContext>,
+    pub(crate) handler: ResponseHandler,
+    pub(crate) analyzer: AnalyzeHandler,
+    pub(crate) user_context: Option<spark::UserContext>,
     pub tags: Vec<String>,
+    pub use_reattachable_execute: bool,
 }
 
 impl<T> SparkConnectClient<T>
@@ -374,19 +86,42 @@ where
         SparkConnectClient {
             stub,
             builder,
-            handler: ResponseHandler::new(),
-            analyzer: AnalyzeHandler::new(),
+            handler: ResponseHandler::default(),
+            analyzer: AnalyzeHandler::default(),
             user_context: Some(spark::UserContext {
                 user_id: user_ref.clone(),
                 user_name: user_ref,
                 extensions: vec![],
             }),
             tags: vec![],
+            use_reattachable_execute: true,
         }
     }
 
     pub fn session_id(&self) -> String {
         self.builder.session_id.to_string()
+    }
+
+    pub fn set_reattachable_execute(&mut self, setting: bool) -> Result<(), SparkError> {
+        self.use_reattachable_execute = setting;
+        Ok(())
+    }
+
+    fn request_options(&self) -> Vec<spark::execute_plan_request::RequestOption> {
+        if self.use_reattachable_execute {
+            let reattach_opt = spark::ReattachOptions { reattachable: true };
+            let request_opt = spark::execute_plan_request::RequestOption {
+                request_option: Some(
+                    spark::execute_plan_request::request_option::RequestOption::ReattachOptions(
+                        reattach_opt,
+                    ),
+                ),
+            };
+
+            return vec![request_opt];
+        };
+
+        vec![]
     }
 
     fn execute_plan_request_with_metadata(&self) -> spark::ExecutePlanRequest {
@@ -396,7 +131,7 @@ where
             operation_id: None,
             plan: None,
             client_type: self.builder.user_agent.clone(),
-            request_options: vec![],
+            request_options: self.request_options(),
             tags: self.tags.clone(),
         }
     }
@@ -416,20 +151,105 @@ where
     ) -> Result<(), SparkError> {
         let mut client = self.stub.write().await;
 
-        let mut resp = client.execute_plan(req).await?.into_inner();
+        let mut stream = client.execute_plan(req).await?.into_inner();
         drop(client);
 
         // clear out any prior responses
-        self.handler = ResponseHandler::new();
+        self.handler = ResponseHandler::default();
 
-        while let Some(resp) = resp.message().await.map_err(|err| {
-            SparkError::IoError(
-                err.to_string(),
-                std::io::Error::new(std::io::ErrorKind::Other, err.to_string()),
-            )
-        })? {
-            self.handle_response(resp)?;
+        self.process_stream(&mut stream).await?;
+
+        if self.use_reattachable_execute && self.handler.result_complete {
+            self.release_all().await?
         }
+
+        Ok(())
+    }
+
+    async fn reattach_execute(&mut self) -> Result<(), SparkError> {
+        let mut client = self.stub.write().await;
+
+        let req = spark::ReattachExecuteRequest {
+            session_id: self.handler.session_id.clone().unwrap(),
+            user_context: self.user_context.clone(),
+            operation_id: self.handler.operation_id.clone().unwrap(),
+            client_type: self.builder.user_agent.clone(),
+            last_response_id: self.handler.response_id.clone(),
+        };
+
+        let mut stream = client.reattach_execute(req).await?.into_inner();
+        drop(client);
+
+        self.process_stream(&mut stream).await?;
+
+        if self.use_reattachable_execute && self.handler.result_complete {
+            self.release_all().await?
+        }
+
+        Ok(())
+    }
+
+    async fn process_stream(
+        &mut self,
+        stream: &mut Streaming<spark::ExecutePlanResponse>,
+    ) -> Result<(), SparkError> {
+        while let Some(_resp) = match stream.message().await {
+            Ok(Some(msg)) => {
+                self.handle_response(msg.clone())?;
+                Some(msg)
+            }
+            Ok(None) => {
+                if self.use_reattachable_execute && !self.handler.result_complete {
+                    Box::pin(self.reattach_execute()).await?;
+                }
+                None
+            }
+            Err(err) => {
+                if self.use_reattachable_execute && self.handler.response_id.is_some() {
+                    self.release_until().await?;
+                }
+                return Err(err.into());
+            }
+        } {}
+
+        Ok(())
+    }
+
+    async fn release_until(&mut self) -> Result<(), SparkError> {
+        let release_until = spark::release_execute_request::ReleaseUntil {
+            response_id: self.handler.response_id.clone().unwrap(),
+        };
+
+        self.release_execute(Some(spark::release_execute_request::Release::ReleaseUntil(
+            release_until,
+        )))
+        .await
+    }
+
+    async fn release_all(&mut self) -> Result<(), SparkError> {
+        let release_all = spark::release_execute_request::ReleaseAll {};
+
+        self.release_execute(Some(spark::release_execute_request::Release::ReleaseAll(
+            release_all,
+        )))
+        .await
+    }
+
+    async fn release_execute(
+        &mut self,
+        release: Option<spark::release_execute_request::Release>,
+    ) -> Result<(), SparkError> {
+        let mut client = self.stub.write().await;
+
+        let req = spark::ReleaseExecuteRequest {
+            session_id: self.handler.session_id.clone().unwrap(),
+            user_context: self.user_context.clone(),
+            operation_id: self.handler.operation_id.clone().unwrap(),
+            client_type: self.builder.user_agent.clone(),
+            release,
+        };
+
+        let _resp = client.release_execute(req).await?.into_inner();
 
         Ok(())
     }
@@ -443,56 +263,13 @@ where
         req.analyze = Some(analyze);
 
         // clear out any prior responses
-        self.analyzer = AnalyzeHandler::new();
+        self.analyzer = AnalyzeHandler::default();
 
         let mut client = self.stub.write().await;
         let resp = client.analyze_plan(req).await?.into_inner();
         drop(client);
 
         self.handle_analyze(resp)
-    }
-
-    pub async fn interrupt_request(
-        &self,
-        interrupt_type: spark::interrupt_request::InterruptType,
-        id_or_tag: Option<String>,
-    ) -> Result<spark::InterruptResponse, SparkError> {
-        let mut req = spark::InterruptRequest {
-            session_id: self.session_id(),
-            user_context: self.user_context.clone(),
-            client_type: self.builder.user_agent.clone(),
-            interrupt_type: 0,
-            interrupt: None,
-        };
-
-        match interrupt_type {
-            spark::interrupt_request::InterruptType::All => {
-                req.interrupt_type = interrupt_type.into();
-            }
-            spark::interrupt_request::InterruptType::Tag => {
-                let tag = id_or_tag.expect("Tag can not be empty");
-                let interrupt = spark::interrupt_request::Interrupt::OperationTag(tag);
-                req.interrupt_type = interrupt_type.into();
-                req.interrupt = Some(interrupt);
-            }
-            spark::interrupt_request::InterruptType::OperationId => {
-                let op_id = id_or_tag.expect("Operation ID can not be empty");
-                let interrupt = spark::interrupt_request::Interrupt::OperationId(op_id);
-                req.interrupt_type = interrupt_type.into();
-                req.interrupt = Some(interrupt);
-            }
-            spark::interrupt_request::InterruptType::Unspecified => {
-                return Err(SparkError::AnalysisException(
-                    "Interrupt Type was not specified".to_string(),
-                ))
-            }
-        };
-
-        let mut client = self.stub.write().await;
-
-        let resp = client.interrupt(req).await?.into_inner();
-
-        Ok(resp)
     }
 
     fn validate_tag(&self, tag: &str) -> Result<(), SparkError> {
@@ -549,8 +326,55 @@ where
         Ok(resp)
     }
 
+    pub async fn interrupt_request(
+        &self,
+        interrupt_type: spark::interrupt_request::InterruptType,
+        id_or_tag: Option<String>,
+    ) -> Result<spark::InterruptResponse, SparkError> {
+        let mut req = spark::InterruptRequest {
+            session_id: self.session_id(),
+            user_context: self.user_context.clone(),
+            client_type: self.builder.user_agent.clone(),
+            interrupt_type: 0,
+            interrupt: None,
+        };
+
+        match interrupt_type {
+            spark::interrupt_request::InterruptType::All => {
+                req.interrupt_type = interrupt_type.into();
+            }
+            spark::interrupt_request::InterruptType::Tag => {
+                let tag = id_or_tag.expect("Tag can not be empty");
+                let interrupt = spark::interrupt_request::Interrupt::OperationTag(tag);
+                req.interrupt_type = interrupt_type.into();
+                req.interrupt = Some(interrupt);
+            }
+            spark::interrupt_request::InterruptType::OperationId => {
+                let op_id = id_or_tag.expect("Operation ID can not be empty");
+                let interrupt = spark::interrupt_request::Interrupt::OperationId(op_id);
+                req.interrupt_type = interrupt_type.into();
+                req.interrupt = Some(interrupt);
+            }
+            spark::interrupt_request::InterruptType::Unspecified => {
+                return Err(SparkError::AnalysisException(
+                    "Interrupt Type was not specified".to_string(),
+                ))
+            }
+        };
+
+        let mut client = self.stub.write().await;
+
+        let resp = client.interrupt(req).await?.into_inner();
+
+        Ok(resp)
+    }
+
     fn handle_response(&mut self, resp: spark::ExecutePlanResponse) -> Result<(), SparkError> {
         self.validate_session(&resp.session_id)?;
+
+        self.handler.session_id = Some(resp.session_id);
+        self.handler.operation_id = Some(resp.operation_id);
+        self.handler.response_id = Some(resp.response_id);
 
         if let Some(schema) = &resp.schema {
             self.handler.schema = Some(schema.clone());
@@ -578,10 +402,9 @@ where
                 ResponseType::StreamingQueryManagerCommandResult(stream_qry_mngr_cmd) => {
                     self.handler.streaming_query_manager_command_result = Some(stream_qry_mngr_cmd)
                 }
-                _ => {
-                    return Err(SparkError::NotYetImplemented(
-                        "ResponseType not implemented".to_string(),
-                    ));
+                ResponseType::ResultComplete(_) => self.handler.result_complete = true,
+                ResponseType::Extension(_) => {
+                    unimplemented!("extension response types are not implemented")
                 }
             }
         }
@@ -781,50 +604,5 @@ where
         self.analyzer.get_storage_level.to_owned().ok_or_else(|| {
             SparkError::AnalysisException("Storage Level response is empty".to_string())
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_channel_builder_default() {
-        let expected_url = "http://localhost:15002".to_string();
-
-        let cb = ChannelBuilder::default();
-
-        assert_eq!(expected_url, cb.endpoint())
-    }
-
-    #[test]
-    fn test_panic_incorrect_url_scheme() {
-        let connection = "http://127.0.0.1:15002";
-
-        assert!(ChannelBuilder::create(connection).is_err())
-    }
-
-    #[test]
-    fn test_panic_missing_url_host() {
-        let connection = "sc://:15002";
-
-        assert!(ChannelBuilder::create(connection).is_err())
-    }
-
-    #[test]
-    fn test_panic_missing_url_port() {
-        let connection = "sc://127.0.0.1";
-
-        assert!(ChannelBuilder::create(connection).is_err())
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "The 'use_ssl' option requires the 'tls' feature, but it's not enabled!"
-    )]
-    fn test_panic_ssl() {
-        let connection = "sc://127.0.0.1:443/;use_ssl=true";
-
-        ChannelBuilder::create(&connection).unwrap();
     }
 }
