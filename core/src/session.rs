@@ -190,12 +190,12 @@ impl SparkSession {
         DataFrame::new(self.session(), LogicalPlanBuilder::from(range_relation))
     }
 
-    /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
+    /// Returns a [DataFrameReader] that can be used to read data in as a [DataFrame]
     pub fn read(&self) -> DataFrameReader {
         DataFrameReader::new(self.session())
     }
 
-    /// Returns a [DataFrameReader] that can be used to read datra in as a [DataFrame]
+    /// Returns a [DataFrameReader] that can be used to read data in as a [DataFrame]
     pub fn read_stream(&self) -> DataStreamReader {
         DataStreamReader::new(self.session())
     }

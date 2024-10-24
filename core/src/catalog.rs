@@ -1,12 +1,15 @@
 //! Spark Catalog representation through which the user may create, drop, alter or query underlying databases, tables, functions, etc.
 
+use std::collections::HashMap;
+
 use arrow::array::RecordBatch;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
-use crate::spark;
+use crate::spark::DataType;
 use crate::storage::StorageLevel;
+use crate::{spark, DataFrame};
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -139,6 +142,95 @@ impl Catalog {
         let record = self.spark_session.client().to_arrow(plan).await?;
 
         Catalog::arrow_to_bool(record)
+    }
+
+    pub async fn create_table(
+        self,
+        table_name: &str,
+        source: Option<&str>,
+        schema: Option<DataType>,
+        description: Option<&str>,
+        options: Option<HashMap<String, String>>,
+    ) -> Result<DataFrame, SparkError> {
+        let source = if let Some(s) = source {
+            s.to_string()
+        } else {
+            // If no source is provided, use the default data source from the Spark config
+            let mut config = self.spark_session.conf();
+            let default_source = config.get("spark.sql.sources.default", None).await?;
+            default_source
+        };
+
+        let description = if let Some(d) = description {
+            if d.is_empty() {
+                None
+            } else {
+                Some(d.to_string())
+            }
+        } else {
+            None
+        };
+
+        let create_table_message = spark::CreateTable {
+            table_name: table_name.to_string(),
+            source: Some(source),
+            schema,
+            description,
+            options: options.unwrap_or_default(),
+            path: None,
+        };
+
+        let cat_type = Some(spark::catalog::CatType::CreateTable(create_table_message));
+
+        let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
+
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
+
+        self.spark_session.clone().client().to_arrow(plan).await?;
+
+        let df = self.spark_session.read().table(table_name, None)?;
+
+        Ok(df)
+    }
+
+    pub async fn create_external_table(
+        self,
+        table_name: &str,
+        path: &str,
+        source: Option<&str>,
+        schema: Option<DataType>,
+        options: Option<HashMap<String, String>>,
+    ) -> Result<DataFrame, SparkError> {
+        let source = if let Some(s) = source {
+            s.to_string()
+        } else {
+            // If no source is provided, use the default data source from the Spark config
+            let mut config = self.spark_session.conf();
+            let default_source = config.get("spark.sql.sources.default", None).await?;
+            default_source
+        };
+
+        let create_external_table_message = spark::CreateExternalTable {
+            table_name: table_name.to_string(),
+            path: Some(path.to_string()),
+            source: Some(source),
+            schema: schema.into(),
+            options: options.unwrap_or_default(),
+        };
+
+        let cat_type = Some(spark::catalog::CatType::CreateExternalTable(
+            create_external_table_message,
+        ));
+
+        let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
+
+        let plan = LogicalPlanBuilder::from(rel_type).plan_root();
+
+        self.spark_session.clone().client().to_arrow(plan).await?;
+
+        let df = self.spark_session.read().table(table_name, None)?;
+
+        Ok(df)
     }
 
     /// Returns a list of tables/views in the specific database
@@ -391,8 +483,10 @@ mod tests {
 
     use super::*;
 
-    use crate::errors::SparkError;
+    use crate::readwriter::ParquetOptions;
+    use crate::types::{StructField, StructType};
     use crate::SparkSessionBuilder;
+    use crate::{errors::SparkError, types::DataType};
 
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
@@ -569,6 +663,137 @@ mod tests {
         let res = spark.catalog().drop_temp_view("tmp_view").await?;
 
         assert!(res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_table() -> Result<(), SparkError> {
+        let spark: SparkSession = setup().await;
+
+        let table_name = "test_create_table";
+        let source = Some("parquet");
+        let description = Some("Test table description");
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        let mut options = HashMap::new();
+        options.insert("compression".to_string(), "snappy".to_string());
+
+        let result = spark
+            .catalog()
+            .create_table(
+                table_name,
+                source,
+                Some(schema.clone().into()),
+                description,
+                Some(options),
+            )
+            .await;
+
+        let df = result.unwrap();
+        let df_schema = df.clone().schema().await?;
+
+        // Insert data
+        let path = ["/opt/spark/work-dir/datasets/users.parquet"];
+
+        let opts = ParquetOptions::default();
+        let data_df = spark.read().parquet(path, opts)?;
+
+        data_df.write().insert_tnto(table_name).await?;
+
+        let res = spark
+            .catalog()
+            .list_tables(Some("test_create_table"), None)
+            .await?;
+
+        assert_eq!(res.num_rows(), 1);
+        assert_eq!(df_schema, schema.into());
+        assert_eq!(source.unwrap(), "parquet");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_external_table() -> Result<(), SparkError> {
+        let spark: SparkSession = setup().await;
+
+        let table_name = "test_create_external_table";
+        let source = Some("parquet");
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        let mut options = HashMap::new();
+        options.insert("compression".to_string(), "snappy".to_string());
+
+        let path = "/opt/spark/work-dir/datasets/users.parquet";
+
+        let result = spark
+            .catalog()
+            .create_external_table(
+                table_name,
+                path,
+                source,
+                Some(schema.clone().into()),
+                Some(options),
+            )
+            .await;
+
+        let df = result.unwrap();
+        let df_schema = df.clone().schema().await?;
+
+        let res = spark
+            .catalog()
+            .list_tables(Some("test_create_external_table"), None)
+            .await?;
+
+        assert_eq!(res.num_rows(), 1);
+        assert_eq!(df_schema, schema.into());
+        assert_eq!(source.unwrap(), "parquet");
 
         Ok(())
     }
