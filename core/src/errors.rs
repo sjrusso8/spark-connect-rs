@@ -17,13 +17,28 @@ use polars::error::PolarsError;
 #[derive(Debug)]
 pub enum SparkError {
     /// Returned when functionality is not yet available.
+    Aborted(String),
+    AlreadyExists(String),
     AnalysisException(String),
-    SessionNotTheSameException(String),
-    NotYetImplemented(String),
-    ExternalError(Box<dyn Error + Send + Sync>),
-    IoError(String, std::io::Error),
     ArrowError(ArrowError),
+    Cancelled(String),
+    DataLoss(String),
+    DeadlineExceeded(String),
+    ExternalError(Box<dyn Error + Send + Sync>),
+    FailedPrecondition(String),
     InvalidConnectionUrl(String),
+    InvalidArgument(String),
+    IoError(String, std::io::Error),
+    NotFound(String),
+    NotYetImplemented(String),
+    PermissionDenied(String),
+    ResourceExhausted(String),
+    SessionNotSameException(String),
+    Unauthenticated(String),
+    Unavailable(String),
+    Unknown(String),
+    Unimplemented(String),
+    OutOfRange(String),
 }
 
 impl SparkError {
@@ -61,22 +76,24 @@ impl From<tonic::Status> for SparkError {
     fn from(status: tonic::Status) -> Self {
         match status.code() {
             Code::Ok => SparkError::AnalysisException(status.message().to_string()),
-            Code::Unknown => SparkError::AnalysisException(status.message().to_string()),
-            Code::Aborted => SparkError::AnalysisException(status.message().to_string()),
-            Code::NotFound => SparkError::AnalysisException(status.message().to_string()),
+            Code::Unknown => SparkError::Unknown(status.message().to_string()),
+            Code::Aborted => SparkError::Aborted(status.message().to_string()),
+            Code::NotFound => SparkError::NotFound(status.message().to_string()),
             Code::Internal => SparkError::AnalysisException(status.message().to_string()),
-            Code::DataLoss => SparkError::AnalysisException(status.message().to_string()),
-            Code::Cancelled => SparkError::AnalysisException(status.message().to_string()),
-            Code::OutOfRange => SparkError::AnalysisException(status.message().to_string()),
-            Code::Unavailable => SparkError::AnalysisException(status.message().to_string()),
+            Code::DataLoss => SparkError::DataLoss(status.message().to_string()),
+            Code::Cancelled => SparkError::Cancelled(status.message().to_string()),
+            Code::OutOfRange => SparkError::OutOfRange(status.message().to_string()),
+            Code::Unavailable => SparkError::Unavailable(status.message().to_string()),
             Code::AlreadyExists => SparkError::AnalysisException(status.message().to_string()),
-            Code::InvalidArgument => SparkError::AnalysisException(status.message().to_string()),
-            Code::DeadlineExceeded => SparkError::AnalysisException(status.message().to_string()),
-            Code::Unimplemented => SparkError::AnalysisException(status.message().to_string()),
-            Code::Unauthenticated => SparkError::AnalysisException(status.message().to_string()),
-            Code::PermissionDenied => SparkError::AnalysisException(status.message().to_string()),
-            Code::ResourceExhausted => SparkError::AnalysisException(status.message().to_string()),
-            Code::FailedPrecondition => SparkError::AnalysisException(status.message().to_string()),
+            Code::InvalidArgument => SparkError::InvalidArgument(status.message().to_string()),
+            Code::DeadlineExceeded => SparkError::DeadlineExceeded(status.message().to_string()),
+            Code::Unimplemented => SparkError::Unimplemented(status.message().to_string()),
+            Code::Unauthenticated => SparkError::Unauthenticated(status.message().to_string()),
+            Code::PermissionDenied => SparkError::PermissionDenied(status.message().to_string()),
+            Code::ResourceExhausted => SparkError::ResourceExhausted(status.message().to_string()),
+            Code::FailedPrecondition => {
+                SparkError::FailedPrecondition(status.message().to_string())
+            }
         }
     }
 }
@@ -128,9 +145,24 @@ impl Display for SparkError {
             SparkError::ArrowError(desc) => write!(f, "Apache Arrow error: {desc}"),
             SparkError::NotYetImplemented(source) => write!(f, "Not yet implemented: {source}"),
             SparkError::InvalidConnectionUrl(val) => write!(f, "Invalid URL error: {val}"),
-            SparkError::SessionNotTheSameException(val) => {
+            SparkError::SessionNotSameException(val) => {
                 write!(f, "Spark Session ID is not the same: {val}")
             }
+            SparkError::Aborted(val) => write!(f, "Aborted: {val}"),
+            SparkError::AlreadyExists(val) => write!(f, "Already Exists: {val}"),
+            SparkError::Cancelled(val) => write!(f, "Cancelled: {val}"),
+            SparkError::DataLoss(val) => write!(f, "Data Loss: {val}"),
+            SparkError::DeadlineExceeded(val) => write!(f, "Deadline Exceeded: {val}"),
+            SparkError::FailedPrecondition(val) => write!(f, "Failed Precondition: {val}"),
+            SparkError::InvalidArgument(val) => write!(f, "Invalid Argument: {val}"),
+            SparkError::NotFound(val) => write!(f, "Not Found: {val}"),
+            SparkError::PermissionDenied(val) => write!(f, "Permission Denied: {val}"),
+            SparkError::ResourceExhausted(val) => write!(f, "Resource Exhausted: {val}"),
+            SparkError::Unauthenticated(val) => write!(f, "Unauthenicated: {val}"),
+            SparkError::Unavailable(val) => write!(f, "Unavailable: {val}"),
+            SparkError::Unknown(val) => write!(f, "Unknown: {val}"),
+            SparkError::Unimplemented(val) => write!(f, "Unimplemented: {val}"),
+            SparkError::OutOfRange(val) => write!(f, "Out Of Range: {val}"),
         }
     }
 }

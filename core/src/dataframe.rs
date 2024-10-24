@@ -96,8 +96,8 @@ impl DataFrame {
 
     fn check_same_session(&self, other: &DataFrame) -> Result<(), SparkError> {
         if self.spark_session.session_id() != other.spark_session.session_id() {
-            return Err(SparkError::AnalysisException(
-                "Spark Session is not the same!".to_string(),
+            return Err(SparkError::SessionNotSameException(
+                "Spark Session IDs are not the same.".to_string(),
             ));
         };
 
