@@ -104,7 +104,7 @@ The following section outlines some of the larger functionality that are not yet
 |conf              |![done]   |[Conf](#runtimeconfig)                 |
 |read              |![done]   |[DataFrameReader](#dataframereader)    |
 |readStream        |![done]   |[DataStreamReader](#datastreamreader)  |
-|streams           |![open]   |[Streams](#streamingquerymanager)      |
+|streams           |![done]   |[Streams](#streamingquerymanager)      |
 |udf               |![open]   |[Udf](#udfregistration) - may not be possible   |
 |udtf              |![open]   |[Udtf](#udtfregistration) - may not be possible |
 |version           |![done]   |                                       |
@@ -121,10 +121,10 @@ The following section outlines some of the larger functionality that are not yet
 
 |StreamingQueryManager|API       |Comment                                |
 |---------------------|----------|---------------------------------------|
-|awaitAnyTermination  |![open]   |                                       |
-|get                  |![open]   |                                       |
-|resetTerminated      |![open]   |                                       |
-|active               |![open]   |                                       |
+|awaitAnyTermination  |![done]   |                                       |
+|get                  |![done]   |                                       |
+|resetTerminated      |![done]   |                                       |
+|active               |![done]   |                                       |
 
 ### StreamingQuery
 
