@@ -95,4 +95,4 @@ jobs:
         run: docker compose up -d
 
       - name: Run tests
-        run: cargo test -p spark-connect-core --features polars,datafusion
+        run: cargo test -p spark-connect-rs --features polars,datafusion

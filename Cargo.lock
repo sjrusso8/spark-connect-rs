@@ -2596,7 +2596,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spark-connect-core"
+name = "spark-connect-rs"
 version = "0.0.1-beta.5"
 dependencies = [
  "arrow",
@@ -2620,14 +2620,6 @@ dependencies = [
  "tower 0.5.1",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "spark-connect-rs"
-version = "0.0.1-beta.5"
-dependencies = [
- "spark-connect-core",
- "tokio",
 ]
 
 [[package]]
