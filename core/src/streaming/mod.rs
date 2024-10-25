@@ -582,7 +582,7 @@ impl StreamingQueryManager {
             .streaming_query_manager_command_result
             .ok_or_else(|| {
                 SparkError::AnalysisException(
-                    "Streaming Query Manager Command Response is empty".to_string(),
+                    "Unexpected Response for Streaming Query Manager".to_string(),
                 )
             })
     }
@@ -597,13 +597,15 @@ impl StreamingQueryManager {
             .execute_query_cmd(command)
             .await?
             .result_type
-            .ok_or_else(|| SparkError::AnalysisException("Stream status is empty".to_string()))?;
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result is Empty".to_string())
+            })?;
 
         let active_result = match result_type {
             spark::streaming_query_manager_command_result::ResultType::Active(active) => active,
             _ => {
                 return Err(SparkError::AnalysisException(
-                    "Unexpected result type for stream status".to_string(),
+                    "Unexpected Response for Streaming Query Manager".to_string(),
                 ))
             }
         };
@@ -636,13 +638,15 @@ impl StreamingQueryManager {
             .execute_query_cmd(command)
             .await?
             .result_type
-            .ok_or_else(|| SparkError::AnalysisException("Stream status is empty".to_string()))?;
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result is Empty".to_string())
+            })?;
 
         let stream = match result_type {
             spark::streaming_query_manager_command_result::ResultType::Query(stream) => stream,
             _ => {
                 return Err(SparkError::AnalysisException(
-                    "Unexpected result type for stream status".to_string(),
+                    "Unexpected Response for Streaming Query Manager".to_string(),
                 ))
             }
         };
@@ -671,7 +675,9 @@ impl StreamingQueryManager {
             .execute_query_cmd(command)
             .await?
             .result_type
-            .ok_or_else(|| SparkError::AnalysisException("Stream status is empty".to_string()))?;
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result is Empty".to_string())
+            })?;
 
         let term = match result_type {
             spark::streaming_query_manager_command_result::ResultType::AwaitAnyTermination(
@@ -679,7 +685,7 @@ impl StreamingQueryManager {
             ) => term,
             _ => {
                 return Err(SparkError::AnalysisException(
-                    "Unexpected result type for stream status".to_string(),
+                    "Unexpected Response for Streaming Query Manager".to_string(),
                 ))
             }
         };
@@ -695,7 +701,11 @@ impl StreamingQueryManager {
         self.execute_query_cmd(command)
             .await?
             .result_type
-            .ok_or_else(|| SparkError::AnalysisException("Stream status is empty".to_string()))?;
+            .ok_or_else(|| {
+                SparkError::AnalysisException(
+                    "Unexpected Response for Streaming Query Manager".to_string(),
+                )
+            })?;
 
         Ok(())
     }
