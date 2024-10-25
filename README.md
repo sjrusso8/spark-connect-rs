@@ -16,14 +16,14 @@ The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://
 ## Project Layout
 
 ```
-├── core         <- core implementation in Rust
-│   └─ protobuf  <- connect protobuf for apache/spark
-├── rust         <- shim for 'spark-connect-rs' from core
-├── examples     <- examples of using different aspects of the crate
-├── datasets     <- sample files from the main spark repo
+├── crates          <- crates for the implementation of the client side spark-connect bindings
+│   └─ connect      <- crate for 'spark-connect-rs'
+│      └─ protobuf  <- connect protobuf for apache/spark
+├── examples        <- examples of using different aspects of the crate
+├── datasets        <- sample files from the main spark repo
 ```
 
-Future state would be to have additional bindings for other languages along side the top level `rust` folder.
+Future state would be to have additional crates that allow for easier creation of other language bindings.
 
 ## Getting Started
 

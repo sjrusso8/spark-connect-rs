@@ -1,5 +1,5 @@
 [package]
-name = "spark-connect-core"
+name = "spark-connect-rs"
 version = "0.0.1-beta.5"
 authors.workspace = true
 keywords.workspace = true
