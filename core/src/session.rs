@@ -10,7 +10,7 @@ use crate::conf::RunTimeConfig;
 use crate::dataframe::{DataFrame, DataFrameReader};
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
-use crate::streaming::DataStreamReader;
+use crate::streaming::{DataStreamReader, StreamingQueryManager};
 
 use crate::spark;
 use spark::spark_connect_service_client::SparkConnectServiceClient;
@@ -325,6 +325,11 @@ impl SparkSession {
     /// [RunTimeConfig] configuration interface for Spark.
     pub fn conf(&self) -> RunTimeConfig {
         RunTimeConfig::new(&self.client)
+    }
+
+    /// Returns a [StreamingQueryManager] that allows managing all the StreamingQuery instances active on this context.
+    pub fn streams(&self) -> StreamingQueryManager {
+        StreamingQueryManager::new(self)
     }
 }
 

@@ -269,8 +269,6 @@ impl DataStreamWriter {
 pub struct StreamingQuery {
     spark_session: Box<SparkSession>,
     query_instance: spark::StreamingQueryInstanceId,
-    query_id: String,
-    run_id: String,
     name: Option<String>,
 }
 
@@ -280,14 +278,10 @@ impl StreamingQuery {
         write_stream: spark::WriteStreamOperationStartResult,
     ) -> Self {
         let query_instance = write_stream.query_id.unwrap();
-        let query_id = query_instance.clone().id;
-        let run_id = query_instance.clone().run_id;
 
         Self {
             spark_session,
             query_instance,
-            query_id,
-            run_id,
             name: Some(write_stream.name),
         }
     }
@@ -319,11 +313,11 @@ impl StreamingQuery {
     }
 
     pub fn id(&self) -> String {
-        self.query_id.clone()
+        self.query_instance.id.clone()
     }
 
     pub fn run_id(&self) -> String {
-        self.run_id.clone()
+        self.query_instance.run_id.clone()
     }
 
     pub fn name(&self) -> Option<String> {
@@ -557,6 +551,166 @@ fn to_json_object(val: Vec<String>) -> Result<serde_json::Value, SparkError> {
     Ok(serde_json::from_str::<serde_json::Value>(val)?)
 }
 
+pub struct StreamingQueryManager {
+    spark_session: Box<SparkSession>,
+}
+
+impl StreamingQueryManager {
+    pub fn new(session: &SparkSession) -> Self {
+        Self {
+            spark_session: Box::new(session.clone()),
+        }
+    }
+
+    fn streaming_query_manager_cmd() -> spark::StreamingQueryManagerCommand {
+        spark::StreamingQueryManagerCommand { command: None }
+    }
+
+    async fn execute_query_cmd(
+        &self,
+        command: spark::StreamingQueryManagerCommand,
+    ) -> Result<spark::StreamingQueryManagerCommandResult, SparkError> {
+        let plan = LogicalPlanBuilder::plan_cmd(
+            spark::command::CommandType::StreamingQueryManagerCommand(command),
+        );
+
+        let mut client = self.spark_session.clone().client();
+
+        client
+            .execute_command_and_fetch(plan)
+            .await?
+            .streaming_query_manager_command_result
+            .ok_or_else(|| {
+                SparkError::AnalysisException(
+                    "Unexpected Response for Streaming Query Manager".to_string(),
+                )
+            })
+    }
+
+    pub async fn active(&self) -> Result<Vec<StreamingQuery>, SparkError> {
+        let mut command = StreamingQueryManager::streaming_query_manager_cmd();
+        command.command = Some(spark::streaming_query_manager_command::Command::Active(
+            true,
+        ));
+
+        let result_type = self
+            .execute_query_cmd(command)
+            .await?
+            .result_type
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result is Empty".to_string())
+            })?;
+
+        let active_result = match result_type {
+            spark::streaming_query_manager_command_result::ResultType::Active(active) => active,
+            _ => {
+                return Err(SparkError::AnalysisException(
+                    "Unexpected Response for Streaming Query Manager".to_string(),
+                ))
+            }
+        };
+
+        if active_result.active_queries.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut streams: Vec<StreamingQuery> = vec![];
+        for stream in active_result.active_queries {
+            let query = StreamingQuery {
+                spark_session: self.spark_session.clone(),
+                query_instance: stream.id.clone().unwrap(),
+                name: stream.name,
+            };
+
+            streams.push(query);
+        }
+
+        Ok(streams)
+    }
+
+    pub async fn get(&self, id: &str) -> Result<Option<StreamingQuery>, SparkError> {
+        let mut command = StreamingQueryManager::streaming_query_manager_cmd();
+        command.command = Some(spark::streaming_query_manager_command::Command::GetQuery(
+            id.to_string(),
+        ));
+
+        let result_type = self
+            .execute_query_cmd(command)
+            .await?
+            .result_type
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result is Empty".to_string())
+            })?;
+
+        let stream = match result_type {
+            spark::streaming_query_manager_command_result::ResultType::Query(stream) => stream,
+            _ => {
+                return Err(SparkError::AnalysisException(
+                    "Unexpected Response for Streaming Query Manager".to_string(),
+                ))
+            }
+        };
+
+        match stream.id {
+            Some(val) => Ok(Some(StreamingQuery {
+                spark_session: self.spark_session.clone(),
+                query_instance: val.clone(),
+                name: stream.name,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn await_any_termination(&self, timeout: Option<i64>) -> Result<bool, SparkError> {
+        let timeout_ms = timeout.map(|t| t * 1000);
+
+        let mut command = StreamingQueryManager::streaming_query_manager_cmd();
+        command.command = Some(
+            spark::streaming_query_manager_command::Command::AwaitAnyTermination(
+                spark::streaming_query_manager_command::AwaitAnyTerminationCommand { timeout_ms },
+            ),
+        );
+
+        let result_type = self
+            .execute_query_cmd(command)
+            .await?
+            .result_type
+            .ok_or_else(|| {
+                SparkError::AnalysisException("Streaming Result is Empty".to_string())
+            })?;
+
+        let term = match result_type {
+            spark::streaming_query_manager_command_result::ResultType::AwaitAnyTermination(
+                term,
+            ) => term,
+            _ => {
+                return Err(SparkError::AnalysisException(
+                    "Unexpected Response for Streaming Query Manager".to_string(),
+                ))
+            }
+        };
+
+        Ok(term.terminated)
+    }
+
+    pub async fn reset_termination(&self) -> Result<(), SparkError> {
+        let mut command = StreamingQueryManager::streaming_query_manager_cmd();
+        command.command =
+            Some(spark::streaming_query_manager_command::Command::ResetTerminated(true));
+
+        self.execute_query_cmd(command)
+            .await?
+            .result_type
+            .ok_or_else(|| {
+                SparkError::AnalysisException(
+                    "Unexpected Response for Streaming Query Manager".to_string(),
+                )
+            })?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -613,7 +767,7 @@ mod tests {
 
         assert!(query.is_active().await?);
 
-        thread::sleep(time::Duration::from_secs(10));
+        thread::sleep(time::Duration::from_secs(3));
 
         query.stop().await?;
         Ok(())
@@ -700,6 +854,157 @@ mod tests {
 
         query.stop().await?;
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_manager_active() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .read_stream()
+            .format("rate")
+            .option("rowsPerSecond", "5")
+            .load(None)?;
+
+        let _query = df
+            .clone()
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_MANAGER")
+            .start(None)
+            .await?;
+
+        let _query = df
+            .clone()
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_MANAGER_2")
+            .start(None)
+            .await?;
+
+        thread::sleep(time::Duration::from_secs(3));
+
+        let streams = spark.streams();
+
+        let active_streams = streams.active().await?;
+
+        assert!(!active_streams.is_empty());
+        assert_eq!(active_streams.len(), 2);
+
+        for stream in active_streams {
+            stream.stop().await?
+        }
+
+        let active_streams = streams.active().await?;
+
+        assert!(active_streams.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_manager_get() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .read_stream()
+            .format("rate")
+            .option("rowsPerSecond", "5")
+            .load(None)?;
+
+        let query = df
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_MANAGER_GET")
+            .start(None)
+            .await?;
+
+        thread::sleep(time::Duration::from_secs(3));
+
+        let streams = spark.streams();
+
+        let active_query = streams.get(&query.id()).await?.unwrap();
+
+        assert!(active_query.is_active().await?);
+        query.stop().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_manager_await_term() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .read_stream()
+            .format("rate")
+            .option("rowsPerSecond", "5")
+            .load(None)?;
+
+        let query = df
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_MANAGER_AWAIT")
+            .start(None)
+            .await?;
+
+        let streams = spark.streams();
+        let val = streams.await_any_termination(Some(2)).await?;
+        assert!(!val);
+
+        query.stop().await?;
+        let val = streams.await_any_termination(Some(2)).await?;
+        assert!(val);
+
+        streams.reset_termination().await?;
+
+        let df = spark
+            .clone()
+            .read_stream()
+            .format("rate")
+            .option("rowsPerSecond", "5")
+            .load(None)?;
+
+        let query = df
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_MANAGER_AWAIT")
+            .start(None)
+            .await?;
+
+        let val = streams.await_any_termination(Some(2)).await?;
+        query.stop().await?;
+        assert!(!val);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_manager_await_term_none() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark
+            .clone()
+            .read_stream()
+            .format("rate")
+            .option("rowsPerSecond", "5")
+            .load(None)?;
+
+        let query = df
+            .write_stream()
+            .format("memory")
+            .query_name("TEST_MANAGER_AWAIT")
+            .start(None)
+            .await?;
+
+        let streams = spark.streams();
+        query.stop().await?;
+        let val = streams.await_any_termination(None).await?;
+
+        assert!(val);
         Ok(())
     }
 }
