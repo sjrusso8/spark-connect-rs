@@ -1515,7 +1515,7 @@ impl DataFrameWriter {
     ///
     /// Unlike `saveAsTable()`, this method ignores the column names and just uses
     /// position-based resolution
-    pub async fn insert_tnto(self, table_name: &str) -> Result<(), SparkError> {
+    pub async fn insert_into(self, table_name: &str) -> Result<(), SparkError> {
         self.save_table(table_name, 2).await
     }
 
