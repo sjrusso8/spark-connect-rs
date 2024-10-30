@@ -133,8 +133,8 @@ The following section outlines some of the larger functionality that are not yet
 |------------------|----------|---------------------------------------|
 |cacheTable        |![done]   |                                       |
 |clearCache        |![done]   |                                       |
-|createExternalTale|![open]   |                                       |
-|createTable       |![open]   |                                       |
+|createExternalTale|![done]   |                                       |
+|createTable       |![done]   |                                       |
 |currentCatalog    |![done]   |                                       |
 |currentDatabase   |![done]   |                                       |
 |databaseExists    |![done]   |                                       |
@@ -320,7 +320,6 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | describe                      | ![done] |                                                            |
 | distinct                      | ![done] |                                                            |
 | drop                          | ![done] |                                                            |
-| dropDuplicates                | ![done] |                                                            |
 | dropDuplicatesWithinWatermark | ![done] |                                                            |
 | drop_duplicates               | ![done] |                                                            |
 | dropna                        | ![done] |                                                            |
@@ -560,7 +559,7 @@ Only a few of the functions are covered by unit tests. Functions involving closu
 | array_remove                | ![done] |          |
 | array_repeat                | ![done] |          |
 | array_size                  | ![done] |          |
-| array_sort                  | ![done] |          |
+| array_sort                  | ![open] |          |
 | array_union                 | ![done] |          |
 | arrays_overlap              | ![done] |          |
 | arrays_zip                  | ![done] |          |
@@ -874,7 +873,6 @@ Only a few of the functions are covered by unit tests. Functions involving closu
 | substring_index             | ![done] |          |
 | sum                         | ![done] |          |
 | sum_distinct                | ![done] |          |
-| sumDistinct                 | ![open] |          |
 | tan                         | ![done] |          |
 | tanh                        | ![done] |          |
 | timestamp_micros            | ![done] |          |
@@ -892,8 +890,8 @@ Only a few of the functions are covered by unit tests. Functions involving closu
 | to_unix_timestamp           | ![done] |          |
 | to_utc_timestamp            | ![done] |          |
 | to_varchar                  | ![done] |          |
-| toDegrees                   | ![open] |          |
-| toRadians                   | ![open] |          |
+| to_degrees                  | ![done] |          |
+| to_radians                  | ![done] |          |
 | transform                   | ![open] |          |
 | transform_keys              | ![open] |          |
 | transform_values            | ![open] |          |
