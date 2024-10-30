@@ -40,8 +40,7 @@ impl ToSchema for &str {
     }
 }
 
-/// A trait used to handle individual options via [option]
-/// and bulk options via [options]
+/// A trait used to convert to the expected Spark Options for readwriters
 ///
 /// This sets multiple options at once using a HashMap
 pub trait ConfigOpts {

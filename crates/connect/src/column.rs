@@ -9,7 +9,7 @@ use crate::window::WindowSpec;
 
 use spark::expression::cast::CastToType;
 
-/// # Column
+/// # A column in a DataFrame.
 ///
 /// A column holds a specific [spark::Expression] which will be resolved once an action is called.
 /// The columns are resolved by the Spark Connect server of the remote session.
@@ -26,14 +26,13 @@ use spark::expression::cast::CastToType;
 ///         .await?;
 ///
 /// // As a &str representing an unresolved column in the dataframe
-/// spark.range(None, 1, 1, Some(1)).select("id");
+/// spark.range(None, 1, 1, Some(1)).select(["id"]);
 ///
 /// // By using the `col` function
-/// spark.range(None, 1, 1, Some(1)).select(col("id"));
+/// spark.range(None, 1, 1, Some(1)).select([col("id")]);
 ///
 /// // By using the `lit` function to return a literal value
-/// spark.range(None, 1, 1, Some(1)).select(lit(4.0).alias("num_col"));
-///
+/// spark.range(None, 1, 1, Some(1)).select([lit(4.0).alias("num_col")]);
 /// ```
 #[derive(Clone, Debug)]
 pub struct Column {
@@ -85,9 +84,9 @@ impl Column {
     ///
     /// # Example:
     /// ```rust
-    /// let df: DataFrame = df.sort(col("id").asc());
+    /// let df: DataFrame = df.sort([col("id").asc()]);
     ///
-    /// let df: DataFrame = df.sort(asc(col("id")));
+    /// let df: DataFrame = df.sort([asc(col("id"))]);
     /// ```
     pub fn asc(self) -> Column {
         self.asc_nulls_first()
@@ -332,7 +331,7 @@ impl Column {
     ///
     /// ```
     /// let window = Window::new()
-    ///     .partition_by(col("name"))
+    ///     .partition_by([col("name")])
     ///     .order_by([col("age")])
     ///     .range_between(Window::unbounded_preceding(), Window::current_row());
     ///
