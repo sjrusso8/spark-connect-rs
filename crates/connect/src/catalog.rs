@@ -322,6 +322,7 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    /// Creates a table based on the dataset in a data source.
     pub async fn create_table(
         &self,
         table_name: &str,
@@ -354,6 +355,7 @@ impl Catalog {
         Ok(df)
     }
 
+    /// Creates a table based on the dataset in a data source.
     pub async fn create_external_table(
         &self,
         table_name: &str,
