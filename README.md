@@ -187,14 +187,14 @@ required jars
 |csv               |![done]   |                                       |
 |format            |![done]   |                                       |
 |insertInto        |![done]   |                                       |
-|jdbc              |          |                                       |
+|jdbc              |![open]   |                                       |
 |json              |![done]   |                                       |
 |mode              |![done]   |                                       |
 |option            |![done]   |                                       |
 |options           |![done]   |                                       |
 |orc               |![done]   |                                       |
 |parquet           |![done]   |                                       |
-|partitionBy       |          |                                       |
+|partitionBy       |![done]   |                                       |
 |save              |![done]   |                                       |
 |saveAsTable       |![done]   |                                       |
 |sortBy            |![done]   |                                       |
