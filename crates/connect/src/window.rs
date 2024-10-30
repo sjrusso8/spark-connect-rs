@@ -1,6 +1,8 @@
 //! Utility structs for defining a window over a DataFrame
 
-use crate::expressions::{ToExpr, ToLiteralExpr, ToVecExpr};
+use crate::column::Column;
+use crate::expressions::VecExpression;
+use crate::functions::lit;
 use crate::plan::sort_order;
 
 use crate::spark;
@@ -29,31 +31,35 @@ impl WindowSpec {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn partitionBy<I: ToVecExpr>(self, cols: I) -> WindowSpec {
-        WindowSpec::new(cols.to_vec_expr(), self.order_spec, self.frame_spec)
+    pub fn partition_by<I, S>(self, cols: I) -> WindowSpec
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        WindowSpec::new(
+            VecExpression::from_iter(cols).into(),
+            self.order_spec,
+            self.frame_spec,
+        )
     }
 
-    #[allow(non_snake_case)]
-    pub fn orderBy<I, T>(self, cols: I) -> WindowSpec
+    pub fn order_by<I, S>(self, cols: I) -> WindowSpec
     where
-        T: ToExpr,
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
     {
         let order_spec = sort_order(cols);
 
         WindowSpec::new(self.partition_spec, order_spec, self.frame_spec)
     }
 
-    #[allow(non_snake_case)]
-    pub fn rowsBetween(self, start: i64, end: i64) -> WindowSpec {
+    pub fn rows_between(self, start: i64, end: i64) -> WindowSpec {
         let frame_spec = WindowSpec::window_frame(true, start, end);
 
         WindowSpec::new(self.partition_spec, self.order_spec, frame_spec)
     }
 
-    #[allow(non_snake_case)]
-    pub fn rangeBetween(self, start: i64, end: i64) -> WindowSpec {
+    pub fn range_between(self, start: i64, end: i64) -> WindowSpec {
         let frame_spec = WindowSpec::window_frame(false, start, end);
 
         WindowSpec::new(self.partition_spec, self.order_spec, frame_spec)
@@ -79,10 +85,10 @@ impl WindowSpec {
                 // !TODO - I don't like casting this to i32
                 // however, the window boundary is expecting an INT and not a BIGINT
                 // i64 is a BIGINT (i.e. Long)
-                let expr = (value as i32).to_literal_expr();
+                let expr = lit(value as i32);
 
                 let boundary = Some(window::window_frame::frame_boundary::Boundary::Value(
-                    Box::new(expr),
+                    Box::new(expr.into()),
                 ));
 
                 Some(Box::new(window::window_frame::FrameBoundary { boundary }))
@@ -122,39 +128,38 @@ impl Window {
     }
 
     /// Returns 0
-    #[allow(non_snake_case)]
-    pub fn currentRow() -> i64 {
+    pub fn current_row() -> i64 {
         0
     }
 
     /// Returns [i64::MAX]
-    #[allow(non_snake_case)]
-    pub fn unboundedFollowing() -> i64 {
+    pub fn unbounded_following() -> i64 {
         i64::MAX
     }
 
     /// Returns [i64::MIN]
-    #[allow(non_snake_case)]
-    pub fn unboundedPreceding() -> i64 {
+    pub fn unbounded_preceding() -> i64 {
         i64::MIN
     }
 
     /// Creates a [WindowSpec] with the partitioning defined
-    #[allow(non_snake_case)]
-    pub fn partitionBy<I: ToVecExpr>(mut self, cols: I) -> WindowSpec {
-        self.spec = self.spec.partitionBy(cols);
+    pub fn partition_by<I, S>(mut self, cols: I) -> WindowSpec
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        self.spec = self.spec.partition_by(cols);
 
         self.spec
     }
 
     /// Creates a [WindowSpec] with the ordering defined
-    #[allow(non_snake_case)]
-    pub fn orderBy<I, T>(mut self, cols: I) -> WindowSpec
+    pub fn order_by<I, S>(mut self, cols: I) -> WindowSpec
     where
-        T: ToExpr,
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
     {
-        self.spec = self.spec.orderBy(cols);
+        self.spec = self.spec.order_by(cols);
 
         self.spec
     }
@@ -164,23 +169,22 @@ impl Window {
     /// Both start and end are relative from the current row. For example, “0” means “current row”,
     /// while “-1” means one off before the current row, and “5” means the five off after the current row.
     ///
-    /// Recommended to use [Window::unboundedPreceding], [Window::unboundedFollowing], and [Window::currentRow]
+    /// Recommended to use [Window::unbounded_preceding], [Window::unbounded_following], and [Window::current_row]
     /// to specify special boundary values, rather than using integral values directly.
     ///
     /// # Example
     ///
     /// ```
     /// let window = Window::new()
-    ///     .partitionBy(col("name"))
-    ///     .orderBy([col("age")])
-    ///     .rangeBetween(Window::unboundedPreceding(), Window::currentRow());
+    ///     .partition_by(col("name"))
+    ///     .order_by([col("age")])
+    ///     .range_between(Window::unbounded_preceding(), Window::current_row());
     ///
-    /// let df = df.withColumn("rank", rank().over(window.clone()))
-    ///     .withColumn("min", min("age").over(window));
+    /// let df = df.with_column("rank", rank().over(window.clone()))
+    ///     .with_column("min", min("age").over(window));
     /// ```
-    #[allow(non_snake_case)]
-    pub fn rangeBetween(mut self, start: i64, end: i64) -> WindowSpec {
-        self.spec = self.spec.rangeBetween(start, end);
+    pub fn range_between(mut self, start: i64, end: i64) -> WindowSpec {
+        self.spec = self.spec.range_between(start, end);
 
         self.spec
     }
@@ -190,24 +194,23 @@ impl Window {
     /// Both start and end are relative from the current row. For example, “0” means “current row”,
     /// while “-1” means one off before the current row, and “5” means the five off after the current row.
     ///
-    /// Recommended to use [Window::unboundedPreceding], [Window::unboundedFollowing], and [Window::currentRow]
+    /// Recommended to use [Window::unbounded_preceding], [Window::unbounded_following], and [Window::current_row]
     /// to specify special boundary values, rather than using integral values directly.
     ///
     /// # Example
     ///
     /// ```
     /// let window = Window::new()
-    ///     .partitionBy(col("name"))
-    ///     .orderBy([col("age")])
-    ///     .rowsBetween(Window::unboundedPreceding(), Window::currentRow());
+    ///     .partition_by(col("name"))
+    ///     .order_by([col("age")])
+    ///     .rows_between(Window::unbounded_preceding(), Window::current_row());
     ///
-    /// let df = df.withColumn("rank", rank().over(window.clone()))
-    ///     .withColumn("min", min("age").over(window));
+    /// let df = df.with_column("rank", rank().over(window.clone()))
+    ///     .with_column("min", min("age").over(window));
     /// ```
 
-    #[allow(non_snake_case)]
-    pub fn rowsBetween(mut self, start: i64, end: i64) -> WindowSpec {
-        self.spec = self.spec.rowsBetween(start, end);
+    pub fn rows_between(mut self, start: i64, end: i64) -> WindowSpec {
+        self.spec = self.spec.rows_between(start, end);
 
         self.spec
     }
@@ -258,16 +261,16 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partitionBy(col("name"))
-            .orderBy([col("age")])
-            .rowsBetween(Window::unboundedPreceding(), Window::currentRow());
+            .partition_by([col("name")])
+            .order_by([col("age")])
+            .rows_between(Window::unbounded_preceding(), Window::current_row());
 
         let res = df
-            .withColumn("rank", rank().over(window.clone()))
-            .withColumn("min", min("age").over(window))
+            .with_column("rank", rank().over(window.clone()))
+            .with_column("min", min("age").over(window))
             .collect()
             .await?;
 
@@ -296,14 +299,14 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partitionBy(col("id"))
-            .orderBy([col("category")]);
+            .partition_by([col("id")])
+            .order_by([col("category")]);
 
         let res = df
-            .withColumn("row_number", row_number().over(window))
+            .with_column("row_number", row_number().over(window))
             .collect()
             .await?;
 
@@ -328,14 +331,14 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partitionBy(col("category"))
-            .orderBy([col("id")]);
+            .partition_by([col("category")])
+            .order_by([col("id")]);
 
         let res = df
-            .withColumn("row_number", row_number().over(window))
+            .with_column("row_number", row_number().over(window))
             .collect()
             .await?;
 
@@ -360,15 +363,15 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partitionBy(col("category"))
-            .orderBy([col("id")])
-            .rangeBetween(Window::currentRow(), 1);
+            .partition_by([col("category")])
+            .order_by([col("id")])
+            .range_between(Window::current_row(), 1);
 
         let res = df
-            .withColumn("sum", sum("id").over(window))
+            .with_column("sum", sum("id").over(window))
             .sort([col("id"), col("category")])
             .collect()
             .await?;
@@ -394,15 +397,15 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let window = Window::new()
-            .partitionBy(col("category"))
-            .orderBy([col("id")])
-            .rowsBetween(Window::currentRow(), 1);
+            .partition_by([col("category")])
+            .order_by([col("id")])
+            .rows_between(Window::current_row(), 1);
 
         let res = df
-            .withColumn("sum", sum("id").over(window))
+            .with_column("sum", sum("id").over(window))
             .sort([col("id"), col("category"), col("sum")])
             .collect()
             .await?;

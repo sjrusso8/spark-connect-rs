@@ -4,10 +4,10 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub};
 
 use crate::spark;
 
-use crate::expressions::{ToExpr, ToLiteralExpr};
 use crate::functions::invoke_func;
-use crate::types::DataType;
 use crate::window::WindowSpec;
+
+use spark::expression::cast::CastToType;
 
 /// # Column
 ///
@@ -41,32 +41,16 @@ pub struct Column {
     pub expression: spark::Expression,
 }
 
-/// Trait used to cast columns to a specific [DataType]
-///
-/// Either with a String or a [DataType]
-pub trait CastToDataType {
-    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType;
-}
-
-impl CastToDataType for DataType {
-    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType {
-        spark::expression::cast::CastToType::Type(self.clone().into())
-    }
-}
-
-impl CastToDataType for String {
-    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType {
-        spark::expression::cast::CastToType::TypeStr(self.to_string())
-    }
-}
-
-impl CastToDataType for &str {
-    fn cast_to_data_type(&self) -> spark::expression::cast::CastToType {
-        spark::expression::cast::CastToType::TypeStr(self.to_string())
-    }
-}
-
 impl Column {
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Self {
+        Self::from(s)
+    }
+
+    pub fn from_string(s: String) -> Self {
+        Self::from(s.as_str())
+    }
+
     /// Returns the column with a new name
     ///
     /// # Example:
@@ -177,19 +161,18 @@ impl Column {
         Column::from(expression)
     }
 
-    #[allow(non_snake_case)]
-    pub fn dropFields<'a, I>(self, fieldNames: I) -> Column
+    pub fn drop_fields<I>(self, field_names: I) -> Column
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item: AsRef<str>>,
     {
         let mut parent_col = self.expression;
 
-        for field in fieldNames {
+        for field in field_names {
             parent_col = spark::Expression {
                 expr_type: Some(spark::expression::ExprType::UpdateFields(Box::new(
                     spark::expression::UpdateFields {
                         struct_expression: Some(Box::new(parent_col)),
-                        field_name: field.to_string(),
+                        field_name: field.as_ref().to_string(),
                         value_expression: None,
                     },
                 ))),
@@ -199,14 +182,13 @@ impl Column {
         Column::from(parent_col)
     }
 
-    #[allow(non_snake_case)]
-    pub fn withField(self, fieldName: &str, col: Column) -> Column {
+    pub fn with_field(self, field_name: &str, col: impl Into<Column>) -> Column {
         let update_field = spark::Expression {
             expr_type: Some(spark::expression::ExprType::UpdateFields(Box::new(
                 spark::expression::UpdateFields {
                     struct_expression: Some(Box::new(self.expression)),
-                    field_name: fieldName.to_string(),
-                    value_expression: Some(Box::new(col.to_literal_expr())),
+                    field_name: field_name.to_string(),
+                    value_expression: Some(Box::new(col.into().expression)),
                 },
             ))),
         };
@@ -214,19 +196,15 @@ impl Column {
         Column::from(update_field)
     }
 
-    #[allow(non_snake_case)]
-    pub fn substr<T: ToExpr>(self, startPos: T, length: T) -> Column {
-        invoke_func(
-            "substr",
-            vec![self.to_expr(), startPos.to_expr(), length.to_expr()],
-        )
+    pub fn substr(self, start_pos: impl Into<Column>, length: impl Into<Column>) -> Column {
+        invoke_func("substr", vec![self, start_pos.into(), length.into()])
     }
 
     /// Casts the column into the Spark DataType
     ///
     /// # Arguments:
     ///
-    /// * `to_type` is a string or [DataType] of the target type
+    /// * `to_type` is a string or [crate::types::DataType] of the target type
     ///
     /// # Example:
     /// ```rust
@@ -243,10 +221,10 @@ impl Column {
     ///       col("name").cast(DataType::String)
     ///     ])
     /// ```
-    pub fn cast<T: CastToDataType>(self, to_type: T) -> Column {
+    pub fn cast(self, to_type: impl Into<CastToType>) -> Column {
         let cast = spark::expression::Cast {
             expr: Some(Box::new(self.expression)),
-            cast_to_type: Some(to_type.cast_to_data_type()),
+            cast_to_type: Some(to_type.into()),
         };
 
         let expression = spark::Expression {
@@ -261,21 +239,18 @@ impl Column {
     ///
     /// # Arguments:
     ///
-    /// * `cols` a value that implements the [ToLiteralExpr] trait
+    /// * `cols` a vector of Columns
     ///
     /// # Example:
     /// ```rust
-    /// df.filter(col("name").isin(["Jorge", "Bob"]));
+    /// df.filter(col("name").isin([lit("Jorge"), lit("Bob")]));
     /// ```
-    pub fn isin<T: ToLiteralExpr>(self, cols: Vec<T>) -> Column {
-        let mut values = cols
-            .iter()
-            .map(|col| Column::from(col.to_literal_expr()))
-            .collect::<Vec<Column>>();
+    pub fn isin(self, cols: Vec<Column>) -> Column {
+        let mut val = cols.clone();
 
-        values.insert(0, self);
+        val.insert(0, self);
 
-        invoke_func("in", values)
+        invoke_func("in", val)
     }
 
     /// A boolean expression that is evaluated to `true` if the value is in the Column
@@ -288,67 +263,64 @@ impl Column {
     /// ```rust
     /// df.filter(col("name").contains("ge"));
     /// ```
-    pub fn contains<T: ToLiteralExpr>(self, other: T) -> Column {
-        invoke_func("contains", vec![self.to_expr(), other.to_literal_expr()])
+    pub fn contains(self, other: impl Into<Column>) -> Column {
+        invoke_func("contains", vec![self, other.into()])
     }
 
     /// A filter expression that evaluates if the column startswith a string literal
-    pub fn startswith<T: ToLiteralExpr>(self, other: T) -> Column {
-        invoke_func("startswith", vec![self.to_expr(), other.to_literal_expr()])
+    pub fn startswith(self, other: impl Into<Column>) -> Column {
+        invoke_func("startswith", vec![self, other.into()])
     }
 
     /// A filter expression that evaluates if the column endswith a string literal
-    pub fn endswith<T: ToLiteralExpr>(self, other: T) -> Column {
-        invoke_func("endswith", vec![self.to_expr(), other.to_literal_expr()])
+    pub fn endswith(self, other: impl Into<Column>) -> Column {
+        invoke_func("endswith", vec![self, other.into()])
     }
 
     /// A SQL LIKE filter expression that evaluates the column based on a case sensitive match
-    pub fn like<T: ToLiteralExpr>(self, other: T) -> Column {
-        invoke_func("like", vec![self.to_expr(), other.to_literal_expr()])
+    pub fn like(self, other: impl Into<Column>) -> Column {
+        invoke_func("like", vec![self, other.into()])
     }
 
     /// A SQL ILIKE filter expression that evaluates the column based on a case insensitive match
-    pub fn ilike<T: ToLiteralExpr>(self, other: T) -> Column {
-        invoke_func("ilike", vec![self.to_expr(), other.to_literal_expr()])
+    pub fn ilike(self, other: impl Into<Column>) -> Column {
+        invoke_func("ilike", vec![self, other.into()])
     }
 
     /// A SQL RLIKE filter expression that evaluates the column based on a regex match
-    pub fn rlike<T: ToLiteralExpr>(self, other: T) -> Column {
-        invoke_func("rlike", vec![self.to_expr(), other.to_literal_expr()])
+    pub fn rlike(self, other: impl Into<Column>) -> Column {
+        invoke_func("rlike", vec![self, other.into()])
     }
 
     /// Equality comparion. Cannot overload the '==' and return something other
     /// than a bool
-    pub fn eq<T: ToExpr>(self, other: T) -> Column {
-        invoke_func("==", vec![self.to_expr(), other.to_expr()])
+    pub fn eq(self, other: impl Into<Column>) -> Column {
+        invoke_func("==", vec![self, other.into()])
     }
 
     /// Logical AND comparion. Cannot overload the '&&' and return something other
     /// than a bool
-    pub fn and<T: ToExpr>(self, other: T) -> Column {
-        invoke_func("and", vec![self.to_expr(), other.to_expr()])
+    pub fn and(self, other: impl Into<Column>) -> Column {
+        invoke_func("and", vec![self, other.into()])
     }
 
     /// Logical OR comparion.
-    pub fn or<T: ToExpr>(self, other: T) -> Column {
-        invoke_func("or", vec![self.to_expr(), other.to_expr()])
+    pub fn or(self, other: impl Into<Column>) -> Column {
+        invoke_func("or", vec![self, other.into()])
     }
 
     /// A filter expression that evaluates to true is the expression is null
-    #[allow(non_snake_case)]
-    pub fn isNull(self) -> Column {
-        invoke_func("isnull", self)
+    pub fn is_null(self) -> Column {
+        invoke_func("isnull", vec![self])
     }
 
     /// A filter expression that evaluates to true is the expression is NOT null
-    #[allow(non_snake_case)]
-    pub fn isNotNull(self) -> Column {
-        invoke_func("isnotnull", self)
+    pub fn is_not_null(self) -> Column {
+        invoke_func("isnotnull", vec![self])
     }
 
-    #[allow(non_snake_case)]
-    pub fn isNaN(self) -> Column {
-        invoke_func("isNaN", self)
+    pub fn is_nan(self) -> Column {
+        invoke_func("isNaN", vec![self])
     }
 
     /// Defines a windowing column
@@ -360,12 +332,12 @@ impl Column {
     ///
     /// ```
     /// let window = Window::new()
-    ///     .partitionBy(col("name"))
-    ///     .orderBy([col("age")])
-    ///     .rangeBetween(Window::unboundedPreceding(), Window::currentRow());
+    ///     .partition_by(col("name"))
+    ///     .order_by([col("age")])
+    ///     .range_between(Window::unbounded_preceding(), Window::current_row());
     ///
-    /// let df = df.withColumn("rank", rank().over(window.clone()))
-    ///     .withColumn("min", min("age").over(window));
+    /// let df = df.with_column("rank", rank().over(window.clone()))
+    ///     .with_column("min", min("age").over(window));
     /// ```
     pub fn over(self, window: WindowSpec) -> Column {
         let window_expr = spark::expression::Window {
@@ -387,6 +359,27 @@ impl From<spark::Expression> for Column {
     /// Used for creating columns from a [spark::Expression]
     fn from(expression: spark::Expression) -> Self {
         Self { expression }
+    }
+}
+
+impl From<spark::expression::Literal> for Column {
+    /// Used for creating columns from a [spark::Expression]
+    fn from(expression: spark::expression::Literal) -> Self {
+        Self::from(spark::Expression {
+            expr_type: Some(spark::expression::ExprType::Literal(expression)),
+        })
+    }
+}
+
+impl From<String> for Column {
+    fn from(value: String) -> Self {
+        Column::from_string(value)
+    }
+}
+
+impl From<&String> for Column {
+    fn from(value: &String) -> Self {
+        Column::from_str(value.as_str())
     }
 }
 
@@ -435,7 +428,7 @@ impl Neg for Column {
     type Output = Self;
 
     fn neg(self) -> Self {
-        invoke_func("negative", self)
+        invoke_func("negative", vec![self])
     }
 }
 

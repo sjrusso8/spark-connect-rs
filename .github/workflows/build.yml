@@ -92,7 +92,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Start emulated services
-        run: docker-compose up -d
+        run: docker compose up -d
 
       - name: Run tests
-        run: cargo test -p spark-connect-core --features polars,datafusion
+        run: cargo test -p spark-connect-rs --features polars,datafusion

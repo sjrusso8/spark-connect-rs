@@ -1,7 +1,7 @@
 //! A DataFrame created with an aggregate statement
 
+use crate::column::Column;
 use crate::dataframe::DataFrame;
-use crate::expressions::{ToExpr, ToLiteral, ToVecExpr};
 use crate::plan::LogicalPlanBuilder;
 
 use crate::functions::{invoke_func, lit};
@@ -36,7 +36,11 @@ impl GroupedData {
     }
 
     /// Compute aggregates and returns the result as a [DataFrame]
-    pub fn agg<T: ToVecExpr>(self, exprs: T) -> DataFrame {
+    pub fn agg<I, S>(self, exprs: I) -> DataFrame
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
         let plan = LogicalPlanBuilder::aggregate(
             self.df.plan,
             self.group_type,
@@ -53,39 +57,55 @@ impl GroupedData {
     }
 
     /// Computes average values for each numeric columns for each group.
-    pub fn avg<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        self.agg(invoke_func("avg", cols))
+    pub fn avg<I, S>(self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        self.agg([invoke_func("avg", cols)])
     }
 
     /// Computes the min value for each numeric column for each group.
-    pub fn min<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        self.agg(invoke_func("min", cols))
+    pub fn min<I, S>(self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        self.agg([invoke_func("min", cols)])
     }
 
     /// Computes the max value for each numeric columns for each group.
-    pub fn max<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        self.agg(invoke_func("max", cols))
+    pub fn max<I, S>(self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        self.agg([invoke_func("max", cols)])
     }
 
     /// Computes the sum for each numeric columns for each group.
-    pub fn sum<T: ToVecExpr>(self, cols: T) -> DataFrame {
-        self.agg(invoke_func("sum", cols))
+    pub fn sum<I, S>(self, cols: I) -> DataFrame
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Column>,
+    {
+        self.agg([invoke_func("sum", cols)])
     }
 
     /// Counts the number of records for each group.
     pub fn count(self) -> DataFrame {
-        self.agg(invoke_func("count", lit(1).alias("count")))
+        self.agg([invoke_func("count", [lit(1).alias("count")])])
     }
 
     /// Pivots a column of the current [DataFrame] and perform the specified aggregation
     pub fn pivot(self, col: &str, values: Option<Vec<&str>>) -> GroupedData {
-        let pivot_vals = values.map(|vals| vals.iter().map(|val| val.to_literal()).collect());
+        let pivot_vals = values.map(|vals| vals.iter().map(|val| val.to_string().into()).collect());
 
         GroupedData::new(
             self.df,
             GroupType::Pivot,
             self.grouping_cols,
-            Some(col.to_expr()),
+            Some(Column::from(col).into()),
             pivot_vals,
         )
     }
@@ -102,6 +122,8 @@ mod tests {
     use crate::errors::SparkError;
     use crate::SparkSession;
     use crate::SparkSessionBuilder;
+
+    use crate::functions::col;
 
     use crate::column::Column;
 
@@ -123,7 +145,7 @@ mod tests {
 
         let df = spark.range(None, 100, 1, Some(8));
 
-        let res = df.groupBy::<Column>(None).count().collect().await?;
+        let res = df.group_by::<Vec<Column>>(None).count().collect().await?;
 
         let a: ArrayRef = Arc::new(Int64Array::from(vec![100]));
 
@@ -149,13 +171,13 @@ mod tests {
             ("earnings", earnings),
         ])?;
 
-        let df = spark.createDataFrame(&data)?;
+        let df = spark.create_dataframe(&data)?;
 
         let res = df
             .clone()
-            .groupBy(Some("year"))
+            .group_by(Some([col("year")]))
             .pivot("course", Some(vec!["Java"]))
-            .sum("earnings")
+            .sum(["earnings"])
             .collect()
             .await?;
 
@@ -172,9 +194,9 @@ mod tests {
         assert_eq!(expected, res);
 
         let res = df
-            .groupBy(Some("year"))
+            .group_by(Some([col("year")]))
             .pivot("course", None)
-            .sum("earnings")
+            .sum(["earnings"])
             .collect()
             .await?;
 

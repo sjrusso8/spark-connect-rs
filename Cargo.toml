@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "rust", "wasi", "examples"]
+members = ["crates/*", "examples", "wasi"]
 resolver = "2"
 
 [workspace.package]
@@ -12,16 +12,21 @@ description = "Apache Spark Connect Client for Rust"
 license = "Apache-2.0"
 documentation = "https://docs.rs/spark-connect-rs"
 repository = "https://github.com/sjrusso8/spark-connect-rs"
-rust-version = "1.76"
+rust-version = "1.81"
 
 [workspace.dependencies]
 tonic = { version ="0.11", default-features = false }
-tonic-web-wasm-client = { version = "0.5" }
+tonic-web-wasm-client = { version = "0.6" }
 
-tokio = { version = "1.37", default-features = false, features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.40", default-features = false, features = ["macros"] }
+tower = { version = "0.5" }
 
-arrow = { version = "51", features = ["prettyprint"] }
-arrow-ipc = { version = "51" }
+futures-util = { version = "0.3.31" }
+
+http-body = { version = "0.4.6" }
+
+arrow = { version = "53", features = ["prettyprint"] }
+arrow-ipc = { version = "53" }
 
 serde_json = { version = "1" }
 
@@ -32,10 +37,10 @@ rand = { version = "0.8" }
 uuid = { version = "1.8", features = ["v4"] }
 url = { version = "2.5" }
 
-chrono = { version = "0.4" }
+chrono = { version = "0.4.38" }
 
 getrandom = { version = "0.2" }
 
-datafusion = { version = "38.0", default-features = false }
-polars = { version = "0.40", default-features = false }
-polars-arrow = { version = "0.40", default-features = false, features = ["arrow_rs"]  }
+datafusion = { version = "42.0", default-features = false }
+polars = { version = "0.43", default-features = false }
+polars-arrow = { version = "0.43", default-features = false, features = ["arrow_rs"]  }
