@@ -1,12 +1,15 @@
 //! Spark Catalog representation through which the user may create, drop, alter or query underlying databases, tables, functions, etc.
 
+use std::collections::HashMap;
+
 use arrow::array::RecordBatch;
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
-use crate::spark;
 use crate::storage::StorageLevel;
+use crate::types::StructType;
+use crate::{spark, DataFrame};
 
 /// User-facing catalog API, accessible through SparkSession.catalog.
 #[derive(Debug, Clone)]
@@ -319,6 +322,70 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    pub async fn create_table(
+        &self,
+        table_name: &str,
+        path: Option<&str>,
+        source: Option<&str>,
+        description: Option<&str>,
+        schema: Option<StructType>,
+        options: Option<HashMap<String, String>>,
+    ) -> Result<DataFrame, SparkError> {
+        let cat_type = Some(spark::catalog::CatType::CreateTable(spark::CreateTable {
+            table_name: table_name.to_string(),
+            path: path.map(|p| p.to_string()),
+            source: source.map(|s| s.to_string()),
+            description: description.map(|d| d.to_string()),
+            schema: schema.map(|s| s.into()),
+            options: options.unwrap_or_default(),
+        }));
+
+        let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
+
+        let plan = LogicalPlanBuilder::from(rel_type);
+
+        let df = DataFrame {
+            spark_session: Box::new(self.spark_session.clone()),
+            plan,
+        };
+
+        df.clone().count().await?;
+
+        Ok(df)
+    }
+
+    pub async fn create_external_table(
+        &self,
+        table_name: &str,
+        path: Option<&str>,
+        source: Option<&str>,
+        schema: Option<StructType>,
+        options: Option<HashMap<String, String>>,
+    ) -> Result<DataFrame, SparkError> {
+        let cat_type = Some(spark::catalog::CatType::CreateExternalTable(
+            spark::CreateExternalTable {
+                table_name: table_name.to_string(),
+                path: path.map(|p| p.to_string()),
+                source: source.map(|s| s.to_string()),
+                schema: schema.map(|s| s.into()),
+                options: options.unwrap_or_default(),
+            },
+        ));
+
+        let rel_type = spark::relation::RelType::Catalog(spark::Catalog { cat_type });
+
+        let plan = LogicalPlanBuilder::from(rel_type);
+
+        let df = DataFrame {
+            spark_session: Box::new(self.spark_session.clone()),
+            plan,
+        };
+
+        df.clone().count().await?;
+
+        Ok(df)
+    }
+
     /// Caches the specified table in-memory or with given storage level.
     pub async fn cache_table(
         self,
@@ -407,6 +474,9 @@ impl Catalog {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::types::{DataType, StructField, StructType};
+    use std::collections::HashMap;
 
     use super::*;
 
@@ -588,6 +658,287 @@ mod tests {
         let res = spark.catalog().drop_temp_view("tmp_view").await?;
 
         assert!(res);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_table_with_schema() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark
+            .sql("DROP TABLE IF EXISTS tmp_table_with_schema")
+            .await?;
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: false,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        spark
+            .catalog()
+            .create_table(
+                "tmp_table_with_schema",
+                None,
+                None,
+                None,
+                Some(schema.clone().into()),
+                None,
+            )
+            .await?;
+
+        let res = spark
+            .catalog()
+            .table_exists("tmp_table_with_schema", None)
+            .await?;
+
+        assert_eq!(res, true);
+
+        let columns = spark
+            .catalog()
+            .list_columns("tmp_table_with_schema", None)
+            .await?;
+
+        assert_eq!(columns.num_rows(), 3);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_table_with_options() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark
+            .sql("DROP TABLE IF EXISTS tmp_table_with_options")
+            .await?;
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: false,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        let mut options = HashMap::new();
+        options.insert("compression".to_string(), "gzip".to_string());
+
+        spark
+            .catalog()
+            .create_table(
+                "tmp_table_with_options",
+                None,
+                None,
+                None,
+                Some(schema.clone().into()),
+                Some(options),
+            )
+            .await?;
+
+        let res = spark
+            .catalog()
+            .table_exists("tmp_table_with_options", None)
+            .await?;
+
+        assert_eq!(res, true);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_table_with_desc() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark
+            .sql("DROP TABLE IF EXISTS tmp_table_with_desc")
+            .await?;
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: false,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        spark
+            .catalog()
+            .create_table(
+                "tmp_table_with_desc",
+                None,
+                None,
+                Some("A table with a description"),
+                Some(schema.clone().into()),
+                None,
+            )
+            .await?;
+
+        let res = spark
+            .catalog()
+            .table_exists("tmp_table_with_desc", None)
+            .await?;
+
+        assert_eq!(res, true);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_table_with_path() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark
+            .sql("DROP TABLE IF EXISTS tmp_table_with_path")
+            .await?;
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: false,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        spark
+            .catalog()
+            .create_table(
+                "tmp_table_with_path",
+                Some("/opt/spark/work-dir/datasets/users.parquet"),
+                Some("parquet"),
+                None,
+                Some(schema.clone().into()),
+                None,
+            )
+            .await?;
+
+        let res = spark
+            .catalog()
+            .table_exists("tmp_table_with_path", None)
+            .await?;
+
+        assert_eq!(res, true);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_external_table() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        spark.sql("DROP TABLE IF EXISTS tmp_external_table").await?;
+
+        let schema = StructType::new(vec![
+            StructField {
+                name: "name",
+                data_type: DataType::String,
+                nullable: false,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_color",
+                data_type: DataType::String,
+                nullable: true,
+                metadata: None,
+            },
+            StructField {
+                name: "favorite_numbers",
+                data_type: DataType::Array {
+                    element_type: Box::new(DataType::Integer),
+                    contains_null: true,
+                },
+                nullable: true,
+                metadata: None,
+            },
+        ]);
+
+        spark
+            .catalog()
+            .create_external_table(
+                "tmp_external_table",
+                Some("/opt/spark/work-dir/datasets/users.parquet"),
+                Some("parquet"),
+                Some(schema.clone().into()),
+                None,
+            )
+            .await?;
+
+        let res = spark
+            .catalog()
+            .table_exists("tmp_external_table", None)
+            .await?;
+
+        assert_eq!(res, true);
+
+        let data = spark.read().table("tmp_external_table", None)?;
+
+        data.show(None, None, None).await?;
 
         Ok(())
     }
