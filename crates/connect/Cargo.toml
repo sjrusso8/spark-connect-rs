@@ -19,7 +19,6 @@ include = [
 
 [dependencies]
 tonic = { workspace = true, default-features = false, optional = true }
-tonic-web-wasm-client = { workspace = true, optional = true }
 
 tower = { workspace = true }
 tokio = { workspace = true, optional = true }
@@ -41,8 +40,6 @@ uuid = { workspace = true }
 url =  { workspace = true }
 
 chrono = { workspace = true }
-
-getrandom = { workspace = true, optional = true }
 
 datafusion = { workspace = true, optional = true }
 
@@ -70,14 +67,6 @@ default = [
 tls = [
   "tonic/tls",
   "tonic/tls-roots"
-]
-
-wasm = [
- "tonic-web-wasm-client",
- "tonic/codegen",
- "tonic/prost",
- "getrandom/js",
- "tokio"
 ]
 
 datafusion = [

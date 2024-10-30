@@ -21,11 +21,7 @@ use tokio::sync::RwLock;
 
 use tower::ServiceBuilder;
 
-#[cfg(not(feature = "wasm"))]
 use tonic::transport::Channel;
-
-#[cfg(feature = "wasm")]
-use tonic_web_wasm_client::Client;
 
 /// SparkSessionBuilder creates a remote Spark Session a connection string.
 ///
@@ -78,7 +74,6 @@ impl SparkSessionBuilder {
         self
     }
 
-    #[cfg(not(feature = "wasm"))]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
         let channel = Channel::from_shared(self.channel_builder.endpoint())?
             .connect()
@@ -102,29 +97,6 @@ impl SparkSessionBuilder {
         Ok(SparkSession::new(spark_connnect_client))
     }
 
-    #[cfg(feature = "wasm")]
-    async fn create_client(&self) -> Result<SparkSession, SparkError> {
-        let inner = Client::new(self.channel_builder.endpoint());
-
-        let service_client = SparkConnectServiceClient::with_interceptor(
-            inner,
-            MetadataInterceptor::new(
-                self.channel_builder.token().to_owned(),
-                self.channel_builder.headers().to_owned(),
-            ),
-        );
-
-        let client = Arc::new(RwLock::new(service_client));
-
-        let spark_connnect_client = SparkConnectClient::new(client, self.channel_builder.clone());
-
-        let mut rt_config = RunTimeConfig::new(&spark_connnect_client);
-
-        rt_config.set_configs(&self.configs).await?;
-
-        Ok(SparkSession::new(spark_connnect_client))
-    }
-
     /// Attempt to connect to a remote Spark Session
     ///
     /// and return a [SparkSession]
@@ -137,28 +109,12 @@ impl SparkSessionBuilder {
 /// using the Spark Connection gRPC protocol.
 #[derive(Clone, Debug)]
 pub struct SparkSession {
-    #[cfg(not(feature = "wasm"))]
     client: SparkClient,
-
-    #[cfg(feature = "wasm")]
-    client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
-
     session_id: String,
 }
 
 impl SparkSession {
-    #[cfg(not(feature = "wasm"))]
     pub fn new(client: SparkClient) -> Self {
-        Self {
-            session_id: client.session_id(),
-            client,
-        }
-    }
-
-    #[cfg(feature = "wasm")]
-    pub fn new(
-        client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
-    ) -> Self {
         Self {
             session_id: client.session_id(),
             client,
@@ -245,13 +201,7 @@ impl SparkSession {
     }
 
     /// Spark Connection gRPC client interface
-    #[cfg(not(feature = "wasm"))]
     pub fn client(self) -> SparkClient {
-        self.client
-    }
-
-    #[cfg(feature = "wasm")]
-    pub fn client(self) -> SparkConnectClient<InterceptedService<Client, MetadataInterceptor>> {
         self.client
     }
 
