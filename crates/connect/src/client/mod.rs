@@ -29,7 +29,7 @@ pub type SparkClient = SparkConnectClient<HeadersMiddleware<Channel>>;
 
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
-pub struct ResponseHandler {
+pub(crate) struct ResponseHandler {
     session_id: Option<String>,
     operation_id: Option<String>,
     response_id: Option<String>,
@@ -48,7 +48,7 @@ pub struct ResponseHandler {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct AnalyzeHandler {
+pub(crate) struct AnalyzeHandler {
     pub(crate) schema: Option<spark::DataType>,
     pub(crate) explain: Option<String>,
     pub(crate) tree_string: Option<String>,
@@ -62,6 +62,7 @@ pub struct AnalyzeHandler {
     pub(crate) get_storage_level: Option<spark::StorageLevel>,
 }
 
+/// Client wrapper to handle submitting requests and handling responses from the [SparkConnectServiceClient]
 #[derive(Clone, Debug)]
 pub struct SparkConnectClient<T> {
     stub: Arc<RwLock<SparkConnectServiceClient<T>>>,
@@ -69,8 +70,8 @@ pub struct SparkConnectClient<T> {
     pub(crate) handler: ResponseHandler,
     pub(crate) analyzer: AnalyzeHandler,
     pub(crate) user_context: Option<spark::UserContext>,
-    pub tags: Vec<String>,
-    pub use_reattachable_execute: bool,
+    pub(crate) tags: Vec<String>,
+    pub(crate) use_reattachable_execute: bool,
 }
 
 impl<T> SparkConnectClient<T>
@@ -98,10 +99,12 @@ where
         }
     }
 
+    /// Session ID
     pub fn session_id(&self) -> String {
         self.builder.session_id.to_string()
     }
 
+    /// Change the reattachable execute value
     pub fn set_reattachable_execute(&mut self, setting: bool) -> Result<(), SparkError> {
         self.use_reattachable_execute = setting;
         Ok(())
@@ -124,7 +127,7 @@ where
         vec![]
     }
 
-    fn execute_plan_request_with_metadata(&self) -> spark::ExecutePlanRequest {
+    pub fn execute_plan_request_with_metadata(&self) -> spark::ExecutePlanRequest {
         spark::ExecutePlanRequest {
             session_id: self.session_id(),
             user_context: self.user_context.clone(),
@@ -136,7 +139,7 @@ where
         }
     }
 
-    fn analyze_plan_request_with_metadata(&self) -> spark::AnalyzePlanRequest {
+    pub fn analyze_plan_request_with_metadata(&self) -> spark::AnalyzePlanRequest {
         spark::AnalyzePlanRequest {
             session_id: self.session_id(),
             user_context: self.user_context.clone(),
@@ -145,7 +148,7 @@ where
         }
     }
 
-    async fn execute_and_fetch(
+    pub async fn execute_and_fetch(
         &mut self,
         req: spark::ExecutePlanRequest,
     ) -> Result<(), SparkError> {
@@ -496,7 +499,7 @@ where
         Ok(())
     }
 
-    pub async fn execute_command_and_fetch(
+    pub(crate) async fn execute_command_and_fetch(
         &mut self,
         plan: spark::Plan,
     ) -> Result<ResponseHandler, SparkError> {
@@ -524,7 +527,7 @@ where
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub async fn to_first_value(&mut self, plan: spark::Plan) -> Result<String, SparkError> {
+    pub(crate) async fn to_first_value(&mut self, plan: spark::Plan) -> Result<String, SparkError> {
         let rows = self.to_arrow(plan).await?;
         let col = rows.column(0);
 

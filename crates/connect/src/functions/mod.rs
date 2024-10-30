@@ -27,18 +27,6 @@ where
     })
 }
 
-// #[allow(dead_code)]
-// fn is_into_column<T>() -> bool
-// where
-//     T: Into<Column>,
-// {
-//     true
-// }
-//
-// fn is_column<T: 'static>() -> bool {
-//     std::any::TypeId::of::<T>() == std::any::TypeId::of::<Column>()
-// }
-
 macro_rules! gen_func {
     // Case with no args
     ($func_name:ident, [], $doc:expr) => {
@@ -87,11 +75,9 @@ pub fn lit(col: impl Into<Literal>) -> Column {
     Column::from(col.into())
 }
 
-#[allow(dead_code)]
-#[allow(unused_variables)]
 /// Marks a DataFrame as small enough for use in broadcast joins.
-fn broadcast(df: DataFrame) {
-    unimplemented!("not implemented")
+pub fn broadcast(df: DataFrame) -> DataFrame {
+    df.hint::<Vec<String>>("broadcast", None)
 }
 
 gen_func!(coalesce, [cols: _], "Returns the first column that is not null.");
@@ -169,6 +155,8 @@ gen_func!(ceiling, [col: Column], "Computes the ceiling of the given value.");
 pub fn conv(col: impl Into<Column>, from_base: i32, to_base: i32) -> Column {
     invoke_func("conv", vec![col.into(), lit(from_base), lit(to_base)])
 }
+gen_func!(cos, [col: Column], "Computes cosine of the input column.");
+gen_func!(cosh, [col: Column], "Computes hyperbolic cosine of the input column.");
 gen_func!(cot, [col: Column], "Computes cotangent of the input column.");
 gen_func!(csc, [col: Column], "Computes cosecant of the input column.");
 gen_func!(e, [], "Returns Euler’s number.");
@@ -303,8 +291,7 @@ gen_func!(day, [col: Column], "Extract the day of the month of a given date/time
 gen_func!(date_part, [field: Column, source: Column], "Extracts a part of the date/timestamp or interval source.");
 gen_func!(dayofmonth, [col: Column], "Extract the day of the month of a given date/timestamp as integer.");
 gen_func!(dayofweek, [col: Column], "Extract the day of the week of a given date/timestamp as integer.");
-gen_func!(dayofyear, [col: Column], "
-Extract the day of the year of a given date/timestamp as integer.");
+gen_func!(dayofyear, [col: Column], "Extract the day of the year of a given date/timestamp as integer.");
 gen_func!(extract, [field: Column, source: Column], "Extracts a part of the date/timestamp or interval source.");
 gen_func!(second, [col: Column], "Extract the seconds of a given date as integer.");
 gen_func!(weekofyear, [col: Column], "Extract the week number of a given date as integer.");
@@ -630,15 +617,15 @@ fn try_to_timestamp(col: Column) -> Column {
 
 gen_func!(unix_date, [col: Column], "Returns the number of days since 1970-01-01.");
 gen_func!(unix_millis, [col: Column], "Returns the number of milliseconds since 1970-01-01 00:00:00 UTC.");
-gen_func!(unix_macros, [col: Column], "Returns the number of microseconds since 1970-01-01 00:00:00 UTC.");
+gen_func!(unix_micros, [col: Column], "Returns the number of microseconds since 1970-01-01 00:00:00 UTC.");
 gen_func!(unix_seconds, [col: Column], "Returns the number of seconds since 1970-01-01 00:00:00 UTC.");
 gen_func!(window_time, [window_col: Column], "Computes the event time from a window column.");
 
 // Collection Functions
 
 gen_func!(array, [cols: _], "Creates a new array column.");
-gen_func!(array_contains, [col: Column, value: Column], "returns null if the array is null, true if the array contains the given value, and false otherwise.");
-gen_func!(array_overlap, [a1: Column, a2: Column], "returns true if the arrays contain any common non-null element; if not, returns null if both the arrays are non-empty and any of them contains a null element; returns false otherwise.");
+gen_func!(array_contains, [col: Column, value: Column], "Returns null if the array is null, true if the array contains the given value, and false otherwise.");
+gen_func!(arrays_overlap, [a1: Column, a2: Column], "Returns true if the arrays contain any common non-null element; if not, returns null if both the arrays are non-empty and any of them contains a null element; returns false otherwise.");
 
 /// Concatenates the elements of column using the delimiter.
 pub fn array_join(
@@ -656,12 +643,12 @@ pub fn array_join(
 }
 
 gen_func!(create_map, [cols: _], "Creates a new map column.");
-gen_func!(slice, [x: Column, start: Column, length: Column], "returns an array containing all the elements in x from index start (array indices start at 1, or from the end if start is negative) with the specified length.");
+gen_func!(slice, [x: Column, start: Column, length: Column], "Returns an array containing all the elements in x from index start (array indices start at 1, or from the end if start is negative) with the specified length.");
 gen_func!(concat, [cols: _], "Concatenates multiple input columns together into a single column.");
 
 gen_func!(array_position, [col: Column, value: Column], "Locates the position of the first occurrence of the given value in the given array.");
 gen_func!(element_at, [col: Column, extraction: Column], "Returns element of array at given index in extraction if col is array.");
-gen_func!(array_apppend, [col: Column, value: Column], "returns an array of the elements in col1 along with the added element in col2 at the last of the array.");
+gen_func!(array_append, [col: Column, value: Column], "Returns an array of the elements in col1 along with the added element in col2 at the last of the array.");
 gen_func!(array_size, [col: Column], "Returns the total number of elements in the array.");
 
 #[allow(unused_variables)]
@@ -680,11 +667,11 @@ pub fn array_insert(
 
 gen_func!(array_remove, [col: Column, element: Column], "Remove all elements that equal to element from the given array.");
 gen_func!(array_prepend, [col: Column, value: Column], "Returns an array containing element as well as all elements from array.");
-gen_func!(array_distinct, [col: Column], "removes duplicate values from the array.");
-gen_func!(array_intersect, [col1: Column, col2: Column], "returns an array of the elements in the intersection of col1 and col2, without duplicates.");
-gen_func!(array_union, [col1: Column, col2: Column], "returns an array of the elements in the union of col1 and col2, without duplicates.");
-gen_func!(array_except, [col1: Column, col2: Column], "returns an array of the elements in col1 but not in col2, without duplicates.");
-gen_func!(array_compact, [col: Column], "removes null values from the array.");
+gen_func!(array_distinct, [col: Column], "Removes duplicate values from the array.");
+gen_func!(array_intersect, [col1: Column, col2: Column], "Returns an array of the elements in the intersection of col1 and col2, without duplicates.");
+gen_func!(array_union, [col1: Column, col2: Column], "Returns an array of the elements in the union of col1 and col2, without duplicates.");
+gen_func!(array_except, [col1: Column, col2: Column], "Returns an array of the elements in col1 but not in col2, without duplicates.");
+gen_func!(array_compact, [col: Column], "Removes null values from the array.");
 gen_func!(map_from_arrays, [col1: Column, col2: Column], "Creates a new map from two arrays.");
 
 gen_func!(explode, [col: Column], "Returns a new row for each element in the given array or map.");
@@ -710,10 +697,9 @@ where
 }
 
 gen_func!(json_array_length, [col: Column], "Returns the number of elements in the outermost JSON array.");
-gen_func!(json_object_keys, [col: Column], "
-Returns all the keys of the outermost JSON object as an array.");
-gen_func!(size, [col: Column], "returns the length of the array or map stored in the column.");
-gen_func!(cardinality, [col: Column], "returns the length of the array or map stored in the column.");
+gen_func!(json_object_keys, [col: Column], "Returns all the keys of the outermost JSON object as an array.");
+gen_func!(size, [col: Column], "Returns the length of the array or map stored in the column.");
+gen_func!(cardinality, [col: Column], "Returns the length of the array or map stored in the column.");
 
 /// Creates a new struct column.
 pub fn struct_col<I>(cols: I) -> Column
@@ -724,7 +710,7 @@ where
     invoke_func("struct", cols)
 }
 
-/// sorts the input array in ascending or descending order according to the natural ordering of the array elements.
+/// Sorts the input array in ascending or descending order according to the natural ordering of the array elements.
 pub fn sort_array(col: impl Into<Column>, asc: Option<bool>) -> Column {
     match asc {
         Some(asc) => invoke_func("sort_array", vec![col.into(), lit(asc)]),
@@ -732,11 +718,11 @@ pub fn sort_array(col: impl Into<Column>, asc: Option<bool>) -> Column {
     }
 }
 
-gen_func!(array_max, [col: Column], "returns the maximum value of the array.");
-gen_func!(array_min, [col: Column], "returns the minimum value of the array.");
+gen_func!(array_max, [col: Column], "Returns the maximum value of the array.");
+gen_func!(array_min, [col: Column], "Returns the minimum value of the array.");
 gen_func!(shuffle, [col: Column], "Generates a random permutation of the given array.");
-gen_func!(reverse, [col: Column], "returns a reversed string or an array with reverse order of elements.");
-gen_func!(flatten, [col: Column], "creates a single array from an array of arrays.");
+gen_func!(reverse, [col: Column], "Returns a reversed string or an array with reverse order of elements.");
+gen_func!(flatten, [col: Column], "Creates a single array from an array of arrays.");
 
 /// Generate a sequence of integers from start to stop, incrementing by step.
 pub fn sequence(
@@ -750,7 +736,7 @@ pub fn sequence(
     }
 }
 
-gen_func!(array_repeat, [col: Column, count: Column], "creates an array containing a column repeated count times.");
+gen_func!(array_repeat, [col: Column, count: Column], "Creates an array containing a column repeated count times.");
 gen_func!(map_contains_key, [col: Column, value: Column], "Returns true if the map contains the key.");
 gen_func!(map_keys, [col: Column], "Returns an unordered array containing the keys of the map.");
 gen_func!(map_values, [col: Column], "Returns an unordered array containing the values of the map.");
@@ -758,7 +744,7 @@ gen_func!(map_entries, [col: Column], "Returns an unordered array of all entries
 gen_func!(map_from_entries, [col: Column], "Converts an array of entries (key value struct types) to a map of values.");
 gen_func!(arrays_zip, [cols: _], "Returns a merged array of structs in which the N-th struct contains all N-th values of input arrays.");
 gen_func!(map_concat, [cols: _], "Returns the union of all the given maps.");
-gen_func!(try_element_at, [col: Column, extraction: Column], "(array, index) - Returns element of array at given (1-based) index.");
+gen_func!(try_element_at, [col: Column, extraction: Column], "Returns element of array at given (1-based) index.");
 
 // Partition Transformations
 
@@ -778,7 +764,7 @@ pub fn any_value(col: impl Into<Column>, ignore_nulls: Option<impl Into<Column>>
     }
 }
 
-/// returns a new Column for approximate distinct count of column col.
+/// Returns a new Column for approximate distinct count of column col.
 pub fn approx_count_distinct(col: impl Into<Column>, rsd: Option<f32>) -> Column {
     match rsd {
         Some(rsd) => invoke_func("approx_count_distinct", vec![col.into(), lit(rsd)]),
@@ -786,16 +772,16 @@ pub fn approx_count_distinct(col: impl Into<Column>, rsd: Option<f32>) -> Column
     }
 }
 
-gen_func!(array_agg, [col: Column], "returns a list of objects with duplicates.");
+gen_func!(array_agg, [col: Column], "Returns a list of objects with duplicates.");
 
-gen_func!(avg, [col: Column], "returns the average of the values in a group.");
-gen_func!(bit_and, [col: Column], "returns the bitwise AND of all non-null input values, or null if none.");
-gen_func!(bit_or, [col: Column], "returns the bitwise OR of all non-null input values, or null if none.");
-gen_func!(bit_xor, [col: Column], "returns the bitwise XOR of all non-null input values, or null if none.");
-gen_func!(bool_and, [col: Column], "returns true if all values of col are true.");
-gen_func!(bool_or, [col: Column], "returns true if at least one value of col is true.");
-gen_func!(collect_set, [col: Column], "returns a set of objects with duplicate elements eliminated.");
-gen_func!(collect_list, [col: Column], "returns a list of objects with duplicates.");
+gen_func!(avg, [col: Column], "Returns the average of the values in a group.");
+gen_func!(bit_and, [col: Column], "Returns the bitwise AND of all non-null input values, or null if none.");
+gen_func!(bit_or, [col: Column], "Returns the bitwise OR of all non-null input values, or null if none.");
+gen_func!(bit_xor, [col: Column], "Returns the bitwise XOR of all non-null input values, or null if none.");
+gen_func!(bool_and, [col: Column], "Returns true if all values of col are true.");
+gen_func!(bool_or, [col: Column], "Returns true if at least one value of col is true.");
+gen_func!(collect_set, [col: Column], "Returns a set of objects with duplicate elements eliminated.");
+gen_func!(collect_list, [col: Column], "Returns a list of objects with duplicates.");
 
 gen_func!(corr, [col1: Column, col2: Column], "Returns a new Column for the Pearson Correlation Coefficient for col1 and col2.");
 
@@ -815,9 +801,9 @@ pub fn count_min_sketch(
 gen_func!(count_if, [col: Column], "Returns the number of TRUE values for the col.");
 gen_func!(covar_pop, [col1: Column, col2: Column], "Returns a new Column for the population covariance of col1 and col2.");
 gen_func!(covar_samp, [col1: Column, col2: Column], "Returns a new Column for the sample covariance of col1 and col2.");
-gen_func!(every, [col: Column], "returns true if all values of col are true.");
+gen_func!(every, [col: Column], "Returns true if all values of col are true.");
 
-/// returns the first value in a group.
+/// Returns the first value in a group.
 pub fn first(col: impl Into<Column>, ignore_nulls: Option<impl Into<Column>>) -> Column {
     match ignore_nulls {
         Some(val) => invoke_func("first", vec![col.into(), val.into()]),
@@ -833,11 +819,11 @@ pub fn first_value(col: impl Into<Column>, ignore_nulls: Option<impl Into<Column
     }
 }
 
-gen_func!(grouping, [col: Column], "indicates whether a specified column in a GROUP BY list is aggregated or not, returns 1 for aggregated or 0 for not aggregated in the result set.");
-gen_func!(grouping_id, [cols: _], "returns the level of grouping, equals to");
+gen_func!(grouping, [col: Column], "Indicates whether a specified column in a GROUP BY list is aggregated or not, returns 1 for aggregated or 0 for not aggregated in the result set.");
+gen_func!(grouping_id, [cols: _], "Returns the level of grouping, equals to");
 gen_func!(histogram_numeric, [col1: Column, n_bins: Column], "Computes a histogram on numeric ‘col’ using nb bins.");
 
-/// returns the updatable binary representation of the Datasketches HllSketch configured with lgConfigK arg.
+/// Returns the updatable binary representation of the Datasketches HllSketch configured with lgConfigK arg.
 pub fn hll_sketch_agg(col: impl Into<Column>, lg_config_k: Option<impl Into<Column>>) -> Column {
     match lg_config_k {
         Some(val) => invoke_func("hll_sketch_agg", vec![col.into(), val.into()]),
@@ -845,7 +831,7 @@ pub fn hll_sketch_agg(col: impl Into<Column>, lg_config_k: Option<impl Into<Colu
     }
 }
 
-/// returns the updatable binary representation of the Datasketches HllSketch, generated by merging previously created Datasketches HllSketch instances via a Datasketches Union instance.
+/// Returns the updatable binary representation of the Datasketches HllSketch, generated by merging previously created Datasketches HllSketch instances via a Datasketches Union instance.
 pub fn hll_union_agg(
     col: impl Into<Column>,
     allow_different_lg_config_k: Option<impl Into<Column>>,
@@ -856,9 +842,9 @@ pub fn hll_union_agg(
     }
 }
 
-gen_func!(kurtosis, [col: Column], "returns the kurtosis of the values in a group.");
+gen_func!(kurtosis, [col: Column], "Returns the kurtosis of the values in a group.");
 
-/// returns the last value in a group.
+/// Returns the last value in a group.
 pub fn last(col: impl Into<Column>, ignore_nulls: Option<impl Into<Column>>) -> Column {
     match ignore_nulls {
         Some(val) => invoke_func("last", vec![col.into(), val.into()]),
@@ -874,7 +860,7 @@ pub fn last_value(col: impl Into<Column>, ignore_nulls: Option<impl Into<Column>
     }
 }
 
-gen_func!(max, [col: Column], "returns the maximum value of the expression in a group.");
+gen_func!(max, [col: Column], "Returns the maximum value of the expression in a group.");
 gen_func!(max_by, [col: Column, ord: Column], "Returns the value associated with the maximum value of ord.");
 
 /// returns the average of the values in a group.
@@ -883,7 +869,7 @@ pub fn mean(col: Column) -> Column {
 }
 
 gen_func!(median, [col: Column], "Returns the median of the values in a group");
-gen_func!(min, [col: Column], "returns the minimum value of the expression in a group.");
+gen_func!(min, [col: Column], "Returns the minimum value of the expression in a group.");
 gen_func!(min_by, [col: Column, ord: Column], "Returns the value associated with the minimum value of ord.");
 gen_func!(mode, [col: Column], "Returns the most frequent value in a group.");
 
@@ -920,56 +906,56 @@ pub fn percentile_approx(
     }
 }
 
-gen_func!(product, [col: Column], "returns the product of the values in a group.");
-gen_func!(regr_avgx, [y: Column, x: Column], "returns the average of the independent variable for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_avgy, [y: Column, x: Column], "returns the average of the dependent variable for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_count, [y: Column, x: Column], "returns the number of non-null number pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_intercept, [y: Column, x: Column], "returns the intercept of the univariate linear regression line for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_r2, [y: Column, x: Column], "returns the coefficient of determination for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_slope, [y: Column, x: Column], "returns the slope of the linear regression line for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_sxx, [y: Column, x: Column], "returns REGR_COUNT(y, x) * VAR_POP(x) for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_sxy, [y: Column, x: Column], "returns REGR_COUNT(y, x) * COVAR_POP(y, x) for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(regr_syy, [y: Column, x: Column], "returns REGR_COUNT(y, x) * VAR_POP(y) for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
-gen_func!(skewness, [col: Column], "returns the skewness of the values in a group.");
-gen_func!(some, [col: Column], "returns true if at least one value of col is true.");
-gen_func!(std, [col: Column], "alias for stddev_samp.");
-gen_func!(stddev, [col: Column], "alias for stddev_samp.");
-gen_func!(stddev_pop, [col: Column], "returns population standard deviation of the expression in a group.");
-gen_func!(stddev_samp, [col: Column], "returns the unbiased sample standard deviation of the expression in a group.");
-gen_func!(sum, [col: Column], "returns the sum of all values in the expression.");
-gen_func!(sum_distinct, [col: Column], "returns the sum of distinct values in the expression.");
-gen_func!(var_pop, [col: Column], "returns the population variance of the values in a group.");
-gen_func!(var_samp, [col: Column], "returns the unbiased sample variance of the values in a group.");
-gen_func!(variance, [col: Column], "alias for var_samp");
+gen_func!(product, [col: Column], "Returns the product of the values in a group.");
+gen_func!(regr_avgx, [y: Column, x: Column], "Returns the average of the independent variable for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_avgy, [y: Column, x: Column], "Returns the average of the dependent variable for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_count, [y: Column, x: Column], "Returns the number of non-null number pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_intercept, [y: Column, x: Column], "Returns the intercept of the univariate linear regression line for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_r2, [y: Column, x: Column], "Returns the coefficient of determination for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_slope, [y: Column, x: Column], "Returns the slope of the linear regression line for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_sxx, [y: Column, x: Column], "Returns REGR_COUNT(y, x) * VAR_POP(x) for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_sxy, [y: Column, x: Column], "Returns REGR_COUNT(y, x) * COVAR_POP(y, x) for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(regr_syy, [y: Column, x: Column], "Returns REGR_COUNT(y, x) * VAR_POP(y) for non-null pairs in a group, where y is the dependent variable and x is the independent variable.");
+gen_func!(skewness, [col: Column], "Returns the skewness of the values in a group.");
+gen_func!(some, [col: Column], "Returns true if at least one value of col is true.");
+gen_func!(std, [col: Column], "Alias for stddev_samp.");
+gen_func!(stddev, [col: Column], "Alias for stddev_samp.");
+gen_func!(stddev_pop, [col: Column], "Returns population standard deviation of the expression in a group.");
+gen_func!(stddev_samp, [col: Column], "Returns the unbiased sample standard deviation of the expression in a group.");
+gen_func!(sum, [col: Column], "Returns the sum of all values in the expression.");
+gen_func!(sum_distinct, [col: Column], "Returns the sum of distinct values in the expression.");
+gen_func!(var_pop, [col: Column], "Returns the population variance of the values in a group.");
+gen_func!(var_samp, [col: Column], "Returns the unbiased sample variance of the values in a group.");
+gen_func!(variance, [col: Column], "Alias for var_samp");
 
 // window functions
 
 gen_func!(
     cume_dist,
     [],
-    "returns the cumulative distribution of values within a window partition, i.e."
+    "Returns the cumulative distribution of values within a window partition, i.e."
 );
 gen_func!(
     dense_rank,
     [],
-    " returns the rank of rows within a window partition, without any gaps"
+    "Returns the rank of rows within a window partition, without any gaps"
 );
 
-/// returns the ntile group id (from 1 to n inclusive) in an ordered window partition.
+/// Returns the ntile group id (from 1 to n inclusive) in an ordered window partition.
 pub fn ntile(n: i32) -> Column {
     invoke_func("ntitle", vec![lit(n)])
 }
 
-gen_func!(percent_rank, [], "returns the relative rank");
+gen_func!(percent_rank, [], "Returns the relative rank");
 gen_func!(
     rank,
     [],
-    "returns the rank of rows within a window partition."
+    "Returns the rank of rows within a window partition."
 );
 gen_func!(
     row_number,
     [],
-    "returns a sequential number starting at 1 within a window partition."
+    "Returns a sequential number starting at 1 within a window partition."
 );
 
 // sort functions
@@ -1084,8 +1070,7 @@ gen_func!(
 );
 gen_func!(md5, [col: Column], "Calculates the MD5 digest and returns the value as a 32 character hex string.");
 gen_func!(sha, [col: Column], "Returns a sha1 hash value as a hex string of the col.");
-gen_func!(sha1, [col: Column], "
-Returns the hex string result of SHA-1.");
+gen_func!(sha1, [col: Column], "Returns the hex string result of SHA-1.");
 gen_func!(sha2, [col: Column, num_bits: Column], "Returns the hex string result of SHA-2 family of hash functions (SHA-224, SHA-256, SHA-384, and SHA-512).");
 gen_func!(crc32, [col: Column], "Calculates the cyclic redundancy check value (CRC32) of a binary column and returns the value as a bigint.");
 gen_func!(hash, [cols: _], "Calculates the hash code of given columns, and returns the result as an int column.");

@@ -1,4 +1,4 @@
-//! Middleware services
+//! Middleware services implemented with tower.rs
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -13,6 +13,7 @@ use tonic::codegen::http::{HeaderName, HeaderValue};
 
 use tower::Service;
 
+/// Headers to apply a gRPC request
 #[derive(Debug, Clone)]
 pub struct HeadersLayer {
     headers: HashMap<String, String>,
@@ -32,6 +33,7 @@ impl<S> tower::Layer<S> for HeadersLayer {
     }
 }
 
+/// Middleware used to apply provided headers onto a gRPC request
 #[derive(Clone, Debug)]
 pub struct HeadersMiddleware<S> {
     inner: S,

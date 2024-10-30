@@ -27,7 +27,7 @@
 //!     let df = spark.create_dataframe(&data).await?
 //!
 //!     // 2 records total
-//!     let records = df.select("*")
+//!     let records = df.select(["*"])
 //!         .with_column("age_plus", col("age") + lit(4))
 //!         .filter(col("name").contains("o"))
 //!         .count()
@@ -104,7 +104,7 @@
 //! flag `feature = "tls"`. The connection string for the remote session must contain the following
 //! values in the string;
 //!
-//! ```rust
+//! ```bash
 //! "sc://<workspace id>:443/;token=<personal access token>;x-databricks-cluster-id=<cluster-id>"
 //! ```
 //!

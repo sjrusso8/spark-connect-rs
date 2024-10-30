@@ -8,6 +8,7 @@ use crate::session::SparkSession;
 use crate::spark;
 use crate::storage::StorageLevel;
 
+/// User-facing catalog API, accessible through SparkSession.catalog.
 #[derive(Debug, Clone)]
 pub struct Catalog {
     spark_session: SparkSession,
@@ -42,6 +43,7 @@ impl Catalog {
         self.spark_session.client().to_first_value(plan).await
     }
 
+    /// Sets the current default catalog in this session
     pub async fn set_current_catalog(self, catalog_name: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::SetCurrentCatalog(
             spark::SetCurrentCatalog {
@@ -84,6 +86,7 @@ impl Catalog {
         self.spark_session.client().to_first_value(plan).await
     }
 
+    /// Sets the current default database in this session
     pub async fn set_current_database(self, db_name: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::SetCurrentDatabase(
             spark::SetCurrentDatabase {
@@ -113,6 +116,7 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    /// Get the database with the specified name
     pub async fn get_database(self, db_name: &str) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::GetDatabase(spark::GetDatabase {
             db_name: db_name.to_string(),
@@ -125,6 +129,7 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    /// Check if the database with the specified name exists.
     pub async fn database_exists(self, db_name: &str) -> Result<bool, SparkError> {
         let cat_type = Some(spark::catalog::CatType::DatabaseExists(
             spark::DatabaseExists {
@@ -159,6 +164,7 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    /// Get the table or view with the specified name.
     pub async fn get_table(self, table_name: &str) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::GetTable(spark::GetTable {
             table_name: table_name.to_string(),
@@ -172,6 +178,7 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    /// Returns a list of functions registered in the specified database.
     pub async fn list_functions(
         self,
         db_name: Option<&str>,
@@ -191,6 +198,7 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    /// Check if the function with the specified name exists.
     pub async fn function_exists(
         self,
         function_name: &str,
@@ -212,6 +220,7 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    /// Get the function with the specified name.
     pub async fn get_function(self, function_name: &str) -> Result<RecordBatch, SparkError> {
         let cat_type = Some(spark::catalog::CatType::GetFunction(spark::GetFunction {
             function_name: function_name.to_string(),
@@ -243,6 +252,7 @@ impl Catalog {
         self.spark_session.client().to_arrow(plan).await
     }
 
+    /// Check if the table or view with the specified name exists.
     pub async fn table_exists(
         self,
         table_name: &str,
@@ -262,6 +272,7 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    /// Drops the local temporary view with the given view name in the catalog.
     pub async fn drop_temp_view(self, view_name: &str) -> Result<bool, SparkError> {
         let cat_type = Some(spark::catalog::CatType::DropTempView(spark::DropTempView {
             view_name: view_name.to_string(),
@@ -276,6 +287,7 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    /// Drops the global temporary view with the given view name in the catalog.
     pub async fn drop_global_temp_view(self, view_name: &str) -> Result<bool, SparkError> {
         let cat_type = Some(spark::catalog::CatType::DropGlobalTempView(
             spark::DropGlobalTempView {
@@ -292,6 +304,7 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    /// Returns true if the table is currently cached in-memory.
     pub async fn is_cached(self, table_name: &str) -> Result<bool, SparkError> {
         let cat_type = Some(spark::catalog::CatType::IsCached(spark::IsCached {
             table_name: table_name.to_string(),
@@ -306,6 +319,7 @@ impl Catalog {
         Catalog::arrow_to_bool(record)
     }
 
+    /// Caches the specified table in-memory or with given storage level.
     pub async fn cache_table(
         self,
         table_name: &str,
@@ -323,6 +337,7 @@ impl Catalog {
         self.spark_session.client().execute_command(plan).await
     }
 
+    /// Removes the specified table from the in-memory cache.
     pub async fn uncache_table(self, table_name: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::UncacheTable(spark::UncacheTable {
             table_name: table_name.to_string(),
@@ -335,6 +350,7 @@ impl Catalog {
         self.spark_session.client().execute_command(plan).await
     }
 
+    /// Removes all cached tables from the in-memory cache.
     pub async fn clear_cache(self) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::ClearCache(spark::ClearCache {}));
 
@@ -345,6 +361,7 @@ impl Catalog {
         self.spark_session.client().execute_command(plan).await
     }
 
+    /// Invalidates and refreshes all the cached data (and the associated metadata) for any DataFrame that contains the given data source path.
     pub async fn refresh_table(self, table_name: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::RefreshTable(spark::RefreshTable {
             table_name: table_name.to_string(),
@@ -357,6 +374,7 @@ impl Catalog {
         self.spark_session.client().execute_command(plan).await
     }
 
+    /// Recovers all the partitions of the given table and updates the catalog.
     pub async fn recover_partitions(self, table_name: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::RecoverPartitions(
             spark::RecoverPartitions {
@@ -371,6 +389,7 @@ impl Catalog {
         self.spark_session.client().execute_command(plan).await
     }
 
+    /// Invalidates and refreshes all the cached data (and the associated metadata) for any DataFrame that contains the given data source path.
     pub async fn refresh_by_path(self, path: &str) -> Result<(), SparkError> {
         let cat_type = Some(spark::catalog::CatType::RefreshByPath(
             spark::RefreshByPath {

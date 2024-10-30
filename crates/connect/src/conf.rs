@@ -10,6 +10,7 @@ use crate::errors::SparkError;
 #[cfg(feature = "wasm")]
 use tonic_web_wasm_client::Client;
 
+/// User-facing configuration API, accessible through SparkSession.conf.
 pub struct RunTimeConfig {
     #[cfg(not(feature = "wasm"))]
     pub(crate) client: SparkClient,

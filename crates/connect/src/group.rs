@@ -9,6 +9,7 @@ use crate::functions::{invoke_func, lit};
 use crate::spark;
 use crate::spark::aggregate::GroupType;
 
+/// A set of methods for aggregations on a [DataFrame], created by DataFrame.groupBy().
 #[derive(Clone, Debug)]
 pub struct GroupedData {
     df: DataFrame,
