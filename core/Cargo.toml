@@ -1,6 +1,6 @@
 [package]
-name = "spark-connect-rs"
-version = "0.0.1"
+name = "spark-connect-core"
+version = "0.0.1-beta.4"
 authors.workspace = true
 keywords.workspace = true
 readme.workspace = true
@@ -14,19 +14,14 @@ rust-version.workspace = true
 include = [
     "build.rs",
     "src/**/*",
-    "protobuf/**/*",
+    "spark/connector/connect/common/src/main/protobuf/spark/**/*",
 ]
 
 [dependencies]
 tonic = { workspace = true, default-features = false, optional = true }
 tonic-web-wasm-client = { workspace = true, optional = true }
 
-tower = { workspace = true }
 tokio = { workspace = true, optional = true }
-
-futures-util = { workspace = true }
-
-http-body = { workspace = true }
 
 arrow = { workspace = true }
 arrow-ipc = { workspace = true }
@@ -51,10 +46,9 @@ polars-arrow = { workspace = true, optional = true }
 
 [dev-dependencies]
 futures = "0.3"
-tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [build-dependencies]
-tonic-build = "0.11"
+tonic-build = "0.11.0"
 
 [lib]
 doctest = false
@@ -77,7 +71,6 @@ wasm = [
  "tonic/codegen",
  "tonic/prost",
  "getrandom/js",
- "tokio"
 ]
 
 datafusion = [

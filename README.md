@@ -16,14 +16,14 @@ The `spark-connect-rs` aims to provide an entrypoint to [Spark Connect](https://
 ## Project Layout
 
 ```
-├── crates          <- crates for the implementation of the client side spark-connect bindings
-│   └─ connect      <- crate for 'spark-connect-rs'
-│      └─ protobuf  <- connect protobuf for apache/spark
-├── examples        <- examples of using different aspects of the crate
-├── datasets        <- sample files from the main spark repo
+├── core       <- core implementation in Rust
+│   └─ spark   <- git submodule for apache/spark
+├── rust       <- shim for 'spark-connect-rs' from core
+├── examples   <- examples of using different aspects of the crate
+├── datasets   <- sample files from the main spark repo
 ```
 
-Future state would be to have additional crates that allow for easier creation of other language bindings.
+Future state would be to have additional bindings for other languages along side the top level `rust` folder.
 
 ## Getting Started
 
@@ -37,6 +37,7 @@ This section explains how run Spark Connect Rust locally starting from 0.
 
 ```bash
 git clone https://github.com/sjrusso8/spark-connect-rs.git
+git submodule update --init --recursive
 
 cargo build
 ```
@@ -104,7 +105,7 @@ The following section outlines some of the larger functionality that are not yet
 |conf              |![done]   |[Conf](#runtimeconfig)                 |
 |read              |![done]   |[DataFrameReader](#dataframereader)    |
 |readStream        |![done]   |[DataStreamReader](#datastreamreader)  |
-|streams           |![done]   |[Streams](#streamingquerymanager)      |
+|streams           |![open]   |[Streams](#streamingquerymanager)      |
 |udf               |![open]   |[Udf](#udfregistration) - may not be possible   |
 |udtf              |![open]   |[Udtf](#udtfregistration) - may not be possible |
 |version           |![done]   |                                       |
@@ -121,20 +122,20 @@ The following section outlines some of the larger functionality that are not yet
 
 |StreamingQueryManager|API       |Comment                                |
 |---------------------|----------|---------------------------------------|
-|awaitAnyTermination  |![done]   |                                       |
-|get                  |![done]   |                                       |
-|resetTerminated      |![done]   |                                       |
-|active               |![done]   |                                       |
+|awaitAnyTermination  |![open]   |                                       |
+|get                  |![open]   |                                       |
+|resetTerminated      |![open]   |                                       |
+|active               |![open]   |                                       |
 
 ### StreamingQuery
 
 |StreamingQuery    |API       |Comment                               |
 |------------------|----------|---------------------------------------|
 |awaitTermination  |![done]   |                                       |
-|exception         |![done]   |                                       |
-|explain           |![done]   |                                       |
-|processAllAvailable|![done]   |                                       |
-|stop              |![done]   |                                       |
+|exception         |![open]   |                                       |
+|explain           |![open]   |                                       |
+|processAllAvailable|![open]   |                                       |
+|stop              |![open]   |                                       |
 |id                |![done]   |                                       |
 |isActive          |![done]   |                                       |
 |lastProgress      |![done]   |                                       |
@@ -163,17 +164,17 @@ The following section outlines some of the larger functionality that are not yet
 
 |DataFrameReader  |API       |Comment                                |
 |------------------|----------|---------------------------------------|
-|csv               |![done]   |                                       |
+|csv               |![open]   |                                       |
 |format            |![done]   |                                       |
-|json              |![done]   |                                       |
+|json              |![open]   |                                       |
 |load              |![done]   |                                       |
 |option            |![done]   |                                       |
 |options           |![done]   |                                       |
-|orc               |![done]   |                                       |
-|parquet           |![done]   |                                       |
+|orc               |![open]   |                                       |
+|parquet           |![open]   |                                       |
 |schema            |![done]   |                                       |
 |table             |![done]   |                                       |
-|text              |![done]   |                                       |
+|text              |![open]   |                                       |
 
 ### DataStreamWriter
 
@@ -265,13 +266,13 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 |-------------------------------|---------|------------------------------------------------------------|
 | agg                           | ![done] |                                                            |
 | alias                         | ![done] |                                                            |
-| approxQuantile                | ![done] |                                                            |
+| approxQuantile                | ![open] |                                                            |
 | cache                         | ![done] |                                                            |
-| checkpoint                    | ![open] | Not part of Spark Connect                                  |
+| checkpoint                    | ![open] |                                                            |
 | coalesce                      | ![done] |                                                            |
 | colRegex                      | ![done] |                                                            |
 | collect                       | ![done] |                                                            |
-| columns                       | ![done] |                                                            |
+| columns                       | ![done] |                                                           |
 | corr                          | ![done] |                                                            |
 | count                         | ![done] |                                                            |
 | cov                           | ![done] |                                                            |
@@ -286,13 +287,13 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | distinct                      | ![done] |                                                            |
 | drop                          | ![done] |                                                            |
 | dropDuplicates                | ![done] |                                                            |
-| dropDuplicatesWithinWatermark | ![done] |                                                            |
+| dropDuplicatesWithinWatermark | ![open] | Windowing functions are currently in progress              |
 | drop_duplicates               | ![done] |                                                            |
 | dropna                        | ![done] |                                                            |
 | dtypes                        | ![done] |                                                            |
 | exceptAll                     | ![done] |                                                            |
 | explain                       | ![done] |                                                            |
-| fillna                        | ![done] |                                                            |
+| fillna                        | ![open] |                                                            |
 | filter                        | ![done] |                                                            |
 | first                         | ![done] |                                                            |
 | foreach                       | ![open] |                                                            |
@@ -305,29 +306,29 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | intersect                     | ![done] |                                                            |
 | intersectAll                  | ![done] |                                                            |
 | isEmpty                       | ![done] |                                                            |
-| isLocal                       | ![done] |                                                            |
+| isLocal                       | ![open] |                                                            |
 | isStreaming                   | ![done] |                                                            |
 | join                          | ![done] |                                                            |
 | limit                         | ![done] |                                                            |
-| localCheckpoint               | ![open] | Not part of Spark Connect                                  |
+| localCheckpoint               | ![open] |                                                            |
 | mapInPandas                   | ![open] | TBD on this exact implementation                           |
 | mapInArrow                    | ![open] | TBD on this exact implementation                           |
 | melt                          | ![done] |                                                            |
-| na                            | ![done] |                                                            |
+| na                            | ![open] |                                                            |
 | observe                       | ![open] |                                                            |
 | offset                        | ![done] |                                                            |
 | orderBy                       | ![done] |                                                            |
 | persist                       | ![done] |                                                            |
 | printSchema                   | ![done] |                                                            |
-| randomSplit                   | ![done] |                                                            |
-| registerTempTable             | ![done] |                                                            |
+| randomSplit                   | ![open] |                                                            |
+| registerTempTable             | ![open] |                                                            |
 | repartition                   | ![done] |                                                            |
-| repartitionByRange            | ![done] |                                                            |
-| replace                       | ![done] |                                                            |
+| repartitionByRange            | ![open] |                                                            |
+| replace                       | ![open] |                                                            |
 | rollup                        | ![done] |                                                            |
 | sameSemantics                 | ![done] |                                                            |
 | sample                        | ![done] |                                                            |
-| sampleBy                      | ![done] |                                                            |
+| sampleBy                      | ![open] |                                                            |
 | schema                        | ![done] |                                                            |
 | select                        | ![done] |                                                            |
 | selectExpr                    | ![done] |                                                            |
@@ -339,7 +340,7 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | stat                          | ![done] |                                                            |
 | storageLevel                  | ![done] |                                                            |
 | subtract                      | ![done] |                                                            |
-| summary                       | ![done] |                                                            |
+| summary                       | ![open] |                                                            |
 | tail                          | ![done] |                                                            |
 | take                          | ![done] |                                                            |
 | to                            | ![done] |                                                            |
@@ -357,10 +358,10 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | where                         | ![done] | use `filter` instead, `where` is a keyword for rust        |
 | withColumn                    | ![done] |                                                            |
 | withColumns                   | ![done] |                                                            |
-| withColumnRenamed             | ![done] |                                                            |
+| withColumnRenamed             | ![open] |                                                            |
 | withColumnsRenamed            | ![done] |                                                            |
-| withMetadata                  | ![done] |                                                            |
-| withWatermark                 | ![done] |                                                            |
+| withMetadata                  | ![open] |                                                            |
+| withWatermark                 | ![open] |                                                            |
 | write                         | ![done] |                                                            |
 | writeStream                   | ![done] |                                                            |
 | writeTo                       | ![done] |                                                            |
@@ -373,21 +374,21 @@ required jars
 |DataFrameWriter   |API       |Comment                                |
 |------------------|----------|---------------------------------------|
 |bucketBy          |![done]   |                                       |
-|csv               |![done]   |                                       |
+|csv               |          |                                       |
 |format            |![done]   |                                       |
 |insertInto        |![done]   |                                       |
 |jdbc              |          |                                       |
-|json              |![done]   |                                       |
+|json              |          |                                       |
 |mode              |![done]   |                                       |
 |option            |![done]   |                                       |
 |options           |![done]   |                                       |
-|orc               |![done]   |                                       |
-|parquet           |![done]   |                                       |
+|orc               |          |                                       |
+|parquet           |          |                                       |
 |partitionBy       |          |                                       |
 |save              |![done]   |                                       |
 |saveAsTable       |![done]   |                                       |
 |sortBy            |![done]   |                                       |
-|text              |![done]   |                                       |
+|text              |          |                                       |
 
 ### DataFrameWriterV2
 

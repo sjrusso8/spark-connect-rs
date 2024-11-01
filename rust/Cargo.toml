@@ -1,0 +1,25 @@
+[package]
+name = "spark-connect-rs"
+version = "0.0.1-beta.4"
+authors.workspace = true
+keywords.workspace = true
+readme.workspace = true
+edition.workspace = true
+homepage.workspace = true
+description.workspace = true
+license.workspace = true
+documentation.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+spark-connect-core = { version = "0.0.1-beta.4", path = "../core" }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[features]
+tls = ["spark-connect-core/tls"]
+
+[lib]
+doctest = false

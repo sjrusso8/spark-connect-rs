@@ -24,11 +24,11 @@
 //!
 //!     let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?
 //!
-//!     let df = spark.create_dataframe(&data).await?
+//!     let df = spark.createDataFrame(&data).await?
 //!
 //!     // 2 records total
 //!     let records = df.select("*")
-//!         .with_column("age_plus", col("age") + lit(4))
+//!         .withColumn("age_plus", col("age") + lit(4))
 //!         .filter(col("name").contains("o"))
 //!         .count()
 //!         .await?;
@@ -134,3 +134,57 @@ pub mod window;
 
 pub use dataframe::{DataFrame, DataFrameReader, DataFrameWriter};
 pub use session::{SparkSession, SparkSessionBuilder};
+
+#[cfg(test)]
+mod tests {
+
+    use std::sync::Arc;
+
+    use arrow::{
+        array::{ArrayRef, StringArray},
+        record_batch::RecordBatch,
+    };
+
+    use crate::errors::SparkError;
+
+    use super::*;
+
+    async fn setup() -> SparkSession {
+        println!("SparkSession Setup");
+
+        let connection = "sc://127.0.0.1:15002/;user_id=rust_test;session_id=0d2af2a9-cc3c-4d4b-bf27-e2fefeaca233";
+
+        SparkSessionBuilder::remote(connection)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_spark_range() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let df = spark.range(None, 100, 1, Some(8));
+
+        let records = df.collect().await?;
+
+        assert_eq!(records.num_rows(), 100);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_spark_create_dataframe() -> Result<(), SparkError> {
+        let spark = setup().await;
+
+        let a: ArrayRef = Arc::new(StringArray::from(vec!["hello", "world"]));
+
+        let record_batch = RecordBatch::try_from_iter(vec![("a", a)])?;
+
+        let df = spark.createDataFrame(&record_batch)?;
+
+        let rows = df.collect().await?;
+
+        assert_eq!(record_batch, rows);
+        Ok(())
+    }
+}

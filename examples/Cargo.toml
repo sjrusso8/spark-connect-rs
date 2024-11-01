@@ -32,8 +32,8 @@ path = "src/databricks.rs"
 required-feature = ["tls"]
 
 [dependencies]
-spark-connect-rs = { version = "0.0.1", path = "../crates/connect" }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+spark-connect-rs = { version = "0.0.1-beta.4", path = "../rust" }
+tokio = { workspace = true }
 
 [features]
 tls = ["spark-connect-rs/tls"]

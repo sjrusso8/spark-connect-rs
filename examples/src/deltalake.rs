@@ -22,6 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load a CSV file from the spark server
     let df = spark
+        .clone()
         .read()
         .format("csv")
         .option("header", "True")
@@ -33,11 +34,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.write()
         .format("delta")
         .mode(SaveMode::Overwrite)
-        .save_as_table("default.people_delta")
+        .saveAsTable("default.people_delta")
         .await?;
 
     // view the history of the table
     spark
+        .clone()
         .sql("DESCRIBE HISTORY default.people_delta")
         .await?
         .show(Some(1), None, Some(true))
@@ -45,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // create another dataframe
     let df = spark
+        .clone()
         .sql("SELECT 'john' as name, 40 as age, 'engineer' as job")
         .await?;
 
@@ -52,11 +55,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.write()
         .format("delta")
         .mode(SaveMode::Append)
-        .save_as_table("default.people_delta")
+        .saveAsTable("default.people_delta")
         .await?;
 
     // view history
     spark
+        .clone()
         .sql("DESCRIBE HISTORY default.people_delta")
         .await?
         .show(Some(2), None, Some(true))

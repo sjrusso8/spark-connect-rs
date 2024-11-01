@@ -2,7 +2,7 @@
 
 use crate::column::Column;
 use crate::errors::SparkError;
-use crate::expressions::{ToFilterExpr, VecExpression};
+use crate::expressions::{ToExpr, ToFilterExpr, ToVecExpr};
 use crate::group::GroupedData;
 use crate::plan::LogicalPlanBuilder;
 use crate::session::SparkSession;
@@ -24,8 +24,6 @@ use arrow::json::ArrayWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 
-use rand::random;
-
 #[cfg(feature = "datafusion")]
 use datafusion::execution::context::SessionContext;
 
@@ -42,7 +40,7 @@ use polars_arrow;
 /// transformation takes the prior [spark::Plan] and builds onto it. The final unresolved logical
 /// plan is submitted to the spark connect server.
 ///
-/// ## create_dataframe & range
+/// ## createDataFrame & range
 ///
 /// A `DataFrame` can be created with an [arrow::array::RecordBatch], or with `spark.range(...)`
 ///
@@ -52,7 +50,7 @@ use polars_arrow;
 ///
 /// let data = RecordBatch::try_from_iter(vec![("name", name), ("age", age)])?
 ///
-/// let df = spark.create_dataframe(&data).await?
+/// let df = spark.createDataFrame(&data).await?
 /// ```
 ///
 /// ## sql
@@ -65,7 +63,7 @@ use polars_arrow;
 ///
 /// ## read & readStream
 ///
-/// A `DataFrame` is also created from a `spark.read()` and `spark.read_stream()` statement.
+/// A `DataFrame` is also created from a `spark.read()` and `spark.readStream()` statement.
 ///
 /// ```rust
 /// let df = spark
@@ -87,7 +85,7 @@ pub struct DataFrame {
 
 impl DataFrame {
     /// create default DataFrame based on a spark session and initial logical plan
-    pub(crate) fn new(spark_session: SparkSession, plan: LogicalPlanBuilder) -> DataFrame {
+    pub fn new(spark_session: SparkSession, plan: LogicalPlanBuilder) -> DataFrame {
         DataFrame {
             spark_session: Box::new(spark_session),
             plan,
@@ -96,20 +94,17 @@ impl DataFrame {
 
     fn check_same_session(&self, other: &DataFrame) -> Result<(), SparkError> {
         if self.spark_session.session_id() != other.spark_session.session_id() {
-            return Err(SparkError::SessionNotSameException(
-                "Spark Session IDs are not the same.".to_string(),
+            return Err(SparkError::AnalysisException(
+                "Spark Session is not the same!".to_string(),
             ));
         };
 
         Ok(())
     }
 
-    /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.group_by().agg()`)
-    pub fn agg<I>(self, exprs: I) -> DataFrame
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
-        self.group_by::<Vec<Column>>(None).agg(exprs)
+    /// Aggregate on the entire [DataFrame] without groups (shorthand for `df.groupBy().agg()`)
+    pub fn agg<T: ToVecExpr>(self, exprs: T) -> DataFrame {
+        self.groupBy::<Column>(None).agg(exprs)
     }
 
     /// Returns a new [DataFrame] with an alias set.
@@ -120,35 +115,6 @@ impl DataFrame {
             spark_session: self.spark_session,
             plan,
         }
-    }
-
-    /// Calculates the approximate quantiles of numerical columns of a [DataFrame].
-    pub async fn approx_quantile<I, P>(
-        self,
-        cols: I,
-        probabilities: P,
-        relative_error: f64,
-    ) -> Result<RecordBatch, SparkError>
-    where
-        I: IntoIterator<Item: AsRef<str>>,
-        P: IntoIterator<Item = f64>,
-    {
-        if relative_error < 0.0 {
-            return Err(SparkError::AnalysisException(
-                "Relative Error Negative Value".to_string(),
-            ));
-        }
-
-        let plan = self
-            .plan
-            .approx_quantile(cols, probabilities, relative_error);
-
-        let df = DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        };
-
-        df.collect().await
     }
 
     /// Persists the [DataFrame] with the default [storage::StorageLevel::MemoryAndDiskDeser] (MEMORY_AND_DISK_DESER).
@@ -162,8 +128,22 @@ impl DataFrame {
         self.repartition(num_partitions, Some(false))
     }
 
+    /// Returns the number of rows in this [DataFrame]
+    pub async fn count(self) -> Result<i64, SparkError> {
+        let res = self.groupBy::<Column>(None).count().collect().await?;
+        let col = res.column(0);
+
+        let data: &arrow::array::Int64Array = match col.data_type() {
+            arrow::datatypes::DataType::Int64 => col.as_any().downcast_ref().unwrap(),
+            _ => unimplemented!("only Utf8 data types are currently handled currently."),
+        };
+
+        Ok(data.value(0))
+    }
+
     /// Selects column based on the column name specified as a regex and returns it as [Column].
-    pub fn col_regex(self, col_name: &str) -> Column {
+    #[allow(non_snake_case)]
+    pub fn colRegex(self, col_name: &str) -> Column {
         let expr = spark::Expression {
             expr_type: Some(spark::expression::ExprType::UnresolvedRegex(
                 spark::expression::UnresolvedRegex {
@@ -185,7 +165,7 @@ impl DataFrame {
     /// }
     /// ```
     pub async fn collect(self) -> Result<RecordBatch, SparkError> {
-        let plan = self.plan.plan_root();
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
         self.spark_session.client().to_arrow(plan).await
     }
 
@@ -207,7 +187,6 @@ impl DataFrame {
 
         Ok(cols)
     }
-
     /// Calculates the correlation of two columns of a [DataFrame] as a `f64`.
     /// Currently only supports the Pearson Correlation Coefficient.
     pub async fn corr(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
@@ -228,20 +207,6 @@ impl DataFrame {
                 .downcast_ref()
                 .expect("failed to unwrap result"),
             _ => panic!("Expected Float64 in response type"),
-        };
-
-        Ok(data.value(0))
-    }
-
-    /// Returns the number of rows in this [DataFrame]
-    pub async fn count(self) -> Result<i64, SparkError> {
-        let res = self.group_by::<Vec<Column>>(None).count().collect().await?;
-
-        let col = res.column(0);
-
-        let data: &arrow::array::Int64Array = match col.data_type() {
-            arrow::datatypes::DataType::Int64 => col.as_any().downcast_ref().unwrap(),
-            _ => unimplemented!("only Utf8 data types are currently handled currently."),
         };
 
         Ok(data.value(0))
@@ -271,24 +236,26 @@ impl DataFrame {
         Ok(data.value(0))
     }
 
-    /// Creates a global temporary view with this [DataFrame].
-    pub async fn create_global_temp_view(self, name: &str) -> Result<(), SparkError> {
+    /// Creates a local temporary view with this DataFrame.
+    #[allow(non_snake_case)]
+    pub async fn createTempView(self, name: &str) -> Result<(), SparkError> {
+        self.create_view_cmd(name, false, false).await
+    }
+
+    #[allow(non_snake_case)]
+    pub async fn createGlobalTempView(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, true, false).await
     }
 
-    /// Creates or replaces a global temporary view using the given name.
-    pub async fn create_or_replace_global_temp_view(self, name: &str) -> Result<(), SparkError> {
+    #[allow(non_snake_case)]
+    pub async fn createOrReplaceGlobalTempView(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, true, true).await
     }
 
-    /// Creates or replaces a local temporary view with this [DataFrame]
-    pub async fn create_or_replace_temp_view(self, name: &str) -> Result<(), SparkError> {
+    /// Creates or replaces a local temporary view with this DataFrame
+    #[allow(non_snake_case)]
+    pub async fn createOrReplaceTempView(self, name: &str) -> Result<(), SparkError> {
         self.create_view_cmd(name, false, true).await
-    }
-
-    /// Creates a local temporary view with this [DataFrame]
-    pub async fn create_temp_view(self, name: &str) -> Result<(), SparkError> {
-        self.create_view_cmd(name, false, false).await
     }
 
     async fn create_view_cmd(
@@ -312,7 +279,8 @@ impl DataFrame {
     }
 
     /// Returns the cartesian product with another [DataFrame].
-    pub fn cross_join(self, other: DataFrame) -> DataFrame {
+    #[allow(non_snake_case)]
+    pub fn crossJoin(self, other: DataFrame) -> DataFrame {
         let plan = self
             .plan
             .join(other.plan, None::<&str>, JoinType::Cross, vec![]);
@@ -333,26 +301,16 @@ impl DataFrame {
         }
     }
 
-    /// Create a multi-dimensional cube for the current [DataFrame] using the specified columns, so we can run aggregations on them.
-    pub fn cube<I>(self, cols: I) -> GroupedData
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
-        GroupedData::new(
-            self,
-            GroupType::Cube,
-            VecExpression::from_iter(cols).expr,
-            None,
-            None,
-        )
+    /// Create a multi-dimensional cube for the current DataFrame using the specified columns, so we can run aggregations on them.
+    pub fn cube<T: ToVecExpr>(self, cols: T) -> GroupedData {
+        GroupedData::new(self, GroupType::Cube, cols.to_vec_expr(), None, None)
     }
 
     // Computes basic statistics for numeric and string columns. This includes count, mean, stddev, min, and max.
     // If no columns are given, this function computes statistics for all numerical or string columns.
-    pub fn describe<I, T>(self, cols: Option<I>) -> DataFrame
+    pub fn describe<'a, I>(self, cols: Option<I>) -> DataFrame
     where
-        I: IntoIterator<Item = T>,
-        T: AsRef<str>,
+        I: IntoIterator<Item = &'a str> + std::default::Default,
     {
         let plan = self.plan.describe(cols);
 
@@ -373,10 +331,7 @@ impl DataFrame {
     }
 
     /// Returns a new [DataFrame] without the specified columns
-    pub fn drop<I>(self, cols: I) -> DataFrame
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
+    pub fn drop<T: ToVecExpr>(self, cols: T) -> DataFrame {
         let plan = self.plan.drop(cols);
 
         DataFrame {
@@ -390,12 +345,10 @@ impl DataFrame {
     ///
     /// If no columns are supplied then it all columns are used
     ///
-    pub fn drop_duplicates<I, T>(self, cols: Option<I>) -> DataFrame
-    where
-        I: IntoIterator<Item = T>,
-        T: AsRef<str>,
-    {
-        let plan = self.plan.drop_duplicates(cols, false);
+    /// Alias for `dropDuplciates`
+    ///
+    pub fn drop_duplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
+        let plan = self.plan.drop_duplicates(cols);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -403,25 +356,13 @@ impl DataFrame {
         }
     }
 
-    /// Return a new [DataFrame] with duplicate rows removed,
-    /// optionally only considering certain columns, within watermark.
-    ///
-    /// This only works with streaming [DataFrame], and watermark for the input [DataFrame] must be set via `with_watermark()`.
-    ///
-    pub fn drop_duplicates_within_waterwmark<I, T>(self, cols: Option<I>) -> DataFrame
-    where
-        I: IntoIterator<Item = T>,
-        T: AsRef<str>,
-    {
-        let plan = self.plan.drop_duplicates(cols, true);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
+    /// Return a new DataFrame with duplicate rows removed, optionally only considering certain columns.
+    #[allow(non_snake_case)]
+    pub fn dropDuplicates(self, cols: Option<Vec<&str>>) -> DataFrame {
+        self.drop_duplicates(cols)
     }
 
-    /// Returns a new [DataFrame] omitting rows with null values.
+    /// Returns a new DataFrame omitting rows with null values.
     pub fn dropna(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
         let plan = self.plan.dropna(how, threshold, subset);
 
@@ -431,8 +372,8 @@ impl DataFrame {
         }
     }
 
-    /// Returns all column names and their data types as a `Vec` containing
-    /// the field name as a `String` and the [spark::data_type::Kind] enum
+    /// Returns all column names and their data types as a Vec containing
+    /// the field name as a String and the [spark::data_type::Kind] enum
     pub async fn dtypes(self) -> Result<Vec<(String, spark::data_type::Kind)>, SparkError> {
         let schema = self.schema().await?;
 
@@ -455,11 +396,12 @@ impl DataFrame {
         Ok(dtypes)
     }
 
-    /// Return a new [DataFrame] containing rows in this [DataFrame] but not in another [DataFrame] while preserving duplicates.
-    pub fn except_all(self, other: DataFrame) -> DataFrame {
+    /// Return a new DataFrame containing rows in this DataFrame but not in another DataFrame while preserving duplicates.
+    #[allow(non_snake_case)]
+    pub fn exceptAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
-        let plan = self.plan.except_all(other.plan);
+        let plan = self.plan.exceptAll(other.plan);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -484,7 +426,7 @@ impl DataFrame {
             None => ExplainMode::Simple,
         };
 
-        let plan = self.plan.plan_root();
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
 
         let analyze =
             spark::analyze_plan_request::Analyze::Explain(spark::analyze_plan_request::Explain {
@@ -500,21 +442,6 @@ impl DataFrame {
         Ok(explain)
     }
 
-    /// Replace null values, alias for `df.na().fill()`.
-    pub fn fillna<I, T, L>(self, cols: Option<I>, values: T) -> DataFrame
-    where
-        I: IntoIterator<Item: AsRef<str>>,
-        T: IntoIterator<Item = L>,
-        L: Into<spark::expression::Literal>,
-    {
-        let plan = self.plan.fillna(cols, values);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
     /// Filters rows using a given conditions and returns a new [DataFrame]
     ///
     /// # Example:
@@ -523,7 +450,7 @@ impl DataFrame {
     ///     df.filter("salary > 4000").collect().await?;
     /// }
     /// ```
-    pub fn filter(self, condition: impl ToFilterExpr) -> DataFrame {
+    pub fn filter<T: ToFilterExpr>(self, condition: T) -> DataFrame {
         let plan = self.plan.filter(condition);
 
         DataFrame {
@@ -538,12 +465,12 @@ impl DataFrame {
     }
 
     /// Finding frequent items for columns, possibly with false positives.
-    pub fn freq_items<I, S>(self, cols: I, support: Option<f64>) -> DataFrame
+    #[allow(non_snake_case)]
+    pub fn freqItems<'a, I>(self, cols: I, support: Option<f64>) -> DataFrame
     where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
+        I: IntoIterator<Item = &'a str>,
     {
-        let plan = self.plan.freq_items(cols, support);
+        let plan = self.plan.freqItems(cols, support);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -551,13 +478,11 @@ impl DataFrame {
         }
     }
 
-    /// Groups the [DataFrame] using the specified columns, and returns a [GroupedData] object
-    pub fn group_by<I>(self, cols: Option<I>) -> GroupedData
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
+    /// Groups the DataFrame using the specified columns, and returns a [GroupedData] object
+    #[allow(non_snake_case)]
+    pub fn groupBy<T: ToVecExpr>(self, cols: Option<T>) -> GroupedData {
         let grouping_cols = match cols {
-            Some(cols) => VecExpression::from_iter(cols).expr,
+            Some(cols) => cols.to_vec_expr(),
             None => vec![],
         };
         GroupedData::new(self, GroupType::Groupby, grouping_cols, None, None)
@@ -568,11 +493,8 @@ impl DataFrame {
         self.limit(n.unwrap_or(1)).collect().await
     }
 
-    /// Specifies some hint on the current [DataFrame].
-    pub fn hint<I>(self, name: &str, parameters: Option<I>) -> DataFrame
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
+    /// Specifies some hint on the current DataFrame.
+    pub fn hint<T: ToVecExpr>(self, name: &str, parameters: Option<T>) -> DataFrame {
         let plan = self.plan.hint(name, parameters);
 
         DataFrame {
@@ -581,11 +503,12 @@ impl DataFrame {
         }
     }
 
-    /// Returns a best-effort snapshot of the files that compose this [DataFrame]
-    pub async fn input_files(self) -> Result<Vec<String>, SparkError> {
+    /// Returns a best-effort snapshot of the files that compose this DataFrame
+    #[allow(non_snake_case)]
+    pub async fn inputFiles(self) -> Result<Vec<String>, SparkError> {
         let input_files = spark::analyze_plan_request::Analyze::InputFiles(
             spark::analyze_plan_request::InputFiles {
-                plan: Some(self.plan.plan_root()),
+                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
             },
         );
 
@@ -594,7 +517,7 @@ impl DataFrame {
         client.analyze(input_files).await?.input_files()
     }
 
-    /// Return a new [DataFrame] containing rows only in both this [DataFrame] and another [DataFrame].
+    /// Return a new DataFrame containing rows only in both this DataFrame and another DataFrame.
     pub fn intersect(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
@@ -606,11 +529,11 @@ impl DataFrame {
         }
     }
 
-    /// Return a new [DataFrame] containing rows in both this [DataFrame] and another [DataFrame] while preserving duplicates.
-    pub fn intersect_all(self, other: DataFrame) -> DataFrame {
+    #[allow(non_snake_case)]
+    pub fn intersectAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
-        let plan = self.plan.intersect_all(other.plan);
+        let plan = self.plan.intersectAll(other.plan);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -619,29 +542,19 @@ impl DataFrame {
     }
 
     /// Checks if the DataFrame is empty and returns a boolean value.
-    pub async fn is_empty(self) -> Result<bool, SparkError> {
-        let val = &self.select(["*"]).limit(1).collect().await?;
+    #[allow(non_snake_case)]
+    pub async fn isEmpty(self) -> Result<bool, SparkError> {
+        let val = &self.select("*").limit(1).collect().await?;
 
         Ok(val.num_rows() == 0)
     }
 
-    /// Returns `true` if the `collect()` and `take()` methods can be run locally (without any Spark executors).
-    pub async fn is_local(self) -> Result<bool, SparkError> {
-        let is_local =
-            spark::analyze_plan_request::Analyze::IsLocal(spark::analyze_plan_request::IsLocal {
-                plan: Some(self.plan.plan_root()),
-            });
-
-        let mut client = self.spark_session.client();
-
-        client.analyze(is_local).await?.is_local()
-    }
-
-    /// Returns `true` if this [DataFrame] contains one or more sources that continuously return data as it arrives.
-    pub async fn is_streaming(self) -> Result<bool, SparkError> {
+    /// Returns True if this DataFrame contains one or more sources that continuously return data as it arrives.
+    #[allow(non_snake_case)]
+    pub async fn isStreaming(self) -> Result<bool, SparkError> {
         let is_streaming = spark::analyze_plan_request::Analyze::IsStreaming(
             spark::analyze_plan_request::IsStreaming {
-                plan: Some(self.plan.plan_root()),
+                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
             },
         );
 
@@ -650,7 +563,7 @@ impl DataFrame {
         client.analyze(is_streaming).await?.is_streaming()
     }
 
-    /// Joins with another [DataFrame], using the given join expression.
+    /// Joins with another DataFrame, using the given join expression.
     ///
     /// # Example:
     /// ```rust
@@ -664,12 +577,7 @@ impl DataFrame {
     /// }
     /// ```
 
-    pub fn join<T: Into<spark::Expression>>(
-        self,
-        other: DataFrame,
-        on: Option<T>,
-        how: JoinType,
-    ) -> DataFrame {
+    pub fn join<T: ToExpr>(self, other: DataFrame, on: Option<T>, how: JoinType) -> DataFrame {
         let plan = self.plan.join(other.plan, on, how, vec![]);
 
         DataFrame {
@@ -696,25 +604,19 @@ impl DataFrame {
     }
 
     /// Alias for [DataFrame::unpivot]
-    pub fn melt<I>(
+    pub fn melt<I, K>(
         self,
         ids: I,
-        values: Option<I>,
+        values: Option<K>,
         variable_column_name: &str,
         value_column_name: &str,
     ) -> DataFrame
     where
-        I: IntoIterator<Item: Into<Column>>,
+        I: ToVecExpr,
+        K: ToVecExpr,
     {
         self.unpivot(ids, values, variable_column_name, value_column_name)
     }
-
-    /// Returns a [DataFrameNaFunctions] for handling missing values.
-    pub fn na(self) -> DataFrameNaFunctions {
-        DataFrameNaFunctions::new(self)
-    }
-
-    // !TODO observe
 
     /// Returns a new [DataFrame] by skiping the first n rows
     pub fn offset(self, num: i32) -> DataFrame {
@@ -726,12 +628,12 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new [DataFrame] sorted by the specified column(s).
-    pub fn order_by<I>(self, cols: I) -> DataFrame
+    #[allow(non_snake_case)]
+    pub fn orderBy<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item: Into<Column>>,
+        I: IntoIterator<Item = Column>,
     {
-        let plan = self.plan.sort(cols, false);
+        let plan = self.plan.sort(cols);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -739,7 +641,6 @@ impl DataFrame {
         }
     }
 
-    /// Sets the storage level to persist the contents of the [DataFrame] across operations after the first time it is computed.
     pub async fn persist(self, storage_level: storage::StorageLevel) -> DataFrame {
         let analyze =
             spark::analyze_plan_request::Analyze::Persist(spark::analyze_plan_request::Persist {
@@ -760,10 +661,11 @@ impl DataFrame {
     }
 
     /// Prints out the schema in the tree format to a specific level number.
-    pub async fn print_schema(self, level: Option<i32>) -> Result<String, SparkError> {
+    #[allow(non_snake_case)]
+    pub async fn printSchema(self, level: Option<i32>) -> Result<String, SparkError> {
         let tree_string = spark::analyze_plan_request::Analyze::TreeString(
             spark::analyze_plan_request::TreeString {
-                plan: Some(self.plan.plan_root()),
+                plan: Some(LogicalPlanBuilder::plan_root(self.plan)),
                 level,
             },
         );
@@ -771,47 +673,6 @@ impl DataFrame {
         let mut client = self.spark_session.client();
 
         client.analyze(tree_string).await?.tree_string()
-    }
-
-    /// Randomly splits this [DataFrame] with the provided weights.
-    pub fn random_split<I>(self, weights: I, seed: Option<i64>) -> Vec<DataFrame>
-    where
-        I: IntoIterator<Item = f64> + Clone,
-    {
-        let seed = seed.unwrap_or(random::<i64>());
-        let total: f64 = weights.clone().into_iter().sum();
-
-        let proportions: Vec<f64> = weights.into_iter().map(|v| v / total).collect();
-
-        let mut normalized_cum_weights = vec![0.0];
-
-        for &v in &proportions {
-            let prior_val = *normalized_cum_weights.last().unwrap();
-            normalized_cum_weights.push(prior_val + v);
-        }
-
-        let mut i = 1;
-        let length = normalized_cum_weights.len();
-        let mut splits: Vec<DataFrame> = vec![];
-
-        while i < length {
-            let lower_bound = *normalized_cum_weights.get(i - 1).unwrap();
-            let upper_bound = *normalized_cum_weights.get(i).unwrap();
-
-            let plan =
-                self.clone()
-                    .plan
-                    .sample(lower_bound, upper_bound, Some(false), Some(seed), true);
-
-            let df = DataFrame {
-                spark_session: self.clone().spark_session,
-                plan,
-            };
-            splits.push(df);
-            i += 1;
-        }
-
-        splits
     }
 
     /// Returns a new [DataFrame] partitioned by the given partition number and shuffle option
@@ -830,52 +691,17 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new [DataFrame] partitioned by the given partitioning expressions.
-    pub fn repartition_by_range<I>(self, num_partitions: Option<i32>, cols: I) -> DataFrame
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
-        let plan = self.plan.repartition_by_range(num_partitions, cols);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
-    /// Returns a new [DataFrame] replacing a value with another value.
-    pub fn replace<I, T>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
-    where
-        I: IntoIterator<Item: AsRef<str>>,
-        T: IntoIterator<Item: Into<spark::expression::Literal>>,
-    {
-        let plan = self.plan.replace(to_replace, value, subset);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
     /// Create a multi-dimensional rollup for the current DataFrame using the specified columns,
     /// and returns a [GroupedData] object
-    pub fn rollup<I>(self, cols: I) -> GroupedData
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
-        GroupedData::new(
-            self,
-            GroupType::Rollup,
-            VecExpression::from_iter(cols).expr,
-            None,
-            None,
-        )
+    pub fn rollup<T: ToVecExpr>(self, cols: T) -> GroupedData {
+        GroupedData::new(self, GroupType::Rollup, cols.to_vec_expr(), None, None)
     }
 
     /// Returns True when the logical query plans inside both DataFrames are equal and therefore return the same results.
-    pub async fn same_semantics(self, other: DataFrame) -> Result<bool, SparkError> {
-        let target_plan = Some(self.plan.plan_root());
-        let other_plan = Some(other.plan.plan_root());
+    #[allow(non_snake_case)]
+    pub async fn sameSemantics(self, other: DataFrame) -> Result<bool, SparkError> {
+        let target_plan = Some(LogicalPlanBuilder::plan_root(self.plan));
+        let other_plan = Some(LogicalPlanBuilder::plan_root(other.plan));
 
         let same_semantics = spark::analyze_plan_request::Analyze::SameSemantics(
             spark::analyze_plan_request::SameSemantics {
@@ -899,7 +725,7 @@ impl DataFrame {
     ) -> DataFrame {
         let plan = self
             .plan
-            .sample(lower_bound, upper_bound, with_replacement, seed, false);
+            .sample(lower_bound, upper_bound, with_replacement, seed);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -907,26 +733,10 @@ impl DataFrame {
         }
     }
 
-    /// Returns a stratified sample without replacement based on the fraction given on each stratum.
-    pub fn sample_by<K, I>(self, col: Column, fractions: I, seed: Option<i64>) -> DataFrame
-    where
-        K: Into<spark::expression::Literal>,
-        I: IntoIterator<Item = (K, f64)>,
-    {
-        let seed = seed.unwrap_or(random::<i64>());
-
-        let plan = self.plan.sample_by(col, fractions, seed);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
-    /// Returns the schema of this [DataFrame] as a [spark::DataType]
-    /// which contains the schema of a [DataFrame]
+    /// Returns the schema of this DataFrame as a [spark::DataType]
+    /// which contains the schema of a DataFrame
     pub async fn schema(self) -> Result<spark::DataType, SparkError> {
-        let plan = self.plan.plan_root();
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
 
         let schema =
             spark::analyze_plan_request::Analyze::Schema(spark::analyze_plan_request::Schema {
@@ -942,7 +752,7 @@ impl DataFrame {
     ///
     /// # Arguments:
     ///
-    /// * `cols` - An iterable of values that can be Columns
+    /// * `cols` - An object that implements [ToVecExpr]
     ///
     /// # Example:
     /// ```rust
@@ -950,11 +760,8 @@ impl DataFrame {
     ///     df.select(vec![col("age"), col("name")]).collect().await?;
     /// }
     /// ```
-    pub fn select<I>(self, cols: I) -> DataFrame
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
-        let plan = self.plan.project(cols);
+    pub fn select<T: ToVecExpr>(self, cols: T) -> DataFrame {
+        let plan = self.plan.select(cols);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -969,12 +776,13 @@ impl DataFrame {
     /// # Example:
     /// ```rust
     /// async {
-    ///     df.select_expr(vec!["id * 2", "abs(id)"]).collect().await?;
+    ///     df.selectExpr(vec!["id * 2", "abs(id)"]).collect().await?;
     /// }
     /// ```
-    pub fn select_expr<I>(self, cols: I) -> DataFrame
+    #[allow(non_snake_case)]
+    pub fn selectExpr<'a, I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item: AsRef<str>>,
+        I: IntoIterator<Item = &'a str>,
     {
         let plan = self.plan.select_expr(cols);
 
@@ -984,12 +792,12 @@ impl DataFrame {
         }
     }
 
-    /// Returns a hash code of the logical query plan against this [DataFrame].
-    pub async fn semantic_hash(self) -> Result<i32, SparkError> {
-        let plan = Some(self.plan.plan_root());
+    #[allow(non_snake_case)]
+    pub async fn semanticHash(self) -> Result<i32, SparkError> {
+        let plan = LogicalPlanBuilder::plan_root(self.plan);
 
         let semantic_hash = spark::analyze_plan_request::Analyze::SemanticHash(
-            spark::analyze_plan_request::SemanticHash { plan },
+            spark::analyze_plan_request::SemanticHash { plan: Some(plan) },
         );
 
         let mut client = self.spark_session.client();
@@ -1018,19 +826,18 @@ impl DataFrame {
             vertical: vertical.unwrap_or(false),
         }));
 
-        let plan = LogicalPlanBuilder::from(show_expr).plan_root();
+        let plan = LogicalPlanBuilder::plan_root(LogicalPlanBuilder::from(show_expr));
 
         let rows = self.spark_session.client().to_arrow(plan).await?;
 
         Ok(pretty::print_batches(&[rows])?)
     }
 
-    /// Returns a new [DataFrame] sorted by the specified column(s).
     pub fn sort<I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item: Into<Column>>,
+        I: IntoIterator<Item = Column>,
     {
-        let plan = self.plan.sort(cols, true);
+        let plan = self.plan.sort(cols);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -1038,31 +845,13 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new [DataFrame] with each partition sorted by the specified column(s).
-    pub fn sort_within_partitions<I>(self, cols: I) -> DataFrame
-    where
-        I: IntoIterator<Item: Into<Column>>,
-    {
-        let plan = self.plan.sort(cols, false);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
-    /// Returns Spark session that created this DataFrame.
-    pub fn spark_session(self) -> Box<SparkSession> {
+    #[allow(non_snake_case)]
+    pub fn sparkSession(self) -> Box<SparkSession> {
         self.spark_session
     }
 
-    /// Returns a DataFrameStatFunctions for statistic functions.
-    pub fn stat(self) -> DataFrameStatFunctions {
-        DataFrameStatFunctions::new(self)
-    }
-
-    /// Get the DataFrame’s current storage level.
-    pub async fn storage_level(self) -> Result<storage::StorageLevel, SparkError> {
+    #[allow(non_snake_case)]
+    pub async fn storageLevel(self) -> Result<storage::StorageLevel, SparkError> {
         let storage_level = spark::analyze_plan_request::Analyze::GetStorageLevel(
             spark::analyze_plan_request::GetStorageLevel {
                 relation: Some(self.plan.relation()),
@@ -1075,35 +864,10 @@ impl DataFrame {
         Ok(storage?.into())
     }
 
-    /// Return a new [DataFrame] containing rows in this [DataFrame] but not in another [DataFrame].
     pub fn subtract(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
         let plan = self.plan.substract(other.plan);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
-    /// Computes specified statistics for numeric and string columns.
-    /// Available statistics are:
-    ///     - count
-    ///     - mean
-    ///     - stddev
-    ///     - min
-    ///     - max
-    ///     - arbitrary approximate percentiles specified as a percentage (e.g., 75%)
-    ///
-    /// If no statistics are given, this function computes count, mean, stddev, min,
-    /// approximate quartiles (percentiles at 25%, 50%, and 75%), and max
-    ///
-    pub fn summary<I>(self, statistics: Option<I>) -> DataFrame
-    where
-        I: IntoIterator<Item: AsRef<str>>,
-    {
-        let plan = self.plan.summary(statistics);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -1131,15 +895,14 @@ impl DataFrame {
         df.collect().await
     }
 
-    /// Returns the first `num` rows as a RecordBatch.
     pub async fn take(self, n: i32) -> Result<RecordBatch, SparkError> {
         self.limit(n).collect().await
     }
 
-    /// Returns a new [DataFrame] that with new specified column names
-    pub fn to_df<I>(self, cols: I) -> DataFrame
+    #[allow(non_snake_case)]
+    pub fn toDF<'a, I>(self, cols: I) -> DataFrame
     where
-        I: IntoIterator<Item: AsRef<str>>,
+        I: IntoIterator<Item = &'a str>,
     {
         let plan = self.plan.to_df(cols);
 
@@ -1153,7 +916,7 @@ impl DataFrame {
     ///
     /// Each row is turned into a JSON document
     pub async fn to_json(self) -> Result<String, SparkError> {
-        if self.clone().is_empty().await? {
+        if self.clone().isEmpty().await? {
             return Ok(String::from("[]"));
         };
 
@@ -1169,6 +932,11 @@ impl DataFrame {
         Ok(res)
     }
 
+    #[allow(non_snake_case)]
+    pub async fn toJSON(self) -> Result<String, SparkError> {
+        self.to_json().await
+    }
+
     /// Converts a [DataFrame] into a [datafusion::dataframe::DataFrame]
     #[cfg(feature = "datafusion")]
     #[cfg(any(feature = "default", feature = "datafusion"))]
@@ -1179,6 +947,15 @@ impl DataFrame {
         let batch = self.collect().await?;
 
         Ok(ctx.read_batch(batch)?)
+    }
+
+    #[cfg(feature = "datafusion")]
+    #[allow(non_snake_case)]
+    pub async fn toDataFusion(
+        self,
+        ctx: &SessionContext,
+    ) -> Result<datafusion::dataframe::DataFrame, SparkError> {
+        self.to_datafusion(ctx).await
     }
 
     #[cfg(feature = "polars")]
@@ -1192,12 +969,18 @@ impl DataFrame {
         for (i, column) in batch.columns().iter().enumerate() {
             let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
             columns.push(polars::series::Series::from_arrow(
-                schema.fields().get(i).unwrap().name().into(),
+                schema.fields().get(i).unwrap().name(),
                 arrow,
             )?);
         }
 
         Ok(polars::frame::DataFrame::from_iter(columns))
+    }
+
+    #[cfg(feature = "polars")]
+    #[allow(non_snake_case)]
+    pub async fn toPolars(self) -> Result<polars::frame::DataFrame, SparkError> {
+        self.to_polars().await
     }
 
     /// Returns a new [DataFrame] based on a provided closure.
@@ -1219,11 +1002,10 @@ impl DataFrame {
         func(self)
     }
 
-    /// Return a new [DataFrame] containing the union of rows in this and another [DataFrame].
     pub fn union(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
-        let plan = self.plan.union_all(other.plan);
+        let plan = self.plan.unionAll(other.plan);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -1231,11 +1013,11 @@ impl DataFrame {
         }
     }
 
-    /// Return a new [DataFrame] containing the union of rows in this and another [DataFrame].
-    pub fn union_all(self, other: DataFrame) -> DataFrame {
+    #[allow(non_snake_case)]
+    pub fn unionAll(self, other: DataFrame) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
-        let plan = self.plan.union_all(other.plan);
+        let plan = self.plan.unionAll(other.plan);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -1243,11 +1025,11 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new [DataFrame] containing union of rows in this and another [DataFrame].
-    pub fn union_by_name(self, other: DataFrame, allow_missing_columns: Option<bool>) -> DataFrame {
+    #[allow(non_snake_case)]
+    pub fn unionByName(self, other: DataFrame, allow_missing_columns: Option<bool>) -> DataFrame {
         self.check_same_session(&other).unwrap();
 
-        let plan = self.plan.union_by_name(other.plan, allow_missing_columns);
+        let plan = self.plan.unionByName(other.plan, allow_missing_columns);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -1255,7 +1037,6 @@ impl DataFrame {
         }
     }
 
-    /// Marks the [DataFrame] as non-persistent, and remove all blocks for it from memory and disk.
     pub async fn unpersist(self, blocking: Option<bool>) -> DataFrame {
         let unpersist = spark::analyze_plan_request::Analyze::Unpersist(
             spark::analyze_plan_request::Unpersist {
@@ -1276,20 +1057,19 @@ impl DataFrame {
 
     /// Unpivot a DataFrame from wide format to long format, optionally leaving identifier columns set.
     /// This is the reverse to groupBy(…).pivot(…).agg(…), except for the aggregation, which cannot be reversed.
-    pub fn unpivot<I, T>(
+    pub fn unpivot<I, K>(
         self,
         ids: I,
-        values: Option<T>,
+        values: Option<K>,
         variable_column_name: &str,
         value_column_name: &str,
     ) -> DataFrame
     where
-        T: IntoIterator<Item: Into<Column>>,
-        I: IntoIterator<Item: Into<Column>>,
+        I: ToVecExpr,
+        K: ToVecExpr,
     {
-        let ids = VecExpression::from_iter(ids).expr;
-
-        let values = values.map(|values| VecExpression::from_iter(values).expr);
+        let ids = ids.to_vec_expr();
+        let values = values.map(|val| val.to_vec_expr());
 
         let plan = self
             .plan
@@ -1301,9 +1081,9 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new [DataFrame] by adding a column or replacing the existing column that has the same name.
-    pub fn with_column(self, col_name: &str, col: Column) -> DataFrame {
-        let plan = self.plan.with_column(col_name, col);
+    #[allow(non_snake_case)]
+    pub fn withColumn(self, colName: &str, col: Column) -> DataFrame {
+        let plan = self.plan.withColumn(colName, col);
 
         DataFrame {
             spark_session: self.spark_session,
@@ -1311,179 +1091,52 @@ impl DataFrame {
         }
     }
 
-    /// Returns a new [DataFrame] by adding multiple columns or replacing the existing columns that have the same names.
-    pub fn with_columns<I, K>(self, col_map: I) -> DataFrame
+    #[allow(non_snake_case)]
+    pub fn withColumns<I, K>(self, colMap: I) -> DataFrame
     where
         I: IntoIterator<Item = (K, Column)>,
-        K: AsRef<str>,
+        K: ToString,
     {
-        let plan = self.plan.with_columns(col_map, None::<Vec<&str>>);
+        let plan = self.plan.withColumns(colMap);
 
         DataFrame {
             spark_session: self.spark_session,
             plan,
         }
-    }
-
-    /// Returns a new [DataFrame] by renaming an existing column.
-    pub fn with_column_renamed<K, V>(self, existing: K, new: V) -> DataFrame
-    where
-        K: AsRef<str>,
-        V: AsRef<str>,
-    {
-        self.with_columns_renamed([(existing, new)])
     }
 
     /// Returns a new [DataFrame] by renaming multiple columns from a
     /// an iterator of containing a key/value pair with the key as the `existing`
     /// column name and the value as the `new` column name.
-    pub fn with_columns_renamed<I, K, V>(self, cols: I) -> DataFrame
+    #[allow(non_snake_case)]
+    pub fn withColumnsRenamed<I, K, V>(self, cols: I) -> DataFrame
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
         V: AsRef<str>,
     {
-        let plan = self.plan.with_columns_renamed(cols);
+        let plan = self.plan.withColumnsRenamed(cols);
 
         DataFrame {
             spark_session: self.spark_session,
             plan,
         }
     }
-
-    /// Returns a new [DataFrame] by updating an existing column with metadata.
-    pub fn with_metadata(self, col: &str, metadata: &str) -> DataFrame {
-        let col_map = vec![(col, Column::from_str(col))];
-
-        let plan = self.plan.with_columns(col_map, Some(vec![metadata]));
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
-    /// Defines an event time watermark for this [DataFrame].
-    pub fn with_watermark(self, event_time: &str, delay_threshold: &str) -> DataFrame {
-        let plan = self.plan.with_watermark(event_time, delay_threshold);
-
-        DataFrame {
-            spark_session: self.spark_session,
-            plan,
-        }
-    }
-
     /// Returns a [DataFrameWriter] struct based on the current [DataFrame]
     pub fn write(self) -> DataFrameWriter {
         DataFrameWriter::new(self)
     }
 
-    /// Interface for [DataStreamWriter] to save the content of the streaming DataFrame out
-    /// into external storage.
-    pub fn write_stream(self) -> DataStreamWriter {
-        DataStreamWriter::new(self)
-    }
-
-    /// Create a write configuration builder for v2 sources with [DataFrameWriterV2].
-    pub fn write_to(self, table: &str) -> DataFrameWriterV2 {
+    #[allow(non_snake_case)]
+    pub fn writeTo(self, table: &str) -> DataFrameWriterV2 {
         DataFrameWriterV2::new(self, table)
     }
-}
 
-/// Functionality for working with missing data in [DataFrame].
-#[derive(Clone, Debug)]
-pub struct DataFrameStatFunctions {
-    df: DataFrame,
-}
-
-impl DataFrameStatFunctions {
-    pub(crate) fn new(df: DataFrame) -> DataFrameStatFunctions {
-        DataFrameStatFunctions { df }
-    }
-
-    /// Calculates the approximate quantiles of numerical columns of a [DataFrame].
-    pub async fn approx_quantile<'a, I, P>(
-        self,
-        cols: I,
-        probabilities: P,
-        relative_error: f64,
-    ) -> Result<RecordBatch, SparkError>
-    where
-        I: IntoIterator<Item = &'a str>,
-        P: IntoIterator<Item = f64>,
-    {
-        self.df
-            .approx_quantile(cols, probabilities, relative_error)
-            .await
-    }
-
-    /// Calculates the correlation of two columns of a [DataFrame] as a double value.
-    pub async fn corr(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
-        self.df.corr(col1, col2).await
-    }
-
-    /// Calculate the sample covariance for the given columns, specified by their names, as a double value.
-    pub async fn cov(self, col1: &str, col2: &str) -> Result<f64, SparkError> {
-        self.df.cov(col1, col2).await
-    }
-
-    /// Computes a pair-wise frequency table of the given columns.
-    pub fn crosstab(self, col1: &str, col2: &str) -> DataFrame {
-        self.df.crosstab(col1, col2)
-    }
-
-    /// Finding frequent items for columns, possibly with false positives.
-    pub fn freq_items<'a, I>(self, cols: I, support: Option<f64>) -> DataFrame
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        self.df.freq_items(cols, support)
-    }
-
-    /// Returns a stratified sample without replacement based on the fraction given on each stratum.
-    pub fn sample_by<K, I>(self, col: Column, fractions: I, seed: Option<i64>) -> DataFrame
-    where
-        K: Into<spark::expression::Literal>,
-        I: IntoIterator<Item = (K, f64)>,
-    {
-        self.df.sample_by(col, fractions, seed)
-    }
-}
-
-/// Functionality for statistic functions with [DataFrame].
-#[derive(Clone, Debug)]
-pub struct DataFrameNaFunctions {
-    df: DataFrame,
-}
-
-impl DataFrameNaFunctions {
-    pub(crate) fn new(df: DataFrame) -> DataFrameNaFunctions {
-        DataFrameNaFunctions { df }
-    }
-
-    /// Returns a new [DataFrame] omitting rows with null values.
-    pub fn drop(self, how: &str, threshold: Option<i32>, subset: Option<Vec<&str>>) -> DataFrame {
-        self.df.dropna(how, threshold, subset)
-    }
-
-    /// Replace null values, alias for `df.na().fill()`.
-    pub fn fill<'a, I, T, L>(self, cols: Option<I>, values: T) -> DataFrame
-    where
-        I: IntoIterator<Item = &'a str>,
-        T: IntoIterator<Item = L>,
-        L: Into<spark::expression::Literal>,
-    {
-        self.df.fillna(cols, values)
-    }
-
-    /// Returns a new [DataFrame] replacing a value with another value.
-    pub fn replace<'a, I, T, L>(self, to_replace: T, value: T, subset: Option<I>) -> DataFrame
-    where
-        I: IntoIterator<Item = &'a str>,
-        T: IntoIterator<Item = L>,
-        L: Into<spark::expression::Literal>,
-    {
-        self.df.replace(to_replace, value, subset)
+    /// Interface for [DataStreamWriter] to save the content of the streaming DataFrame out
+    /// into external storage.
+    #[allow(non_snake_case)]
+    pub fn writeStream(self) -> DataStreamWriter {
+        DataStreamWriter::new(self)
     }
 }
 
@@ -1527,7 +1180,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let df_as1 = df.clone().alias("df_as1");
         let df_as2 = df.alias("df_as2");
@@ -1536,8 +1189,8 @@ mod tests {
 
         let joined_df = df_as1.join(df_as2, condition, JoinType::Inner);
 
-        let name: ArrayRef = Arc::new(StringArray::from(vec!["Alice", "Bob", "Tom"]));
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![23, 16, 14]));
+        let name: ArrayRef = Arc::new(StringArray::from(vec!["Tom", "Alice", "Bob"]));
+        let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
 
         let expected =
             RecordBatch::try_from_iter(vec![("name", name.clone()), ("name", name), ("age", age)])?;
@@ -1545,7 +1198,7 @@ mod tests {
         let res = joined_df
             .clone()
             .select(["df_as1.name", "df_as2.name", "df_as2.age"])
-            .sort([asc(col("df_as1.name"))])
+            .sort([asc("df_as1.name")])
             .collect()
             .await?;
 
@@ -1575,7 +1228,7 @@ mod tests {
         let val = spark
             .range(None, 10, 1, Some(5))
             .coalesce(1)
-            .select([spark_partition_id().alias("partition")])
+            .select(spark_partition_id().alias("partition"))
             .distinct()
             .collect()
             .await?;
@@ -1593,11 +1246,11 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("col1", col1), ("col2", col2)])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let res = df
             .clone()
-            .select([df.col_regex("`(Col1)?+.+`")])
+            .select(df.colRegex("`(Col1)?+.+`"))
             .columns()
             .await?;
 
@@ -1617,7 +1270,7 @@ mod tests {
         let data =
             RecordBatch::try_from_iter(vec![("age", age), ("name", name), ("state", state)])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let cols = df.clone().columns().await?;
 
@@ -1643,7 +1296,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let val = spark.create_dataframe(&data)?.corr("c1", "c2").await?;
+        let val = spark.createDataFrame(&data)?.corr("c1", "c2").await?;
 
         assert_eq!(-0.3592106040535498_f64, val);
         Ok(())
@@ -1655,7 +1308,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         assert_eq!(3, df.count().await?);
         Ok(())
@@ -1670,7 +1323,11 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let val = spark.create_dataframe(&data)?.cov("c1", "c2").await?;
+        let val = spark
+            .clone()
+            .createDataFrame(&data)?
+            .cov("c1", "c2")
+            .await?;
 
         assert_eq!(-18.0_f64, val);
 
@@ -1679,7 +1336,7 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("small", small), ("big", big)])?;
 
-        let val = spark.create_dataframe(&data)?.cov("small", "big").await?;
+        let val = spark.createDataFrame(&data)?.cov("small", "big").await?;
 
         assert_eq!(1.0_f64, val);
 
@@ -1693,8 +1350,9 @@ mod tests {
         let data = mock_data();
 
         spark
-            .create_dataframe(&data)?
-            .create_or_replace_global_temp_view("people")
+            .clone()
+            .createDataFrame(&data)?
+            .createOrReplaceGlobalTempView("people")
             .await?;
 
         let rows = spark
@@ -1734,12 +1392,12 @@ mod tests {
         let data = RecordBatch::try_from_iter(vec![("name", name.clone()), ("age", age)])?;
         let data2 = RecordBatch::try_from_iter(vec![("name", name), ("height", height)])?;
 
-        let df = spark.create_dataframe(&data)?;
-        let df2 = spark.create_dataframe(&data2)?;
+        let df = spark.clone().createDataFrame(&data)?;
+        let df2 = spark.createDataFrame(&data2)?;
 
         let rows = df
-            .cross_join(df2.select(vec![col("height")]))
-            .select(vec![col("age"), col("name"), col("height")])
+            .crossJoin(df2.select("height"))
+            .select(["age", "name", "height"])
             .collect()
             .await?;
 
@@ -1763,7 +1421,7 @@ mod tests {
         let data = mock_data();
 
         let res = spark
-            .create_dataframe(&data)?
+            .createDataFrame(&data)?
             .describe(Some(["age"]))
             .collect()
             .await?;
@@ -1796,7 +1454,7 @@ mod tests {
 
         let data = mock_data();
 
-        let val = spark.create_dataframe(&data)?.distinct().count().await?;
+        let val = spark.createDataFrame(&data)?.distinct().count().await?;
 
         assert_eq!(3_i64, val);
         Ok(())
@@ -1808,15 +1466,15 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
-        let cols = df.clone().drop([col("age")]).columns().await?;
+        let cols = df.clone().drop("age").columns().await?;
 
         assert_eq!(vec![String::from("name")], cols);
 
         let cols = df
             .clone()
-            .with_column("val", lit(1))
+            .withColumn("val", lit(1))
             .drop([col("age"), col("name")])
             .columns()
             .await?;
@@ -1836,13 +1494,9 @@ mod tests {
         let data =
             RecordBatch::try_from_iter(vec![("name", name), ("age", age), ("height", height)])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
-        let res = df
-            .clone()
-            .drop_duplicates::<Vec<_>, String>(None)
-            .count()
-            .await?;
+        let res = df.clone().drop_duplicates(None).count().await?;
 
         assert_eq!(res, 2);
 
@@ -1876,7 +1530,7 @@ mod tests {
 
         let data = RecordBatch::try_new(Arc::new(schema), vec![name, age, height])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let res = df.clone().dropna("any", None, None).count().await?;
 
@@ -1902,7 +1556,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let res = df.dtypes().await?;
 
@@ -1924,11 +1578,11 @@ mod tests {
 
         let data2 = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let df1 = spark.create_dataframe(&data)?;
+        let df1 = spark.clone().createDataFrame(&data)?;
 
-        let df2 = spark.create_dataframe(&data2)?;
+        let df2 = spark.createDataFrame(&data2)?;
 
-        let output = df1.except_all(df2).collect().await?;
+        let output = df1.exceptAll(df2).collect().await?;
 
         let c1: ArrayRef = Arc::new(Int64Array::from(vec![1, 10]));
         let c2: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
@@ -1946,7 +1600,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let val = df.explain(None).await?;
 
@@ -1960,7 +1614,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let output = df.clone().filter("age > 20").count().await?;
 
@@ -1978,7 +1632,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let val = df.first().await?;
 
@@ -1997,13 +1651,13 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         // AVG
         let val = df
             .clone()
-            .group_by::<Vec<Column>>(None)
-            .avg(["age"])
+            .groupBy::<Column>(None)
+            .avg("age")
             .collect()
             .await?;
 
@@ -2017,8 +1671,8 @@ mod tests {
         // MAX
         let val = df
             .clone()
-            .group_by::<Vec<Column>>(None)
-            .max(["age"])
+            .groupBy::<Column>(None)
+            .max("age")
             .collect()
             .await?;
 
@@ -2032,8 +1686,8 @@ mod tests {
         // SUM
         let val = df
             .clone()
-            .group_by::<Vec<Column>>(None)
-            .sum(["age"])
+            .groupBy::<Column>(None)
+            .sum("age")
             .collect()
             .await?;
 
@@ -2053,7 +1707,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let val = df.head(None).await?;
 
@@ -2072,12 +1726,12 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?.alias("df1");
-        let df2 = spark.create_dataframe(&data)?.alias("df2");
+        let df = spark.clone().createDataFrame(&data)?.alias("df1");
+        let df2 = spark.createDataFrame(&data)?.alias("df2");
 
         let df = df.join(
-            df2.hint::<Vec<Column>>("broadcast", None),
-            Some(col("df1.name").eq(col("df2.name"))),
+            df2.hint::<Column>("broadcast", None),
+            Some(col("df1.name").eq("df2.name")),
             JoinType::Inner,
         );
 
@@ -2100,7 +1754,7 @@ mod tests {
             .option("delimiter", ";")
             .load(path)?;
 
-        let res = df.input_files().await?;
+        let res = df.inputFiles().await?;
 
         assert_eq!(res.len(), 1);
 
@@ -2121,9 +1775,9 @@ mod tests {
 
         let data2 = RecordBatch::try_from_iter(vec![("c1", c1), ("c2", c2)])?;
 
-        let df1 = spark.create_dataframe(&data)?;
+        let df1 = spark.clone().createDataFrame(&data)?;
 
-        let df2 = spark.create_dataframe(&data2)?;
+        let df2 = spark.createDataFrame(&data2)?;
 
         let output = df1.intersect(df2).collect().await?;
 
@@ -2146,27 +1800,27 @@ mod tests {
         let schema = Schema::new(vec![Field::new("record", DataType::Int64, true)]);
         let data = RecordBatch::try_new(Arc::new(schema), vec![records])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.clone().createDataFrame(&data)?;
 
-        assert!(df.is_empty().await?);
+        assert!(df.isEmpty().await?);
 
         let records: ArrayRef = Arc::new(Int64Array::from(vec![None]));
 
         let schema = Schema::new(vec![Field::new("record", DataType::Int64, true)]);
         let data = RecordBatch::try_new(Arc::new(schema), vec![records])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.clone().createDataFrame(&data)?;
 
-        assert!(!df.is_empty().await?);
+        assert!(!df.isEmpty().await?);
 
         let records: ArrayRef = Arc::new(Int64Array::from(vec![1]));
 
         let schema = Schema::new(vec![Field::new("record", DataType::Int64, true)]);
         let data = RecordBatch::try_new(Arc::new(schema), vec![records])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
-        assert!(!df.is_empty().await?);
+        assert!(!df.isEmpty().await?);
 
         Ok(())
     }
@@ -2204,10 +1858,10 @@ mod tests {
 
         let data4 = RecordBatch::try_new(Arc::new(schema), vec![name, age, height])?;
 
-        let df1 = spark.create_dataframe(&data1)?.alias("df1");
-        let df2 = spark.create_dataframe(&data2)?.alias("df2");
-        let df3 = spark.create_dataframe(&data3)?.alias("df3");
-        let df4 = spark.create_dataframe(&data4)?.alias("df4");
+        let df1 = spark.clone().createDataFrame(&data1)?.alias("df1");
+        let df2 = spark.clone().createDataFrame(&data2)?.alias("df2");
+        let df3 = spark.clone().createDataFrame(&data3)?.alias("df3");
+        let df4 = spark.createDataFrame(&data4)?.alias("df4");
 
         // inner join
         let condition = Some(col("df1.name").eq(col("df2.name")));
@@ -2267,7 +1921,7 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let val = df.clone().limit(1).collect().await?;
 
@@ -2290,15 +1944,15 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         // select *
-        let val = df.clone().select(["*"]).collect().await?;
+        let val = df.clone().select("*").collect().await?;
 
         assert_eq!(2, val.num_columns());
 
         // single select
-        let val = df.clone().select(["name"]).collect().await?;
+        let val = df.clone().select("name").collect().await?;
 
         assert_eq!(1, val.num_columns());
 
@@ -2329,9 +1983,9 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
-        let val = df.select_expr(["age * 2", "abs(age)"]).collect().await?;
+        let val = df.selectExpr(["age * 2", "abs(age)"]).collect().await?;
 
         let age: ArrayRef = Arc::new(Int64Array::from(vec![14, 23, 16]));
         let age2: ArrayRef = Arc::new(Int64Array::from(vec![28, 46, 32]));
@@ -2349,13 +2003,13 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
         let cols = [("age2", col("age") + lit(2)), ("age3", col("age") + lit(3))];
 
         let val = df
             .clone()
-            .with_columns(cols)
+            .withColumns(cols)
             .select(["name", "age", "age2", "age3"])
             .collect()
             .await?;
@@ -2378,7 +2032,7 @@ mod tests {
         let cols = HashMap::from([("age2", col("age") + lit(2)), ("age3", col("age") + lit(3))]);
         let val = df
             .clone()
-            .with_columns(cols)
+            .withColumns(cols)
             .select(["name", "age", "age2", "age3"])
             .collect()
             .await?;
@@ -2427,14 +2081,9 @@ mod tests {
 
         let data = RecordBatch::try_from_iter(vec![("id", ids), ("int", ints), ("float", floats)])?;
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
 
-        let df = df.unpivot(
-            [col("id")],
-            Some(vec![col("int"), col("float")]),
-            "var",
-            "val",
-        );
+        let df = df.unpivot("id", Some(["int", "float"]), "var", "val");
 
         let res = df.collect().await?;
 
@@ -2458,9 +2107,8 @@ mod tests {
         let val: i64 = 100;
 
         // closure with captured value from the immediate scope
-        let func = |df: DataFrame| -> DataFrame {
-            df.with_column("new_col", lit(val)).select(["new_col"])
-        };
+        let func =
+            |df: DataFrame| -> DataFrame { df.withColumn("new_col", lit(val)).select("new_col") };
 
         let res = df.transform(func).collect().await?;
 
@@ -2479,9 +2127,9 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.clone().createDataFrame(&data)?;
 
-        let val = df.to_json().await?;
+        let val = df.toJSON().await?;
 
         let expected = String::from("[{\"name\":\"Tom\",\"age\":14},{\"name\":\"Alice\",\"age\":23},{\"name\":\"Bob\",\"age\":16}]");
 
@@ -2490,7 +2138,7 @@ mod tests {
         // empty dataframe
         let df = spark.range(Some(0), 0, 1, None);
 
-        let val = df.to_json().await?;
+        let val = df.toJSON().await?;
 
         assert_eq!(String::from("[]"), val);
 
@@ -2507,17 +2155,17 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.clone().createDataFrame(&data)?;
 
-        let df_output = df.to_datafusion(&ctx).await?.collect().await?;
+        let df_output = df.toDataFusion(&ctx).await?.collect().await?;
         let df_expected = ctx.read_batch(data)?.collect().await?;
 
         assert_eq!(df_expected, df_output);
 
         // empty dataframe
-        let df = spark.range(Some(0), 0, 1, None);
+        let df = spark.clone().range(Some(0), 0, 1, None);
 
-        let val = df.to_datafusion(&ctx).await?.collect().await?;
+        let val = df.toDataFusion(&ctx).await?.collect().await?;
 
         assert_eq!(0, val[0].num_rows());
 
@@ -2539,16 +2187,16 @@ mod tests {
         for (i, column) in data.columns().iter().enumerate() {
             let arrow = Box::<dyn polars_arrow::array::Array>::from(&**column);
             columns.push(polars::series::Series::from_arrow(
-                schema.fields().get(i).unwrap().name().into(),
+                schema.fields().get(i).unwrap().name(),
                 arrow,
             )?);
         }
 
         let df_expected = polars::frame::DataFrame::from_iter(columns);
 
-        let df = spark.create_dataframe(&data)?;
+        let df = spark.clone().createDataFrame(&data)?;
 
-        let df_output = df.to_polars().await?;
+        let df_output = df.toPolars().await?;
 
         assert_eq!(df_expected, df_output);
 
@@ -2562,207 +2210,14 @@ mod tests {
 
         let data = mock_data();
 
-        let df = spark.create_dataframe(&data)?;
-        let df_clone = spark_clone.create_dataframe(&data)?;
+        let df = spark.createDataFrame(&data)?;
+        let df_clone = spark_clone.createDataFrame(&data)?;
 
         let (res, res_clone) = futures::join!(df.explain(None), df_clone.explain(None));
         let (val, val_clone) = (res?, res_clone?);
 
         assert!(val.contains("== Physical Plan =="));
         assert!(val_clone.contains("== Physical Plan =="));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_df_random_split() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let name: ArrayRef = Arc::new(StringArray::from(vec![
-            Some("Alice"),
-            Some("Bob"),
-            Some("Tom"),
-            None,
-        ]));
-
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![Some(10), Some(5), None, None]));
-        let height: ArrayRef = Arc::new(Int64Array::from(vec![Some(80), None, None, None]));
-
-        let schema = Schema::new(vec![
-            Field::new("name", DataType::Utf8, true),
-            Field::new("age", DataType::Int64, true),
-            Field::new("height", DataType::Int64, true),
-        ]);
-
-        let data = RecordBatch::try_new(Arc::new(schema), vec![name, age, height])?;
-
-        let df = spark.create_dataframe(&data)?;
-
-        let splits = df.random_split([1.0, 2.0], Some(24));
-
-        let df_one = splits.get(0).unwrap().clone().count().await?;
-        let df_two = splits.get(1).unwrap().clone().count().await?;
-
-        assert_eq!(2, df_one);
-        assert_eq!(2, df_two);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_df_fillna() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let name: ArrayRef = Arc::new(StringArray::from(vec![Some("Alice"), None, Some("Tom")]));
-
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![Some(10), None, None]));
-
-        let schema = Schema::new(vec![
-            Field::new("name", DataType::Utf8, true),
-            Field::new("age", DataType::Int64, true),
-        ]);
-
-        let data = RecordBatch::try_new(Arc::new(schema.clone()), vec![name, age])?;
-
-        let df = spark.create_dataframe(&data)?;
-
-        let output = df.fillna(None::<Vec<&str>>, vec![80_i64]).collect().await?;
-
-        let name: ArrayRef = Arc::new(StringArray::from(vec![Some("Alice"), None, Some("Tom")]));
-
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![10, 80, 80]));
-
-        let schema = Schema::new(vec![
-            Field::new("name", DataType::Utf8, true),
-            Field::new("age", DataType::Int64, false),
-        ]);
-
-        let expected = RecordBatch::try_new(Arc::new(schema), vec![name, age])?;
-
-        assert_eq!(expected, output);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_df_replace() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let name: ArrayRef = Arc::new(StringArray::from(vec![
-            Some("Alice"),
-            Some("Bob"),
-            Some("Tom"),
-            None,
-        ]));
-
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![Some(10), Some(5), None, None]));
-        let height: ArrayRef = Arc::new(Int64Array::from(vec![Some(80), None, Some(10), None]));
-
-        let schema = Schema::new(vec![
-            Field::new("name", DataType::Utf8, true),
-            Field::new("age", DataType::Int64, true),
-            Field::new("height", DataType::Int64, true),
-        ]);
-
-        let data = RecordBatch::try_new(Arc::new(schema), vec![name, age, height])?;
-
-        let df = spark.create_dataframe(&data)?;
-
-        let df = df.replace(vec![10], vec![20], None::<Vec<&str>>);
-
-        let output = df
-            .filter("name in ('Alice', 'Tom')")
-            .select(["name", "age", "height"])
-            .collect()
-            .await?;
-
-        let name: ArrayRef = Arc::new(StringArray::from(vec![Some("Alice"), Some("Tom")]));
-
-        let age: ArrayRef = Arc::new(Int64Array::from(vec![Some(20), None]));
-        let height: ArrayRef = Arc::new(Int64Array::from(vec![Some(80), Some(20)]));
-
-        let schema = Schema::new(vec![
-            Field::new("name", DataType::Utf8, true),
-            Field::new("age", DataType::Int64, true),
-            Field::new("height", DataType::Int64, true),
-        ]);
-
-        let expected = RecordBatch::try_new(Arc::new(schema), vec![name, age, height])?;
-
-        assert_eq!(expected, output);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_df_summary() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let data = mock_data();
-
-        let df = spark.create_dataframe(&data)?;
-
-        let output = df
-            .select(["age"])
-            .summary(None::<Vec<&str>>)
-            .select(["summary"])
-            .collect()
-            .await?;
-
-        let summary: ArrayRef = Arc::new(StringArray::from(vec![
-            "count", "mean", "stddev", "min", "25%", "50%", "75%", "max",
-        ]));
-
-        let expected =
-            RecordBatch::try_from_iter_with_nullable(vec![("summary", summary, true)]).unwrap();
-
-        assert_eq!(expected, output);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_df_sample_by() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let df = spark
-            .range(Some(0), 100, 1, None)
-            .select([(col("id") % lit(3)).alias("key")]);
-
-        let sampled = df.sample_by(col("key"), [(0, 0.1), (1, 0.2)], Some(0));
-
-        let output = sampled
-            .group_by(Some([col("key")]))
-            .count()
-            .collect()
-            .await?;
-
-        assert_eq!(output.num_rows(), 2);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_df_with_metadata() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let data = mock_data();
-
-        let df = spark.create_dataframe(&data)?;
-
-        let metadata_val = "{\"foo\":\"bar\"}";
-
-        let val = df
-            .clone()
-            .with_metadata("name", metadata_val)
-            .select([col("name")])
-            .schema()
-            .await?;
-
-        let output = match val.kind.unwrap() {
-            spark::data_type::Kind::Struct(val) => {
-                val.fields.get(0).unwrap().metadata.clone().unwrap()
-            }
-            _ => unimplemented!(),
-        };
-
-        assert_eq!(metadata_val.to_string(), output);
         Ok(())
     }
 }

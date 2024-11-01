@@ -14,8 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let df = spark
+        .clone()
         .range(None, 1000, 1, Some(16))
-        .select([col("id").alias("range_id")]);
+        .select(col("id").alias("range_id"));
 
     let path = "file:///tmp/range_table/";
 
@@ -27,6 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let df = spark
+        .clone()
         .read()
         .format("csv")
         .option("header", "true")

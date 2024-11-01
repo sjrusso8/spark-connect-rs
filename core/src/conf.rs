@@ -4,15 +4,20 @@ use std::collections::HashMap;
 
 use crate::spark;
 
-use crate::client::SparkClient;
+use crate::client::{MetadataInterceptor, SparkConnectClient};
 use crate::errors::SparkError;
+
+use tonic::service::interceptor::InterceptedService;
+
+#[cfg(not(feature = "wasm"))]
+use tonic::transport::Channel;
 
 #[cfg(feature = "wasm")]
 use tonic_web_wasm_client::Client;
 
 pub struct RunTimeConfig {
     #[cfg(not(feature = "wasm"))]
-    pub(crate) client: SparkClient,
+    pub(crate) client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
 
     #[cfg(feature = "wasm")]
     pub(crate) client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
@@ -31,7 +36,9 @@ pub struct RunTimeConfig {
 /// ```
 impl RunTimeConfig {
     #[cfg(not(feature = "wasm"))]
-    pub fn new(client: &SparkClient) -> RunTimeConfig {
+    pub fn new(
+        client: &SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+    ) -> RunTimeConfig {
         RunTimeConfig {
             client: client.clone(),
         }
@@ -46,6 +53,7 @@ impl RunTimeConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn set_configs(
         &mut self,
         map: &HashMap<String, String>,
@@ -123,7 +131,8 @@ impl RunTimeConfig {
     }
 
     /// Indicates whether the configuration property with the given key is modifiable in the current session.
-    pub async fn is_modifable(&mut self, key: &str) -> Result<bool, SparkError> {
+    #[allow(non_snake_case)]
+    pub async fn isModifable(&mut self, key: &str) -> Result<bool, SparkError> {
         let op_type = spark::config_request::operation::OpType::IsModifiable(
             spark::config_request::IsModifiable {
                 keys: vec![key.to_string()],

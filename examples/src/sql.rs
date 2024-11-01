@@ -10,7 +10,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    let df = spark.sql("select 'apple' as word, 123 as count").await?;
+    let df = spark
+        .clone()
+        .sql("select 'apple' as word, 123 as count")
+        .await?;
 
     df.write()
         .mode(SaveMode::Overwrite)
