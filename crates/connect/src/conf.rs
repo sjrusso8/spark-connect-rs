@@ -7,16 +7,9 @@ use crate::spark;
 use crate::client::SparkClient;
 use crate::errors::SparkError;
 
-#[cfg(feature = "wasm")]
-use tonic_web_wasm_client::Client;
-
 /// User-facing configuration API, accessible through SparkSession.conf.
 pub struct RunTimeConfig {
-    #[cfg(not(feature = "wasm"))]
     pub(crate) client: SparkClient,
-
-    #[cfg(feature = "wasm")]
-    pub(crate) client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
 }
 
 /// User-facing configuration API, accessible through SparkSession.conf.
@@ -31,17 +24,7 @@ pub struct RunTimeConfig {
 ///    .await?;
 /// ```
 impl RunTimeConfig {
-    #[cfg(not(feature = "wasm"))]
     pub fn new(client: &SparkClient) -> RunTimeConfig {
-        RunTimeConfig {
-            client: client.clone(),
-        }
-    }
-
-    #[cfg(feature = "wasm")]
-    pub fn new(
-        client: &SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
-    ) -> RunTimeConfig {
         RunTimeConfig {
             client: client.clone(),
         }
