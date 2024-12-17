@@ -2571,6 +2571,7 @@ dependencies = [
  "prost",
  "prost-types",
  "rand",
+ "regex",
  "serde_json",
  "tokio",
  "tonic",
