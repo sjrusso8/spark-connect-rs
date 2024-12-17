@@ -1,9 +1,9 @@
 services:
   spark:
-    image: "apache/spark:3.5.1-scala2.12-java11-r-ubuntu"
+    image: "apache/spark:3.5.3-scala2.12-java11-r-ubuntu"
     command: >
       /opt/spark/sbin/start-connect-server.sh
-      --packages "org.apache.spark:spark-connect_2.12:3.5.1,io.delta:delta-spark_2.12:3.0.0"
+      --packages "org.apache.spark:spark-connect_2.12:3.5.3,io.delta:delta-spark_2.12:3.0.0"
       --conf "spark.driver.extraJavaOptions=-Divy.cache.dir=/tmp -Divy.home=/tmp"
       --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension"
       --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
