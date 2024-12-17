@@ -38,6 +38,7 @@ prost-types = { workspace = true }
 rand = { workspace = true }
 uuid = { workspace = true }
 url =  { workspace = true }
+regex = { workspace = true }
 
 chrono = { workspace = true }
 

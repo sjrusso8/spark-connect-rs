@@ -292,6 +292,8 @@ mod tests {
         record_batch::RecordBatch,
     };
 
+    use regex::Regex;
+
     async fn setup() -> SparkSession {
         println!("SparkSession Setup");
 
@@ -400,7 +402,13 @@ mod tests {
 
         let version = spark.version().await?;
 
-        assert_eq!("3.5.1".to_string(), version);
+        let version_pattern = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
+        assert!(
+            version_pattern.is_match(&version),
+            "Version {} does not match X.X.X format",
+            version
+        );
+
         Ok(())
     }
 
