@@ -536,8 +536,8 @@ Only a few of the functions are covered by unit tests. Functions involving closu
 | acos                        | ![done] |          |
 | acosh                       | ![done] |          |
 | add_months                  | ![done] |          |
-| aes_decrypt                 | ![open] |          |
-| aes_encrypt                 | ![open] |          |
+| aes_decrypt                 | ![done] |          |
+| aes_encrypt                 | ![done] |          |
 | aggregate                   | ![open] |          |
 | any_value                   | ![done] |          |
 | approx_count_distinct       | ![done] |          |
