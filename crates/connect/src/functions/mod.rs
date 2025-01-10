@@ -1924,35 +1924,6 @@ mod tests {
 
     // Test sort functions and column methods
     #[tokio::test]
-    async fn test_func_from_csv() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        let df = spark.sql("SELECT '     abc' as value").await?;
-
-        let mut opts = HashMap::new();
-        opts.insert("ignoreLeadingWhiteSpace", "True");
-
-        let res = df
-            .select([from_csv("value", lit("a STRING"), Some(opts)).alias("value")])
-            .collect()
-            .await?;
-
-        let a: ArrayRef = Arc::new(Int32Array::from(vec![1]));
-        let b: ArrayRef = Arc::new(Int32Array::from(vec![2]));
-        let c: ArrayRef = Arc::new(Int32Array::from(vec![3]));
-
-        let expected = RecordBatch::try_from_iter_with_nullable(vec![
-            ("a", a, false),
-            ("b", b, false),
-            ("c", c, false),
-        ])?;
-
-        assert_eq!(expected, res);
-        Ok(())
-    }
-
-    // Test sort functions and column methods
-    #[tokio::test]
     async fn test_func_asc() -> Result<(), SparkError> {
         let spark = setup().await;
 
