@@ -313,22 +313,6 @@ mod tests {
             .unwrap()
     }
 
-    #[test]
-    fn test_session_builder() {
-        let connection = "sc://myhost.com:443/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
-
-        let ssbuilder = SparkSessionBuilder::remote(connection);
-
-        assert_eq!(
-            "http://myhost.com:443".to_string(),
-            ssbuilder.channel_builder.endpoint()
-        );
-        assert_eq!(
-            "Bearer ABCDEFG".to_string(),
-            ssbuilder.channel_builder.token().unwrap()
-        );
-    }
-
     #[tokio::test]
     async fn test_spark_range() -> Result<(), SparkError> {
         let spark = setup().await;

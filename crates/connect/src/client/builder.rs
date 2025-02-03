@@ -237,6 +237,17 @@ mod tests {
     }
 
     #[test]
+    fn test_settings_builder() {
+        let connection = "sc://myhost.com:443/;token=ABCDEFG;user_agent=some_agent;user_id=user123";
+
+        let builder = ChannelBuilder::create(connection).unwrap();
+
+        assert_eq!("http://myhost.com:443".to_string(), builder.endpoint());
+        assert_eq!("Bearer ABCDEFG".to_string(), builder.token.unwrap());
+        assert_eq!("user123".to_string(), builder.user_id.unwrap());
+    }
+
+    #[test]
     #[should_panic(
         expected = "The 'use_ssl' option requires the 'tls' feature, but it's not enabled!"
     )]
