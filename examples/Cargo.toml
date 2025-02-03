@@ -32,7 +32,7 @@ path = "src/databricks.rs"
 required-feature = ["tls"]
 
 [dependencies]
-spark-connect-rs = { version = "0.0.1", path = "../crates/connect" }
+spark-connect-rs = { version = "0.0.2", path = "../crates/connect" }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [features]
