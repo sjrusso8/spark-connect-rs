@@ -10,9 +10,9 @@ use url::Url;
 
 use uuid::Uuid;
 
-type Host = String;
-type Port = u16;
-type UrlParse = (Host, Port, Option<HashMap<String, String>>);
+pub(crate) type Host = String;
+pub(crate) type Port = u16;
+pub(crate) type UrlParse = (Host, Port, Option<HashMap<String, String>>);
 
 /// ChannelBuilder validates a connection string
 /// based on the requirements from [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
@@ -44,7 +44,7 @@ impl ChannelBuilder {
         ChannelBuilder::default()
     }
 
-    pub fn endpoint(&self) -> String {
+    pub(crate) fn endpoint(&self) -> String {
         let scheme = if cfg!(feature = "tls") {
             "https"
         } else {
@@ -54,15 +54,11 @@ impl ChannelBuilder {
         format!("{}://{}:{}", scheme, self.host, self.port)
     }
 
-    pub fn token(&self) -> Option<String> {
-        self.token.to_owned()
-    }
-
-    pub fn headers(&self) -> Option<HashMap<String, String>> {
+    pub(crate) fn headers(&self) -> Option<HashMap<String, String>> {
         self.headers.to_owned()
     }
 
-    fn create_user_agent(user_agent: Option<&str>) -> Option<String> {
+    pub(crate) fn create_user_agent(user_agent: Option<&str>) -> Option<String> {
         let user_agent = user_agent.unwrap_or("_SPARK_CONNECT_RUST");
         let pkg_version = env!("CARGO_PKG_VERSION");
         let os = env::consts::OS.to_lowercase();
@@ -73,7 +69,7 @@ impl ChannelBuilder {
         ))
     }
 
-    fn create_user_id(user_id: Option<&str>) -> Option<String> {
+    pub(crate) fn create_user_id(user_id: Option<&str>) -> Option<String> {
         match user_id {
             Some(user_id) => Some(user_id.to_string()),
             None => match env::var("USER") {
@@ -83,7 +79,7 @@ impl ChannelBuilder {
         }
     }
 
-    pub fn parse_connection_string(connection: &str) -> Result<UrlParse, SparkError> {
+    pub(crate) fn parse_connection_string(connection: &str) -> Result<UrlParse, SparkError> {
         let url = Url::parse(connection).map_err(|_| {
             SparkError::InvalidConnectionUrl("Failed to parse the connection URL".to_string())
         })?;
@@ -118,7 +114,7 @@ impl ChannelBuilder {
         Ok((host, port, headers))
     }
 
-    pub fn parse_headers(url: Url) -> Option<HashMap<String, String>> {
+    pub(crate) fn parse_headers(url: Url) -> Option<HashMap<String, String>> {
         let path: Vec<&str> = url
             .path()
             .split(';')

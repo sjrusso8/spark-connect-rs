@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::client::{ChannelBuilder, HeadersLayer, SparkClient, SparkConnectClient};
+use crate::client::{ChannelBuilder, Config, HeadersLayer, SparkClient, SparkConnectClient};
 
 use crate::catalog::Catalog;
 use crate::conf::RunTimeConfig;
@@ -50,6 +50,14 @@ impl SparkSessionBuilder {
 
         Self {
             channel_builder,
+            configs: HashMap::new(),
+        }
+    }
+
+    /// Create a new Spark Session from a [Config] object
+    pub fn from_config(config: Config) -> Self {
+        Self {
+            channel_builder: config.into(),
             configs: HashMap::new(),
         }
     }
