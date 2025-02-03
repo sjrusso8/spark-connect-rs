@@ -22,9 +22,11 @@ use uuid::Uuid;
 use crate::errors::SparkError;
 
 mod builder;
+mod config;
 mod middleware;
 
 pub use builder::ChannelBuilder;
+pub use config::Config;
 pub use middleware::{HeadersLayer, HeadersMiddleware};
 
 pub type SparkClient = SparkConnectClient<HeadersMiddleware<Channel>>;
