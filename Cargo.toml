@@ -20,8 +20,8 @@ tonic-web-wasm-client = { version = "0.5" }
 
 tokio = { version = "1.37", default-features = false, features = ["macros", "rt-multi-thread"] }
 
-arrow = { version = "53", features = ["prettyprint"] }
-arrow-ipc = { version = "53" }
+arrow = { version = "54", features = ["prettyprint"] }
+arrow-ipc = { version = "54" }
 
 serde_json = { version = "1" }
 
@@ -38,6 +38,6 @@ chrono = { version = "0.4" }
 
 getrandom = { version = "0.2" }
 
-datafusion = { version = "42.0", default-features = false }
+datafusion = { version = "45.0", default-features = false }
 polars = { version = "0.40", default-features = false }
 polars-arrow = { version = "0.40", default-features = false, features = ["arrow_rs"]  }
