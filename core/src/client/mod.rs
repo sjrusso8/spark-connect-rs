@@ -198,7 +198,7 @@ impl ChannelBuilder {
             .unwrap_or_else(|| ChannelBuilder::create_user_agent(None));
 
         if let Some(token) = headers.remove("token") {
-            channel_builder.token = Some(format!("Bearer {token}"));
+            channel_builder.token = Some(token);
         }
 
         if let Some(session_id) = headers.remove("session_id") {
@@ -224,8 +224,27 @@ impl ChannelBuilder {
 }
 
 #[derive(Clone, Debug)]
+pub struct Token {
+    value: Option<String>,
+}
+
+impl Token {
+    pub fn new(token: Option<String>) -> Self {
+        Self { value: token }
+    }
+
+    pub fn get_value(&self) -> Option<&str> {
+        self.value.as_deref()
+    }
+
+    pub fn set_value(&mut self, token: Option<&str>) {
+        self.value = token.map(|s| s.to_string());
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MetadataInterceptor {
-    token: Option<String>,
+    token: Arc<RwLock<Token>>,
     metadata: Option<MetadataMap>,
 }
 
@@ -234,10 +253,13 @@ impl Interceptor for MetadataInterceptor {
         if let Some(header) = &self.metadata {
             merge_metadata(req.metadata_mut(), header);
         }
-        if let Some(token) = &self.token {
+
+        let token = self.token.read();
+
+        if let Some(token) = token.get_value() {
             req.metadata_mut().insert(
                 "authorization",
-                AsciiMetadataValue::from_str(token.as_str()).unwrap(),
+                AsciiMetadataValue::from_str(format!("Bearer {token}").as_str()).unwrap(),
             );
         }
 
@@ -246,8 +268,11 @@ impl Interceptor for MetadataInterceptor {
 }
 
 impl MetadataInterceptor {
-    pub fn new(token: Option<String>, metadata: Option<MetadataMap>) -> Self {
-        MetadataInterceptor { token, metadata }
+    pub fn new(token_container: Arc<RwLock<Token>>, metadata: Option<MetadataMap>) -> Self {
+        MetadataInterceptor {
+            token: token_container,
+            metadata,
+        }
     }
 }
 

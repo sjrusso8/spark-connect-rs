@@ -10,7 +10,7 @@ use crate::plan::LogicalPlanBuilder;
 use crate::spark;
 use crate::streaming::DataStreamReader;
 
-use crate::client::{ChannelBuilder, MetadataInterceptor, SparkConnectClient};
+use crate::client::{ChannelBuilder, MetadataInterceptor, SparkConnectClient, Token};
 use crate::errors::SparkError;
 use spark::spark_connect_service_client::SparkConnectServiceClient;
 
@@ -81,6 +81,8 @@ impl SparkSessionBuilder {
 
     #[cfg(not(feature = "wasm"))]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
+        use crate::client::{MetadataInterceptor, Token};
+
         let mut endpoint = Endpoint::from_shared(self.channel_builder.endpoint())
             .expect("Failed to create endpoint");
 
@@ -91,12 +93,13 @@ impl SparkSessionBuilder {
 
         let channel = endpoint.connect().await?;
 
+        let token = Arc::new(RwLock::new(Token::new(
+            self.channel_builder.token().clone(),
+        )));
+
         let service_client = SparkConnectServiceClient::with_interceptor(
             channel,
-            MetadataInterceptor::new(
-                self.channel_builder.token().to_owned(),
-                self.channel_builder.headers().to_owned(),
-            ),
+            MetadataInterceptor::new(token.clone(), self.channel_builder.headers().clone()),
         );
 
         let client = Arc::new(RwLock::new(service_client));
@@ -110,19 +113,20 @@ impl SparkSessionBuilder {
 
         rt_config.set_configs(&self.configs).await?;
 
-        Ok(SparkSession::new(spark_connnect_client))
+        Ok(SparkSession::new(spark_connnect_client, token))
     }
 
     #[cfg(feature = "wasm")]
     async fn create_client(&self) -> Result<SparkSession, SparkError> {
         let inner = Client::new(self.channel_builder.endpoint());
 
+        let token = Arc::new(RwLock::new(Token::new(
+            self.channel_builder.token().clone(),
+        )));
+
         let service_client = SparkConnectServiceClient::with_interceptor(
             inner,
-            MetadataInterceptor::new(
-                self.channel_builder.token().to_owned(),
-                self.channel_builder.headers().to_owned(),
-            ),
+            MetadataInterceptor::new(token.clone(), self.channel_builder.headers().to_owned()),
         );
 
         let client = Arc::new(RwLock::new(service_client));
@@ -130,7 +134,7 @@ impl SparkSessionBuilder {
         let spark_connnect_client =
             SparkConnectClient::new(client.clone(), self.channel_builder.clone());
 
-        Ok(SparkSession::new(spark_connnect_client))
+        Ok(SparkSession::new(spark_connnect_client, token))
     }
 
     /// Attempt to connect to a remote Spark Session
@@ -151,6 +155,8 @@ pub struct SparkSession {
     #[cfg(feature = "wasm")]
     client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
 
+    token: Arc<RwLock<Token>>,
+
     session_id: String,
 }
 
@@ -158,20 +164,24 @@ impl SparkSession {
     #[cfg(not(feature = "wasm"))]
     pub fn new(
         client: SparkConnectClient<InterceptedService<Channel, MetadataInterceptor>>,
+        token: Arc<RwLock<Token>>,
     ) -> Self {
         Self {
             session_id: client.session_id(),
             client,
+            token,
         }
     }
 
     #[cfg(feature = "wasm")]
     pub fn new(
         client: SparkConnectClient<InterceptedService<Client, MetadataInterceptor>>,
+        token: Arc<RwLock<Token>>,
     ) -> Self {
         Self {
             session_id: client.session_id(),
             client,
+            token,
         }
     }
     /// Create a [DataFrame] with a spingle column named `id`,
@@ -377,6 +387,11 @@ impl SparkSession {
             client: self.client.clone(),
         }
     }
+
+    pub fn set_token(&self, token: Option<&str>) {
+        let mut guard = self.token.write();
+        guard.set_value(token);
+    }
 }
 
 #[cfg(test)]
@@ -394,7 +409,7 @@ mod tests {
             ssbuilder.channel_builder.endpoint()
         );
         assert_eq!(
-            "Bearer ABCDEFG".to_string(),
+            "ABCDEFG".to_string(),
             ssbuilder.channel_builder.token().unwrap()
         );
     }
