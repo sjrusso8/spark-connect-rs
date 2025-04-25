@@ -472,7 +472,8 @@ impl StreamingQuery {
             )),
         };
 
-        Ok(println!("{}", explain?.result))
+        println!("{}", explain?.result);
+        Ok(())
     }
 
     // !TODO i don't really like the return values on this

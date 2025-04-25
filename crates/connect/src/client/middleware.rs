@@ -47,6 +47,8 @@ impl<S> HeadersMiddleware<S> {
     }
 }
 
+// TODO! as of now Request is not clone. So the retry logic does not work.
+// https://github.com/tower-rs/tower/pull/790
 impl<S> Service<Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>> for HeadersMiddleware<S>
 where
     S: Service<Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>>
@@ -87,59 +89,3 @@ where
         })
     }
 }
-
-// TODO! as of now Request is not clone. So the retry logic does not work.
-// https://github.com/tower-rs/tower/pull/790
-//
-// use futures_util::future;
-// use tower::retry::Policy;
-// use tonic::codegen::http::Response;
-// use tonic::transport::Body;
-//
-// #[derive(Clone, Debug)]
-// pub struct RetryPolicy {
-//     max_retries: usize,
-//     backoff_multiplier: i32,
-//     max_backoff: usize,
-// }
-//
-// impl Default for RetryPolicy {
-//     fn default() -> Self {
-//         Self {
-//             max_retries: 15,
-//             backoff_multiplier: 4,
-//             max_backoff: 600,
-//         }
-//     }
-// }
-//
-// type Req = Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>;
-// type Res = Response<Body>;
-//
-// impl<E> Policy<Req, Res, E> for RetryPolicy {
-//     type Future = future::Ready<()>;
-//
-//     fn retry(&mut self, _req: &mut Req, result: &mut Result<Res, E>) -> Option<Self::Future> {
-//         match result {
-//             Ok(_) => {
-//                 None
-//             }
-//             Err(_) => {
-//                 if self.max_retries > 0 {
-//                     self.max_retries -= 1;
-//                     Some(future::ready(()))
-//                 } else {
-//                     None
-//                 }
-//             }
-//         }
-//     }
-//
-//     fn clone_request(&mut self, req: &Req) -> Option<Req> {
-//         let (parts, body) = req.into_parts();
-//
-//         let req = Request::from_parts(parts, body);
-//
-//         Some(req)
-//     }
-// }

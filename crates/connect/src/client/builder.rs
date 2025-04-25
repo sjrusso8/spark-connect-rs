@@ -72,10 +72,7 @@ impl ChannelBuilder {
     pub(crate) fn create_user_id(user_id: Option<&str>) -> Option<String> {
         match user_id {
             Some(user_id) => Some(user_id.to_string()),
-            None => match env::var("USER") {
-                Ok(user) => Some(user),
-                Err(_) => None,
-            },
+            None => env::var("USER").ok(),
         }
     }
 
@@ -178,7 +175,7 @@ impl ChannelBuilder {
             }
 
             if let Some(session_id) = headers.remove("session_id") {
-                channel_builder.session_id = Uuid::from_str(&session_id).unwrap()
+                channel_builder.session_id = Uuid::from_str(&session_id)?
             }
 
             if let Some(use_ssl) = headers.remove("use_ssl") {
@@ -254,6 +251,6 @@ mod tests {
     fn test_panic_ssl() {
         let connection = "sc://127.0.0.1:443/;use_ssl=true";
 
-        ChannelBuilder::create(&connection).unwrap();
+        ChannelBuilder::create(connection).unwrap();
     }
 }

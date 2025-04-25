@@ -208,7 +208,6 @@ impl Window {
     /// let df = df.with_column("rank", rank().over(window.clone()))
     ///     .with_column("min", min("age").over(window));
     /// ```
-
     pub fn rows_between(mut self, start: i64, end: i64) -> WindowSpec {
         self.spec = self.spec.rows_between(start, end);
 

@@ -663,7 +663,6 @@ impl DataFrame {
     ///     let df = df.join(df2, condition, JoinType::Inner);
     /// }
     /// ```
-
     pub fn join<T: Into<spark::Expression>>(
         self,
         other: DataFrame,
@@ -2599,7 +2598,7 @@ mod tests {
 
         let splits = df.random_split([1.0, 2.0], Some(24));
 
-        let df_one = splits.get(0).unwrap().clone().count().await?;
+        let df_one = splits.first().unwrap().clone().count().await?;
         let df_two = splits.get(1).unwrap().clone().count().await?;
 
         assert_eq!(2, df_one);
@@ -2757,7 +2756,7 @@ mod tests {
 
         let output = match val.kind.unwrap() {
             spark::data_type::Kind::Struct(val) => {
-                val.fields.get(0).unwrap().metadata.clone().unwrap()
+                val.fields.first().unwrap().metadata.clone().unwrap()
             }
             _ => unimplemented!(),
         };

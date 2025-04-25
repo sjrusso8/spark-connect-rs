@@ -1,10 +1,11 @@
 //! Defines a [SparkError] for representing failures in various Spark operations.
 //! Most of these are wrappers for tonic or arrow error messages
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::io::Write;
 
 use arrow::error::ArrowError;
+use thiserror::Error;
 
 use tonic::Code;
 
@@ -13,31 +14,76 @@ use datafusion::error::DataFusionError;
 #[cfg(feature = "polars")]
 use polars::error::PolarsError;
 
-/// Different `Spark` types
-#[derive(Debug)]
+/// Different `Spark` Error types
+#[derive(Error, Debug)]
 pub enum SparkError {
-    /// Returned when functionality is not yet available.
+    #[error("Aborted: {0}")]
     Aborted(String),
+
+    #[error("Already Exists: {0}")]
     AlreadyExists(String),
+
+    #[error("Analysis Exception: {0}")]
     AnalysisException(String),
-    ArrowError(ArrowError),
+
+    #[error("Apache Arrow Error: {0}")]
+    ArrowError(#[from] ArrowError),
+
+    #[error("Cancelled: {0}")]
     Cancelled(String),
+
+    #[error("Data Loss Exception: {0}")]
     DataLoss(String),
+
+    #[error("Deadline Exceeded: {0}")]
     DeadlineExceeded(String),
+
+    #[error("External Error: {0}")]
     ExternalError(Box<dyn Error + Send + Sync>),
+
+    #[error("Failed Precondition: {0}")]
     FailedPrecondition(String),
+
+    #[error("Invalid Connection Url: {0}")]
     InvalidConnectionUrl(String),
+
+    #[error("Invalid Argument: {0}")]
     InvalidArgument(String),
+
+    #[error("Io Error: {0}")]
     IoError(String, std::io::Error),
+
+    #[error("Not Found: {0}")]
     NotFound(String),
+
+    #[error("Not Yet Implemented: {0}")]
     NotYetImplemented(String),
+
+    #[error("Permission Denied: {0}")]
     PermissionDenied(String),
+
+    #[error("Resource Exhausted: {0}")]
     ResourceExhausted(String),
+
+    #[error("Spark Session ID is not the same: {0}")]
     SessionNotSameException(String),
+
+    #[error("Unauthenticated: {0}")]
     Unauthenticated(String),
+
+    #[error("Unavailable: {0}")]
     Unavailable(String),
+
+    #[error("Unkown: {0}")]
     Unknown(String),
+
+    #[error("Unimplemented; {0}")]
     Unimplemented(String),
+
+    #[error("Invalid UUID")]
+    Uuid(#[from] uuid::Error),
+
+    #[error("Out of Range: {0}")]
     OutOfRange(String),
 }
 
@@ -63,12 +109,6 @@ impl From<std::str::Utf8Error> for SparkError {
 impl From<std::string::FromUtf8Error> for SparkError {
     fn from(error: std::string::FromUtf8Error) -> Self {
         SparkError::AnalysisException(error.to_string())
-    }
-}
-
-impl From<ArrowError> for SparkError {
-    fn from(error: ArrowError) -> Self {
-        SparkError::ArrowError(error)
     }
 }
 
@@ -133,46 +173,5 @@ impl From<tonic::transport::Error> for SparkError {
 impl<W: Write> From<std::io::IntoInnerError<W>> for SparkError {
     fn from(error: std::io::IntoInnerError<W>) -> Self {
         SparkError::IoError(error.to_string(), error.into())
-    }
-}
-
-impl Display for SparkError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SparkError::ExternalError(source) => write!(f, "External error: {}", &source),
-            SparkError::AnalysisException(desc) => write!(f, "Analysis error: {desc}"),
-            SparkError::IoError(desc, _) => write!(f, "Io error: {desc}"),
-            SparkError::ArrowError(desc) => write!(f, "Apache Arrow error: {desc}"),
-            SparkError::NotYetImplemented(source) => write!(f, "Not yet implemented: {source}"),
-            SparkError::InvalidConnectionUrl(val) => write!(f, "Invalid URL error: {val}"),
-            SparkError::SessionNotSameException(val) => {
-                write!(f, "Spark Session ID is not the same: {val}")
-            }
-            SparkError::Aborted(val) => write!(f, "Aborted: {val}"),
-            SparkError::AlreadyExists(val) => write!(f, "Already Exists: {val}"),
-            SparkError::Cancelled(val) => write!(f, "Cancelled: {val}"),
-            SparkError::DataLoss(val) => write!(f, "Data Loss: {val}"),
-            SparkError::DeadlineExceeded(val) => write!(f, "Deadline Exceeded: {val}"),
-            SparkError::FailedPrecondition(val) => write!(f, "Failed Precondition: {val}"),
-            SparkError::InvalidArgument(val) => write!(f, "Invalid Argument: {val}"),
-            SparkError::NotFound(val) => write!(f, "Not Found: {val}"),
-            SparkError::PermissionDenied(val) => write!(f, "Permission Denied: {val}"),
-            SparkError::ResourceExhausted(val) => write!(f, "Resource Exhausted: {val}"),
-            SparkError::Unauthenticated(val) => write!(f, "Unauthenicated: {val}"),
-            SparkError::Unavailable(val) => write!(f, "Unavailable: {val}"),
-            SparkError::Unknown(val) => write!(f, "Unknown: {val}"),
-            SparkError::Unimplemented(val) => write!(f, "Unimplemented: {val}"),
-            SparkError::OutOfRange(val) => write!(f, "Out Of Range: {val}"),
-        }
-    }
-}
-
-impl Error for SparkError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        if let Self::ExternalError(e) = self {
-            Some(e.as_ref())
-        } else {
-            None
-        }
     }
 }

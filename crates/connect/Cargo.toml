@@ -24,6 +24,7 @@ tower = { workspace = true }
 tokio = { workspace = true, optional = true }
 
 futures-util = { workspace = true }
+thiserror = { workspace = true }
 
 http-body = { workspace = true }
 

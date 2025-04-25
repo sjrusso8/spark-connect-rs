@@ -72,7 +72,6 @@ impl LogicalPlanBuilder {
 
     /// Create a relation from an existing [LogicalPlanBuilder]
     /// this will add additional actions to the [Relation]
-
     pub fn alias(self, alias: &str) -> LogicalPlanBuilder {
         let subquery = spark::SubqueryAlias {
             input: self.relation_input(),
