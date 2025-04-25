@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use arrow::array::RecordBatch;
+use arrow::array::{AsArray, RecordBatch};
 
 use crate::errors::SparkError;
 use crate::plan::LogicalPlanBuilder;
@@ -26,7 +26,7 @@ impl Catalog {
         let col = record.column(0);
 
         let data: &arrow::array::BooleanArray = match col.data_type() {
-            arrow::datatypes::DataType::Boolean => col.as_any().downcast_ref().unwrap(),
+            arrow::datatypes::DataType::Boolean => col.as_boolean(),
             _ => unimplemented!("only Boolean data types are currently handled currently."),
         };
 
@@ -507,16 +507,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_current_catalog() -> Result<(), SparkError> {
-        let spark = setup().await;
-
-        spark.catalog().set_current_catalog("spark_catalog").await?;
-
-        assert!(true);
-        Ok(())
-    }
-
-    #[tokio::test]
     #[should_panic]
     async fn test_set_current_catalog_panic() -> () {
         let spark = setup().await;
@@ -526,8 +516,6 @@ mod tests {
             .set_current_catalog("not_a_real_catalog")
             .await
             .unwrap();
-
-        ()
     }
 
     #[tokio::test]
@@ -560,8 +548,6 @@ mod tests {
 
         spark.catalog().set_current_database("current_db").await?;
 
-        assert!(true);
-
         spark.sql("DROP SCHEMA current_db").await?;
 
         Ok(())
@@ -577,8 +563,6 @@ mod tests {
             .set_current_catalog("not_a_real_db")
             .await
             .unwrap();
-
-        ()
     }
 
     #[tokio::test]
@@ -703,7 +687,7 @@ mod tests {
                 None,
                 None,
                 None,
-                Some(schema.clone().into()),
+                Some(schema.clone()),
                 None,
             )
             .await?;
@@ -713,7 +697,7 @@ mod tests {
             .table_exists("tmp_table_with_schema", None)
             .await?;
 
-        assert_eq!(res, true);
+        assert!(res);
 
         let columns = spark
             .catalog()
@@ -767,7 +751,7 @@ mod tests {
                 None,
                 None,
                 None,
-                Some(schema.clone().into()),
+                Some(schema),
                 Some(options),
             )
             .await?;
@@ -777,7 +761,7 @@ mod tests {
             .table_exists("tmp_table_with_options", None)
             .await?;
 
-        assert_eq!(res, true);
+        assert!(res);
 
         Ok(())
     }
@@ -821,7 +805,7 @@ mod tests {
                 None,
                 None,
                 Some("A table with a description"),
-                Some(schema.clone().into()),
+                Some(schema),
                 None,
             )
             .await?;
@@ -831,7 +815,7 @@ mod tests {
             .table_exists("tmp_table_with_desc", None)
             .await?;
 
-        assert_eq!(res, true);
+        assert!(res);
 
         Ok(())
     }
@@ -875,7 +859,7 @@ mod tests {
                 Some("/opt/spark/work-dir/datasets/users.parquet"),
                 Some("parquet"),
                 None,
-                Some(schema.clone().into()),
+                Some(schema),
                 None,
             )
             .await?;
@@ -885,7 +869,7 @@ mod tests {
             .table_exists("tmp_table_with_path", None)
             .await?;
 
-        assert_eq!(res, true);
+        assert!(res);
 
         Ok(())
     }
@@ -926,7 +910,7 @@ mod tests {
                 "tmp_external_table",
                 Some("/opt/spark/work-dir/datasets/users.parquet"),
                 Some("parquet"),
-                Some(schema.clone().into()),
+                Some(schema),
                 None,
             )
             .await?;
@@ -936,7 +920,7 @@ mod tests {
             .table_exists("tmp_external_table", None)
             .await?;
 
-        assert_eq!(res, true);
+        assert!(res);
 
         let data = spark.read().table("tmp_external_table", None)?;
 

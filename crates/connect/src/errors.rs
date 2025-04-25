@@ -38,6 +38,7 @@ pub enum SparkError {
     Unavailable(String),
     Unknown(String),
     Unimplemented(String),
+    Uuid(String),
     OutOfRange(String),
 }
 
@@ -104,6 +105,12 @@ impl From<serde_json::Error> for SparkError {
     }
 }
 
+impl From<uuid::Error> for SparkError {
+    fn from(value: uuid::Error) -> Self {
+        SparkError::Uuid(value.to_string())
+    }
+}
+
 #[cfg(feature = "datafusion")]
 impl From<DataFusionError> for SparkError {
     fn from(_value: DataFusionError) -> Self {
@@ -162,6 +169,7 @@ impl Display for SparkError {
             SparkError::Unavailable(val) => write!(f, "Unavailable: {val}"),
             SparkError::Unknown(val) => write!(f, "Unknown: {val}"),
             SparkError::Unimplemented(val) => write!(f, "Unimplemented: {val}"),
+            SparkError::Uuid(val) => write!(f, "Invalid UUID {val}"),
             SparkError::OutOfRange(val) => write!(f, "Out Of Range: {val}"),
         }
     }
