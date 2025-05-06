@@ -31,7 +31,7 @@ use uuid::Uuid;
 
 type Host = String;
 type Port = u16;
-type UrlParse = (Host, Port, Option<HashMap<String, String>>);
+type UrlParse = (Host, Port, Option<HashMap<String, String>>, Option<String>);
 
 /// ChannelBuilder validates a connection string
 /// based on the requirements from [Spark Documentation](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)
@@ -124,6 +124,11 @@ impl ChannelBuilder {
             })?
             .to_string();
 
+        let user_agent = url
+            .query_pairs()
+            .find(|(key, _)| key == "user_agent")
+            .map(|(_, value)| value.into_owned());
+
         let port = url.port().ok_or_else(|| {
             SparkError::InvalidConnectionUrl(
                 "Invalid URL: Port cannot be empty. Ensure the URL is in the correct format, e.g., 'sc://hostname:port'."
@@ -133,7 +138,7 @@ impl ChannelBuilder {
 
         let headers = ChannelBuilder::parse_headers(url);
 
-        Ok((host, port, headers))
+        Ok((host, port, headers, user_agent))
     }
 
     pub fn parse_headers(url: Url) -> Option<HashMap<String, String>> {
@@ -169,7 +174,8 @@ impl ChannelBuilder {
     /// Create and validate a connnection string
     #[allow(unreachable_code)]
     pub fn create(connection: &str) -> Result<ChannelBuilder, SparkError> {
-        let (host, port, headers) = ChannelBuilder::parse_connection_string(connection)?;
+        let (host, port, headers, user_agent) =
+            ChannelBuilder::parse_connection_string(connection)?;
 
         let mut channel_builder = ChannelBuilder {
             host,
@@ -177,7 +183,7 @@ impl ChannelBuilder {
             session_id: Uuid::new_v4(),
             token: None,
             user_id: ChannelBuilder::create_user_id(None),
-            user_agent: ChannelBuilder::create_user_agent(None),
+            user_agent: ChannelBuilder::create_user_agent(user_agent.as_deref()),
             use_ssl: false,
             headers: None,
         };
