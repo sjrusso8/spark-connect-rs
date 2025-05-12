@@ -83,13 +83,16 @@ impl ChannelBuilder {
     }
 
     fn create_user_agent(user_agent: Option<&str>) -> Option<String> {
-        let user_agent = user_agent.unwrap_or("_SPARK_CONNECT_RUST");
+        if let Some(user_agent) = user_agent {
+            return Some(user_agent.to_string());
+        }
+
         let pkg_version = env!("CARGO_PKG_VERSION");
         let os = env::consts::OS.to_lowercase();
 
         Some(format!(
-            "{} os/{} spark_connect_rs/{}",
-            user_agent, os, pkg_version
+            "_SPARK_CONNECT_RUST os/{} spark_connect_rs/{}",
+            os, pkg_version
         ))
     }
 
