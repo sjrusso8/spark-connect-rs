@@ -1,3 +1,22 @@
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~   http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+-->
+
 # Examples
 
 Set of examples that show off different features provided by `spark-connect-rs` client.
@@ -15,7 +34,7 @@ git submodule update --init --recursive
 Write a simple SQL statement and save the dataframe as a parquet
 
 ```bash
-$ cargo run --bin sql
+cargo run --bin sql
 ```
 
 ### reader
@@ -23,7 +42,7 @@ $ cargo run --bin sql
 Read a CSV file, select specific columns, and display the results
 
 ```bash
-$ cargo run --bin reader
+cargo run --bin reader
 ```
 
 ### writer
@@ -31,7 +50,7 @@ $ cargo run --bin reader
 Create a dataframe, and save the results to a file
 
 ```bash
-$ cargo run --bin writer
+cargo run --bin writer
 ```
 
 ### readstream
@@ -39,7 +58,7 @@ $ cargo run --bin writer
 Create a streaming query, and monitor the progress of the stream
 
 ```bash
-$ cargo run --bin readstream
+cargo run --bin readstream
 ```
 
 ### deltalake
@@ -59,7 +78,7 @@ $ $SPARK_HOME/sbin/start-connect-server.sh --packages "org.apache.spark:spark-co
 ```
 
 ```bash
-$ cargo run --bin deltalake
+cargo run --bin deltalake
 ```
 
 ### databricks
@@ -69,5 +88,5 @@ Read a Unity Catalog table, perform an aggregation, and display the results.
 **Prerequisite** must have access to a Databricks workspace, a personal access token, and cluster running >=13.3LTS.
 
 ```bash
-$ cargo run --bin databricks --features=tls
+cargo run --bin databricks --features=tls
 ```
