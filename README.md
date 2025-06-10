@@ -1,9 +1,27 @@
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~   http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+-->
+
 # Apache Spark Connect Client for Rust
 
 This project houses the **experimental** client for [Spark
 Connect](https://spark.apache.org/docs/latest/spark-connect-overview.html) for
 [Apache Spark](https://spark.apache.org/) written in [Rust](https://www.rust-lang.org/)
-
 
 ## Current State of the Project
 
@@ -29,7 +47,7 @@ Future state would be to have additional crates that allow for easier creation o
 
 This section explains how run Spark Connect Rust locally starting from 0.
 
-**Step 1**: Install rust via rustup: https://www.rust-lang.org/tools/install
+**Step 1**: Install rust via rustup: <https://www.rust-lang.org/tools/install>
 
 **Step 2**: Ensure you have a [cmake](https://cmake.org/download/) and [protobuf](https://grpc.io/docs/protoc-installation/) installed on your machine
 
@@ -63,7 +81,7 @@ With docker:
 1. Start the Spark Connect server by leveraging the created `docker-compose.yml` in this repo. This will start a Spark Connect Server running on port 15002
 
 ```bash
-$ docker compose up --build -d
+docker compose up --build -d
 ```
 
 **Step 5**: Run an example from the repo under [/examples](https://github.com/sjrusso8/spark-connect-rs/tree/main/examples/README.md)
@@ -109,13 +127,13 @@ The following section outlines some of the larger functionality that are not yet
 |version           |![done]   |                                       |
 
 ### SparkSessionBuilder
+
 |SparkSessionBuilder|API       |Comment                                |
 |-------------------|----------|---------------------------------------|
 |appName            |![done]   |                                       |
 |config             |![done]   |                                       |
 |master             |![open]   |                                       |
 |remote             |![partial]|Validate using [spark connection string](https://github.com/apache/spark/blob/master/connector/connect/docs/client-connection-string.md)|
-
 
 ### RuntimeConfig
 
@@ -125,7 +143,6 @@ The following section outlines some of the larger functionality that are not yet
 |isModifiable      |![done]   |                                       |
 |set               |![done]   |                                       |
 |unset             |![done]   |                                       |
-
 
 ### Catalog
 
@@ -158,7 +175,6 @@ The following section outlines some of the larger functionality that are not yet
 |tableExists       |![done]   |                                       |
 |uncacheTable      |![done]   |                                       |
 
-
 ### DataFrameReader
 
 |DataFrameReader  |API       |Comment                                |
@@ -174,7 +190,6 @@ The following section outlines some of the larger functionality that are not yet
 |schema            |![done]   |                                       |
 |table             |![done]   |                                       |
 |text              |![done]   |                                       |
-
 
 ### DataFrameWriter
 
@@ -200,7 +215,6 @@ required jars
 |sortBy            |![done]   |                                       |
 |text              |![done]   |                                       |
 
-
 ### DataFrameWriterV2
 
 |DataFrameWriterV2 |API       |Comment                                |
@@ -217,7 +231,6 @@ required jars
 |tableProperty     |![done]   |                                       |
 |using             |![done]   |                                       |
 
-
 ### DataStreamReader
 
 |DataStreamReader  |API       |Comment                                |
@@ -233,7 +246,6 @@ required jars
 |schema            |![done]   |                                       |
 |table             |![open]   |                                       |
 |text              |![open]   |                                       |
-
 
 ### DataStreamWriter
 
@@ -253,7 +265,6 @@ Start a streaming job and return a `StreamingQuery` object to handle the stream 
 |toTable           |![done]   |                                       |
 |trigger           |![done]   |Uses an Enum for `TriggerMode`         |
 
-
 ### StreamingQuery
 
 |StreamingQuery    |API       |Comment                               |
@@ -271,7 +282,6 @@ Start a streaming job and return a `StreamingQuery` object to handle the stream 
 |runId             |![done]   |                                       |
 |status            |![done]   |                                       |
 
-
 ### StreamingQueryManager
 
 |StreamingQueryManager|API       |Comment                                |
@@ -281,7 +291,6 @@ Start a streaming job and return a `StreamingQuery` object to handle the stream 
 |resetTerminated      |![done]   |                                       |
 |active               |![done]   |                                       |
 
-
 ### StreamingQueryListener
 
 |StreamingQueryListener|API       |Comment                                |
@@ -290,7 +299,6 @@ Start a streaming job and return a `StreamingQuery` object to handle the stream 
 |onQueryProgress       |![open]   |                                       |
 |onQueryStarted        |![open]   |                                       |
 |onQueryTerminated     |![open]   |                                       |
-
 
 ### DataFrame
 
@@ -399,11 +407,9 @@ Spark [DataFrame](https://spark.apache.org/docs/latest/api/python/reference/pysp
 | writeStream                   | ![done] |                                                            |
 | writeTo                       | ![done] |                                                            |
 
-
 ### Column
 
 Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/column.html) type object and its implemented traits
-
 
 | Column           | API     | Comment                                                                      |
 |------------------|---------|------------------------------------------------------------------------------|
@@ -446,7 +452,6 @@ Spark [Column](https://spark.apache.org/docs/latest/api/python/reference/pyspark
 | XOR `^`          | ![done] |                                                                              |
 | Negate `~`       | ![done] |                                                                              |
 
-
 ### Data Types
 
 Data types are used for creating schemas and for casting columns to specific types
@@ -475,7 +480,6 @@ Data types are used for creating schemas and for casting columns to specific typ
 | TimestampNTZType      | ![done] |                   |
 | DayTimeIntervalType   | ![done] |                   |
 | YearMonthIntervalType | ![done] |                   |
-
 
 ### Literal Types
 
@@ -506,7 +510,6 @@ An array can be made like `lit([1_i16,2_i16,3_i16])` would result in an `ArrayTy
 | Map                | Create with the function `create_map` | ![done] |
 | Struct             | Create with the function `struct_col` or `named_struct` | ![done] |
 
-
 ### Window & WindowSpec
 
 For ease of use it's recommended to use `Window` to create the `WindowSpec`.
@@ -524,7 +527,6 @@ For ease of use it's recommended to use `Window` to create the `WindowSpec`.
 | WindowSpec.partitionBy  | ![done] |         |
 | WindowSpec.rangeBetween | ![done] |         |
 | WindowSpec.rowsBetween  | ![done] |         |
-
 
 ### Functions
 
@@ -949,7 +951,6 @@ Only a few of the functions are covered by unit tests. Functions involving closu
 | years                       | ![done] |          |
 | zip_with                    | ![open] |          |
 
-
 ### UdfRegistration (may not be possible)
 
 |UDFRegistration   |API       |Comment                                |
@@ -963,7 +964,6 @@ Only a few of the functions are covered by unit tests. Functions involving closu
 |UDTFRegistration  |API       |Comment                                |
 |------------------|----------|---------------------------------------|
 |register          |![open]   |                                       |
-
 
 [open]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/IssueNeutral.svg
 [done]: https://cdn.jsdelivr.net/gh/Readme-Workflows/Readme-Icons@main/icons/octicons/ApprovedChanges.svg
