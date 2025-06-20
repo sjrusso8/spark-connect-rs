@@ -35,15 +35,16 @@ include = [
 ]
 
 [dependencies]
-tonic = { workspace = true, default-features = false, optional = true }
+tonic = { workspace = true, optional = true }
 
 tower = { workspace = true }
 tokio = { workspace = true, optional = true }
 
-futures-util = { workspace = true }
+futures = { workspace = true }
 thiserror = { workspace = true }
 
 http-body = { workspace = true }
+bytes = "1"
 
 arrow = { workspace = true }
 arrow-ipc = { workspace = true }
@@ -55,7 +56,7 @@ prost-types = { workspace = true }
 
 rand = { workspace = true }
 uuid = { workspace = true }
-url =  { workspace = true }
+url = { workspace = true }
 regex = { workspace = true }
 
 chrono = { workspace = true }
@@ -70,29 +71,26 @@ futures = "0.3"
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [build-dependencies]
-tonic-build = "0.11"
+tonic-build = "0.13"
 
 [lib]
 doctest = false
 
 [features]
 default = [
-  "tokio",
-  "tonic/codegen",
-  "tonic/prost",
-  "tonic/transport",
+    "tokio",
+    "tonic"
 ]
 
 tls = [
-  "tonic/tls",
-  "tonic/tls-roots"
+    "tonic/tls-aws-lc"
 ]
 
 datafusion = [
-  "dep:datafusion"
+    "dep:datafusion"
 ]
 
 polars = [
-  "dep:polars",
-  "dep:polars-arrow"
+    "dep:polars",
+    "dep:polars-arrow"
 ]

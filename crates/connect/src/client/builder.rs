@@ -158,8 +158,7 @@ impl ChannelBuilder {
         Some(headers)
     }
 
-    /// Create and validate a connnection string
-    #[allow(unreachable_code)]
+    /// Create and validate a connection string
     pub fn create(connection: &str) -> Result<ChannelBuilder, SparkError> {
         let (host, port, headers) = ChannelBuilder::parse_connection_string(connection)?;
 

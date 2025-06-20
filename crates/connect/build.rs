@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(false)
         .build_client(true)
         .build_transport(true)
-        .compile(file_paths.as_ref(), &["./protobuf/spark-3.5/"])?;
+        .compile_protos(&file_paths, &["./protobuf/spark-3.5/"])?;
 
     Ok(())
 }

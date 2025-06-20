@@ -22,7 +22,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use tonic::codec::Streaming;
-use tonic::codegen::{Body, Bytes, StdError};
 use tonic::transport::Channel;
 
 use crate::spark;
@@ -33,7 +32,9 @@ use arrow::compute::concat_batches;
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::reader::StreamReader;
-
+use bytes::Bytes;
+use tonic::body::Body;
+use tonic::codegen::StdError;
 use uuid::Uuid;
 
 use crate::errors::SparkError;
@@ -97,10 +98,10 @@ pub struct SparkConnectClient<T> {
 
 impl<T> SparkConnectClient<T>
 where
-    T: tonic::client::GrpcService<tonic::body::BoxBody>,
+    T: tonic::client::GrpcService<Body>,
     T::Error: Into<StdError>,
-    T::ResponseBody: Body<Data = Bytes> + Send + 'static,
-    <T::ResponseBody as Body>::Error: Into<StdError> + Send,
+    T::ResponseBody: http_body::Body<Data = Bytes> + Send + 'static,
+    <T::ResponseBody as http_body::Body>::Error: Into<StdError> + Send,
 {
     pub fn new(stub: Arc<RwLock<SparkConnectServiceClient<T>>>, builder: ChannelBuilder) -> Self {
         let user_ref = builder.user_id.clone().unwrap_or("".to_string());
