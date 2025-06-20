@@ -22,13 +22,13 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::task::{Context, Poll};
 
-use futures_util::future::BoxFuture;
-use http_body::combinators::UnsyncBoxBody;
-
+use tonic::body::Body;
 use tonic::codegen::http::Request;
 use tonic::codegen::http::{HeaderName, HeaderValue};
 
 use tower::Service;
+
+use futures::future::BoxFuture;
 
 /// Headers to apply a gRPC request
 #[derive(Debug, Clone)]
@@ -66,13 +66,9 @@ impl<S> HeadersMiddleware<S> {
 
 // TODO! as of now Request is not clone. So the retry logic does not work.
 // https://github.com/tower-rs/tower/pull/790
-impl<S> Service<Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>> for HeadersMiddleware<S>
+impl<S> Service<Request<Body>> for HeadersMiddleware<S>
 where
-    S: Service<Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>>
-        + Clone
-        + Send
-        + Sync
-        + 'static,
+    S: Service<Request<Body>> + Clone + Send + Sync + 'static,
     S::Future: Send + 'static,
     S::Response: Send + Debug + 'static,
     S::Error: Debug,
@@ -85,10 +81,7 @@ where
         self.inner.poll_ready(cx).map_err(Into::into)
     }
 
-    fn call(
-        &mut self,
-        mut request: Request<UnsyncBoxBody<prost::bytes::Bytes, tonic::Status>>,
-    ) -> Self::Future {
+    fn call(&mut self, mut request: Request<Body>) -> Self::Future {
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
 
