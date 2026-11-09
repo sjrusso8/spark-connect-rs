@@ -19,6 +19,10 @@
 
 # Apache Spark Connect Client for Rust
 
+> [!IMPORTANT]
+> This repository is **read-only** and no longer maintained. The project has moved to
+> [https://github.com/apache/spark-connect-rust](https://github.com/apache/spark-connect-rust).
+
 This project houses the **experimental** client for [Spark
 Connect](https://spark.apache.org/docs/latest/spark-connect-overview.html) for
 [Apache Spark](https://spark.apache.org/) written in [Rust](https://www.rust-lang.org/)
